@@ -5861,6 +5861,13 @@ namespace Orts.Simulation.RollingStocks
                             data = 0;
                         else
                             data = 1;
+
+                        if (cvc.Feature == "HideOnPositiveSpeed")
+                        {
+                            var speed = AdvancedAdhesionModel ? WheelSpeedMpS : SpeedMpS;
+                            cvc.IsVisible = speed <= 1;
+                        }
+
                         break;
                     }
                 case CABViewControlTypes.ASPECT_DISPLAY:

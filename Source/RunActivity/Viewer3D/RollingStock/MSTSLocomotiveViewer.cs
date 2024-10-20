@@ -1678,6 +1678,12 @@ namespace Orts.Viewer3D.RollingStock
         [CallOnThread("Updater")]
         public virtual void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
         {
+            if (!Control.IsVisible)
+            {
+                Locomotive.GetDataOf(Control);
+                return;
+            }
+
             if (!IsPowered && Control.HideIfDisabled)
                 return;
 
