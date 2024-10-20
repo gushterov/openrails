@@ -2116,9 +2116,14 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
                         train.TotalTrainBrakePipeVolumeM3 += car.BrakeSystem.BrakePipeVolumeM3; // Calculate total brake pipe volume of train
 
                         // Allow for leaking brake pipe, using leak rate defined in lead locomotive .eng file
-                        car.BrakeSystem.BrakeLine1PressurePSI -= trainPipeLeakLossPSI;
-                        if (car.BrakeSystem.BrakeLine1PressurePSI < 0)
-                            car.BrakeSystem.BrakeLine1PressurePSI = 0;
+                        if ((train.Cars.Count >= 1 && carIndex == 1) || (train.Cars.Count == 1 && carIndex == 0))
+                        {
+                            car.BrakeSystem.BrakeLine1PressurePSI -= trainPipeLeakLossPSI * train.Cars.Count;
+                            if (car.BrakeSystem.BrakeLine1PressurePSI < 0)
+                            {
+                                car.BrakeSystem.BrakeLine1PressurePSI = 0;
+                            }
+                        }
 
                         if (prevCar != null && car.BrakeSystem.FrontBrakeHoseConnected && car.BrakeSystem.AngleCockAOpen && prevCar.BrakeSystem.AngleCockBOpen)
                         {
