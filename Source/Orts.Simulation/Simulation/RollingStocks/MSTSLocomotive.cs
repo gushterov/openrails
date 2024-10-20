@@ -2062,7 +2062,6 @@ namespace Orts.Simulation.RollingStocks
                         locog.GearBoxController.SetValue((float)gearloco.GearBoxController.CurrentNotch);
 
                         locog.Simulator.Confirmer.ConfirmWithPerCent(CabControl.GearBox, CabSetting.Increase, locog.GearBoxController.CurrentNotch);
-                        locog.AlerterReset(TCSEvent.GearBoxChanged);
                         locog.SignalGearBoxChangeEvents();
                     }
                 }
@@ -3501,7 +3500,6 @@ namespace Orts.Simulation.RollingStocks
 
         public virtual void StartReverseIncrease(float? target)
         {
-            AlerterReset(TCSEvent.ReverserChanged);
             if (this.IsLeadLocomotive())
             {
                 {
@@ -3517,7 +3515,6 @@ namespace Orts.Simulation.RollingStocks
 
         public virtual void StartReverseDecrease(float? target)
         {
-            AlerterReset(TCSEvent.ReverserChanged);
             if (this.IsLeadLocomotive())
             {
                 {
@@ -3566,7 +3563,6 @@ namespace Orts.Simulation.RollingStocks
             else new NotchedThrottleCommand(Simulator.Log, true);
 
             SignalEvent(Event.ThrottleChange);
-            AlerterReset(TCSEvent.ThrottleChanged);
             CommandStartTime = Simulator.ClockTime;
         }
 
@@ -3666,7 +3662,6 @@ namespace Orts.Simulation.RollingStocks
                     }
                 }
             }
-            AlerterReset(TCSEvent.ThrottleChanged);
             ThrottleController.StopIncrease();
 
             if (CombinedControlType == CombinedControl.ThrottleDynamic)
@@ -3695,7 +3690,6 @@ namespace Orts.Simulation.RollingStocks
             else new NotchedThrottleCommand(Simulator.Log, false);
 
             SignalEvent(Event.ThrottleChange);
-            AlerterReset(TCSEvent.ThrottleChanged);
             CommandStartTime = Simulator.ClockTime;
         }
 
@@ -3791,7 +3785,6 @@ namespace Orts.Simulation.RollingStocks
                     }
                 }
             }
-            AlerterReset(TCSEvent.ThrottleChanged);
             ThrottleController.StopDecrease();
 
             if (CombinedControlType == CombinedControl.ThrottleDynamic)
@@ -3961,7 +3954,6 @@ namespace Orts.Simulation.RollingStocks
             {
                 new ContinuousThrottleCommand(Simulator.Log, change > 0, controller.CurrentValue, Simulator.ClockTime);
                 SignalEvent(Event.ThrottleChange);
-                AlerterReset(TCSEvent.ThrottleChanged);
             }
             if (oldValue != controller.IntermediateValue)
                 Simulator.Confirmer.UpdateWithPerCent(
@@ -4048,7 +4040,6 @@ namespace Orts.Simulation.RollingStocks
 
             ThrottleController.StartDecrease(target, true);
             if (ThrottleController.NotchCount() <= 0) SignalEvent(Event.ThrottleChange);
-            AlerterReset(TCSEvent.ThrottleChanged);
             CommandStartTime = Simulator.ClockTime;
         }
 
@@ -4196,7 +4187,6 @@ namespace Orts.Simulation.RollingStocks
                         {
                             GearBoxController.StartIncrease();
                             Simulator.Confirmer.ConfirmWithPerCent(CabControl.GearBox, CabSetting.Increase, dieselloco.DieselEngines[0].GearBox.GearIndication);
-                            AlerterReset(TCSEvent.GearBoxChanged);
                             SignalGearBoxChangeEvents();
                             dieselloco.DieselEngines[0].GearBox.clutchOn = false;
                             dieselloco.DieselEngines[0].GearBox.ManualGearChange = true;
@@ -4209,7 +4199,6 @@ namespace Orts.Simulation.RollingStocks
                             {
                                 GearBoxController.StartIncrease();
                                 Simulator.Confirmer.ConfirmWithPerCent(CabControl.GearBox, CabSetting.Increase, dieselloco.DieselEngines[0].GearBox.GearIndication );
-                                AlerterReset(TCSEvent.GearBoxChanged);
                                 SignalGearBoxChangeEvents();
                                 dieselloco.DieselEngines[0].GearBox.clutchOn = false;
                             }
@@ -4223,7 +4212,6 @@ namespace Orts.Simulation.RollingStocks
                     {
                         GearBoxController.StartIncrease();
                         Simulator.Confirmer.ConfirmWithPerCent(CabControl.GearBox, CabSetting.Increase, GearBoxController.CurrentNotch);
-                        AlerterReset(TCSEvent.GearBoxChanged);
                         SignalGearBoxChangeEvents();
                     }
                 }
@@ -4260,7 +4248,6 @@ namespace Orts.Simulation.RollingStocks
                         {
                             GearBoxController.StartDecrease();
                             Simulator.Confirmer.ConfirmWithPerCent(CabControl.GearBox, CabSetting.Decrease, dieselloco.DieselEngines[0].GearBox.GearIndication);
-                            AlerterReset(TCSEvent.GearBoxChanged);
                             SignalGearBoxChangeEvents();
                             dieselloco.DieselEngines[0].GearBox.clutchOn = false;
                             dieselloco.DieselEngines[0].GearBox.ManualGearChange = true;
@@ -4271,7 +4258,6 @@ namespace Orts.Simulation.RollingStocks
                             {
                                 GearBoxController.StartDecrease();
                                 Simulator.Confirmer.ConfirmWithPerCent(CabControl.GearBox, CabSetting.Decrease, dieselloco.DieselEngines[0].GearBox.GearIndication);
-                                AlerterReset(TCSEvent.GearBoxChanged);
                                 SignalGearBoxChangeEvents();
                                 dieselloco.DieselEngines[0].GearBox.clutchOn = false;
                             }
@@ -4285,7 +4271,6 @@ namespace Orts.Simulation.RollingStocks
                     {
                         GearBoxController.StartDecrease();
                         Simulator.Confirmer.ConfirmWithPerCent(CabControl.GearBox, CabSetting.Decrease, GearBoxController.CurrentNotch);
-                        AlerterReset(TCSEvent.GearBoxChanged);
                         SignalGearBoxChangeEvents();
 
                     }
@@ -4354,7 +4339,6 @@ namespace Orts.Simulation.RollingStocks
             {
                 //new GearBoxCommand(Simulator.Log, change > 0, controller.CurrentValue, Simulator.ClockTime);
                 SignalEvent(change > 0 ? Event.GearUp : Event.GearDown);
-                AlerterReset(TCSEvent.GearBoxChanged);
             }
 
             if (controller.CurrentValue > oldValue)
@@ -4379,7 +4363,6 @@ namespace Orts.Simulation.RollingStocks
             if (CombinedControlType == CombinedControl.ThrottleAir)
                 ThrottleController.SetValue(0);
 
-            AlerterReset(TCSEvent.TrainBrakeChanged);
             TrainBrakeController.StartIncrease(target);
             TrainBrakeController.CommandStartTime = Simulator.ClockTime;
             if (CruiseControl != null && (CruiseControl.TrainBrakeCommandHasPriorityOverCruiseControl || CruiseControl.TrainBrakeCommandHasPriorityOverAcceleratingCruiseControl))
@@ -4392,14 +4375,12 @@ namespace Orts.Simulation.RollingStocks
 
         public void StopTrainBrakeIncrease()
         {
-            AlerterReset(TCSEvent.TrainBrakeChanged);
             TrainBrakeController.StopIncrease();
             new TrainBrakeCommand(Simulator.Log, true, TrainBrakeController.CurrentValue, TrainBrakeController.CommandStartTime);
         }
 
         public void StartTrainBrakeDecrease(float? target, bool toZero = false)
         {
-            AlerterReset(TCSEvent.TrainBrakeChanged);
             TrainBrakeController.StartDecrease(target, toZero);
             TrainBrakeController.CommandStartTime = Simulator.ClockTime;
             Simulator.Confirmer.Confirm(CabControl.TrainBrake, CabSetting.Decrease, GetTrainBrakeStatus());
@@ -4408,7 +4389,6 @@ namespace Orts.Simulation.RollingStocks
 
         public void StopTrainBrakeDecrease()
         {
-            AlerterReset(TCSEvent.TrainBrakeChanged);
             TrainBrakeController.StopDecrease();
             new TrainBrakeCommand(Simulator.Log, false, TrainBrakeController.CurrentValue, TrainBrakeController.CommandStartTime);
         }
@@ -4474,7 +4454,6 @@ namespace Orts.Simulation.RollingStocks
                 if (change > 0 && CruiseControl != null && ( CruiseControl.TrainBrakeCommandHasPriorityOverCruiseControl || CruiseControl.TrainBrakeCommandHasPriorityOverAcceleratingCruiseControl)) 
                     CruiseControl.TrainBrakePriority = true;
                 SignalEvent(Event.TrainBrakeChange);
-                AlerterReset(TCSEvent.TrainBrakeChanged);
             }
             if (oldValue != controller.IntermediateValue)
                 Simulator.Confirmer.Update(CabControl.TrainBrake, oldValue < controller.IntermediateValue ? CabSetting.Increase : CabSetting.Decrease, GetTrainBrakeStatus());
@@ -4493,7 +4472,6 @@ namespace Orts.Simulation.RollingStocks
         #region EngineBrakeController
         public void StartEngineBrakeIncrease(float? target)
         {
-            AlerterReset(TCSEvent.EngineBrakeChanged);
             if (EngineBrakeController == null)
                 return;
 
@@ -4511,7 +4489,6 @@ namespace Orts.Simulation.RollingStocks
             if (EngineBrakeController == null)
                 return;
 
-            AlerterReset(TCSEvent.EngineBrakeChanged);
             EngineBrakeController.StopIncrease();
             new EngineBrakeCommand(Simulator.Log, true, EngineBrakeController.CurrentValue, EngineBrakeController.CommandStartTime);
         }
@@ -4521,7 +4498,6 @@ namespace Orts.Simulation.RollingStocks
             if (EngineBrakeController == null)
                 return;
 
-            AlerterReset(TCSEvent.EngineBrakeChanged);
             EngineBrakeController.StartDecrease(target);
             EngineBrakeController.CommandStartTime = Simulator.ClockTime; // Remember when the command was issued
             Simulator.Confirmer.Confirm(CabControl.EngineBrake, CabSetting.Increase, GetEngineBrakeStatus());
@@ -4536,7 +4512,6 @@ namespace Orts.Simulation.RollingStocks
             if (EngineBrakeController == null)
                 return;
 
-            AlerterReset(TCSEvent.EngineBrakeChanged);
             EngineBrakeController.StopDecrease();
             new EngineBrakeCommand(Simulator.Log, false, EngineBrakeController.CurrentValue, EngineBrakeController.CommandStartTime);
         }
@@ -4568,7 +4543,6 @@ namespace Orts.Simulation.RollingStocks
             {
                 new EngineBrakeCommand(Simulator.Log, change > 0, controller.CurrentValue, Simulator.ClockTime);
                 SignalEvent(Event.EngineBrakeChange);
-                AlerterReset(TCSEvent.EngineBrakeChanged);
             }
             if (oldValue != controller.IntermediateValue)
                 Simulator.Confirmer.Update(CabControl.EngineBrake, oldValue < controller.IntermediateValue ? CabSetting.Increase : CabSetting.Decrease, GetEngineBrakeStatus());
@@ -4625,7 +4599,6 @@ namespace Orts.Simulation.RollingStocks
 
         public void StartBrakemanBrakeIncrease(float? target)
         {
-            AlerterReset(TCSEvent.BrakemanBrakeChanged);
             if (BrakemanBrakeController == null)
                 return;
 
@@ -4642,7 +4615,6 @@ namespace Orts.Simulation.RollingStocks
             if (BrakemanBrakeController == null)
                 return;
 
-         //   AlerterReset(TCSEvent.BrakemanBrakeChanged);
             BrakemanBrakeController.StopIncrease();
             new BrakemanBrakeCommand(Simulator.Log, true, BrakemanBrakeController.CurrentValue, BrakemanBrakeController.CommandStartTime);
         }
@@ -4652,7 +4624,6 @@ namespace Orts.Simulation.RollingStocks
             if (BrakemanBrakeController == null)
                 return;
 
-            AlerterReset(TCSEvent.BrakemanBrakeChanged);
             BrakemanBrakeController.StartDecrease(target);
             BrakemanBrakeController.CommandStartTime = Simulator.ClockTime; // Remember when the command was issued
             Simulator.Confirmer.Confirm(CabControl.BrakemanBrake, CabSetting.Increase, GetBrakemanBrakeStatus());
@@ -4667,7 +4638,6 @@ namespace Orts.Simulation.RollingStocks
             if (BrakemanBrakeController == null)
                 return;
 
-            AlerterReset(TCSEvent.BrakemanBrakeChanged);
             BrakemanBrakeController.StopDecrease();
             new BrakemanBrakeCommand(Simulator.Log, false, BrakemanBrakeController.CurrentValue, BrakemanBrakeController.CommandStartTime);
         }
@@ -4699,7 +4669,6 @@ namespace Orts.Simulation.RollingStocks
             {
                 new BrakemanBrakeCommand(Simulator.Log, change > 0, controller.CurrentValue, Simulator.ClockTime);
              //   SignalEvent(Event.BrakemanBrakeChange);
-                AlerterReset(TCSEvent.BrakemanBrakeChanged);
             }
             if (oldValue != controller.IntermediateValue)
                 Simulator.Confirmer.Update(CabControl.BrakemanBrake, oldValue<controller.IntermediateValue? CabSetting.Increase : CabSetting.Decrease, GetBrakemanBrakeStatus());
@@ -4745,7 +4714,6 @@ namespace Orts.Simulation.RollingStocks
 
                 DynamicBrakeController.StartIncrease(target);
 
-                AlerterReset(TCSEvent.DynamicBrakeChanged);
                 SignalEvent(Event.DynamicBrakeChange);
                 if (!HasSmoothStruc)
                 {
@@ -4763,7 +4731,6 @@ namespace Orts.Simulation.RollingStocks
 
         public void StopDynamicBrakeIncrease()
         {
-            AlerterReset(TCSEvent.DynamicBrakeChanged);
             if (CanUseDynamicBrake())
             {
                 DynamicBrakeController.StopIncrease();
@@ -4779,7 +4746,6 @@ namespace Orts.Simulation.RollingStocks
             {
                 DynamicBrakeController.StartDecrease(target);
 
-                AlerterReset(TCSEvent.DynamicBrakeChanged);
                 SignalEvent(Event.DynamicBrakeChange);
                 if (!HasSmoothStruc)
                 {
@@ -4794,7 +4760,6 @@ namespace Orts.Simulation.RollingStocks
 
         public void StopDynamicBrakeDecrease()
         {
-            AlerterReset(TCSEvent.DynamicBrakeChanged);
             if (CanUseDynamicBrake())
             {
                 DynamicBrakeController.StopDecrease();
@@ -4844,7 +4809,6 @@ namespace Orts.Simulation.RollingStocks
             {
                 new DynamicBrakeCommand(Simulator.Log, change > 0, DynamicBrakeController.CurrentValue, Simulator.ClockTime);
                 SignalEvent(Event.DynamicBrakeChange);
-                AlerterReset(TCSEvent.DynamicBrakeChanged);
             }
             if (oldValue != DynamicBrakeController.IntermediateValue && !CheckDisableDynamicBrake())
                 Simulator.Confirmer.UpdateWithPerCent(CabControl.DynamicBrake, oldValue < DynamicBrakeController.IntermediateValue ? CabSetting.Increase : CabSetting.Decrease, DynamicBrakeController.CurrentValue * 100);
@@ -5098,12 +5062,6 @@ namespace Orts.Simulation.RollingStocks
         public void AlerterReset()
         {
             TrainControlSystem.HandleEvent(TCSEvent.AlerterReset);
-        }
-
-        public void AlerterReset(TCSEvent evt)
-        {
-            AlerterReset();
-            TrainControlSystem.HandleEvent(evt);
         }
 
         public void AlerterPressed(bool pressed)

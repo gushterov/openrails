@@ -1080,7 +1080,6 @@ namespace Orts.Common
             Receiver.ManualHorn = ToState;
             if (ToState)
             {
-                Receiver.AlerterReset(TCSEvent.HornActivated);
                 Receiver.Simulator.HazzardManager.Horn();
             }
         }
