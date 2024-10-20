@@ -88,7 +88,35 @@ namespace Orts.Viewer3D
         /// <returns>The advance of time in units of 20 mins (1200 seconds).</returns>
         float CelestialDiff(double clockTime)
         {
-            var diffS = clockTime - (OldClockTime - DaylightOffsetS);
+            // SPRING OFFSET START
+            // var diff = -0.3f * 60 * 60;
+            // if (clockTime > 12 * 60 * 60)
+            // {
+            //     diff = -1.5f * 60 * 60;
+            // }
+            // WINTER OFFSET END
+            // WINTER OFFSET START
+            // var diff = -1f * 60 * 60;
+            // if (clockTime > 12 * 60 * 60)
+            // {
+            //     diff = -1f * 60 * 60;
+            // }
+            // WINTER OFFSET END
+            // SUMMER OFFSET START
+            // var diff = -2f * 60 * 60;
+            // if (clockTime > 12 * 60 * 60)
+            // {
+            //     diff = -1f * 60 * 60;
+            // }
+            // SUMMER OFFSET END
+            // AUTUMN OFFSET START
+            var diff = -0.1f * 60 * 60;
+            if (clockTime > 12 * 60 * 60)
+            {
+                diff = 1.1f * 60 * 60;
+            }
+            // AUTUMN OFFSET END
+            var diffS = clockTime - (OldClockTime - diff);
             return (float)diffS / 1200;
         }
     }

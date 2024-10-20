@@ -5328,8 +5328,20 @@ namespace Orts.Simulation.RollingStocks
                             data = DynamicBrakeForceN / MaxDynamicBrakeForceN * DynamicBrakeMaxCurrentA;
                             data = -Math.Abs(data); // Ensure that dynamic force is seen as a "-ve force", changes colour on the load meter
                         }
+                        
+                        if (cvc.Feature == "HideOnPositiveForce")
+                        {
+                            cvc.IsVisible = !(data >= 0);
+                        }
+                        if (cvc.Feature == "HideOnNegativeForce")
+                        {
+                            cvc.IsVisible = !(data <= 0);
+                        }
+
                         if (direction == 1)
+                        {
                             data = -data;
+                        }
                         break;
                     }
                 case CABViewControlTypes.TRACTION_BRAKING:
@@ -5850,6 +5862,13 @@ namespace Orts.Simulation.RollingStocks
                             data = 0;
                         else
                             data = 1;
+
+                        if (cvc.Feature == "HideOnPositiveSpeed")
+                        {
+                            var speed = AdvancedAdhesionModel ? WheelSpeedMpS : SpeedMpS;
+                            cvc.IsVisible = speed <= 1;
+                        }
+
                         break;
                     }
                 case CABViewControlTypes.ASPECT_DISPLAY:

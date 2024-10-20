@@ -1678,6 +1678,12 @@ namespace Orts.Viewer3D.RollingStock
         [CallOnThread("Updater")]
         public virtual void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
         {
+            if (!Control.IsVisible)
+            {
+                Locomotive.GetDataOf(Control);
+                return;
+            }
+
             if (!IsPowered && Control.HideIfDisabled)
                 return;
 
@@ -1737,6 +1743,12 @@ namespace Orts.Viewer3D.RollingStock
 
         public override void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
         {
+            if (!Control.IsVisible)
+            {
+                Locomotive.GetDataOf(Control);
+                return;
+            }
+
             var dark = Viewer.MaterialManager.sunDirection.Y <= -0.085f || Viewer.Camera.IsUnderground;
 
             Texture = CABTextureManager.GetTexture(Control.ACEFile, dark, Locomotive.CabLightOn, out IsNightTexture, HasCabLightDirectory);

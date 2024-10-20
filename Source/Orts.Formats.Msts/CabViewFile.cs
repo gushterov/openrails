@@ -473,6 +473,9 @@ namespace Orts.Formats.Msts
         public double UnitsExponent = 1.0f;
         public float UnitsScale = 1.0f;
         public float UnitsOffset;
+        
+        public string Feature = "None";
+        public bool IsVisible = true;
 
         public bool DisabledIfLowVoltagePowerSupplyOff { get; private set; } = false;
         public bool DisabledIfCabPowerSupplyOff { get; private set; } = false;
@@ -688,6 +691,7 @@ namespace Orts.Formats.Msts
                     Label = stf.ReadString();
                     stf.SkipRestOfBlock();
                 }),
+                new STFReader.TokenProcessor("feature", ()=>{ Feature = stf.ReadStringBlock("None"); }),
                 new STFReader.TokenProcessor("ortsdisplay", ()=>{ParseDisplay(stf); }),
                 new STFReader.TokenProcessor("ortsscreenpage", () => {ParseScreen(stf); }),
                 new STFReader.TokenProcessor("ortscabviewpoint", ()=>{ParseCabViewpoint(stf); }),
