@@ -5687,6 +5687,12 @@ namespace Orts.Simulation.RollingStocks
                     //case CABViewControlTypes.CP_HANDLE:
                     {
                         data = DynamicBrakePercent / 100f;
+
+                        if (cvc.Feature == "ShowOnNegativeForce")
+                        {
+                            cvc.IsVisible = DynamicBrakeForceN != 0.0;
+                        }
+                        
                         break;
                     }
                 case CABViewControlTypes.WIPERS:

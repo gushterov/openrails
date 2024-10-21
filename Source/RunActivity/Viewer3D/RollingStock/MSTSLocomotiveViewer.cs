@@ -2070,6 +2070,12 @@ namespace Orts.Viewer3D.RollingStock
 
         public override void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
         {
+            if (!Control.IsVisible)
+            {
+                Locomotive.GetDataOf(Control);
+                return;
+            }
+
             var index = GetDrawIndex();
 
             var mS = Control as CVCMultiStateDisplay;

@@ -1072,6 +1072,7 @@ namespace Orts.Formats.Msts
                     new STFReader.TokenProcessor("mousecontrol", ()=>{ MouseControl = stf.ReadBoolBlock(false); }),
                     new STFReader.TokenProcessor("orientation", ()=>{ Orientation = stf.ReadIntBlock(null); }),
                     new STFReader.TokenProcessor("dirincrease", ()=>{ Direction = stf.ReadIntBlock(null); }),
+                    new STFReader.TokenProcessor("feature", ()=>{ Feature = stf.ReadStringBlock("None"); }),
 
                     new STFReader.TokenProcessor("numframes", ()=>{
                         stf.MustMatch("(");
