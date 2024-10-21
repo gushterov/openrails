@@ -1446,7 +1446,15 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                         data = SelectedMaxAccelerationPercent * (float)cvc.MaxValue / 100;
                     }
                     else
+                    {
                         data = 0;
+                    }
+
+                    if (cvc.Feature == "HideOnNegativeForce")
+                    {
+                        cvc.IsVisible = Locomotive.DynamicBrakeForceN == 0.0;
+                    }
+
                     break;
                 case CABViewControlTypes.ORTS_RESTRICTED_SPEED_ZONE_ACTIVE:
                     data = RestrictedRegionOdometer.Started ? 1 : 0;
