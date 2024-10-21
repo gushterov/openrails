@@ -464,6 +464,7 @@ namespace Orts.Viewer3D.Popups
             {
                 var cc = ((MSTSLocomotive)Viewer.PlayerLocomotive).CruiseControl;
                 TableAddLabelValue(table, Viewer.Catalog.GetString("Cruise control status"), "{0}", cc.SpeedRegMode.ToString());
+                TableAddLabelValue(table, Viewer.Catalog.GetString("Train length"), "{0}m", cc.TrainLengthMeters.ToString());
                 if (cc.SpeedRegMode == Simulation.RollingStocks.SubSystems.CruiseControl.SpeedRegulatorMode.Auto)
                 {
                     TableAddLabelValue(table, Viewer.Catalog.GetString("Speed target"), "{0}", FormatStrings.FormatSpeedDisplay(cc.SelectedSpeedMpS, Viewer.PlayerLocomotive.IsMetric));

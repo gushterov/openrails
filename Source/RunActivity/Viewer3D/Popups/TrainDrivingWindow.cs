@@ -1342,6 +1342,13 @@ namespace Orts.Viewer3D.Popups
                     LastCol = cc.SpeedRegMode.ToString() + ColorCode[Color.Cyan]//"%%%"
                 });
 
+                var trainLengthMeters = cc.TrainLengthMeters.ToString() + "m ";
+                AddLabel(new ListLabel
+                {
+                    FirstCol = "Train length",
+                    LastCol = $"{trainLengthMeters + ColorCode[Color.Cyan]}"//"%%%"
+                });
+
                 if (cc.SpeedRegMode == Simulation.RollingStocks.SubSystems.CruiseControl.SpeedRegulatorMode.Auto)
                 {
                     AddLabel(new ListLabel
