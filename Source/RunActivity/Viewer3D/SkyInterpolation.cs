@@ -113,7 +113,7 @@ namespace Orts.Viewer3D
             var diff = -0.1f * 60 * 60;
             if (clockTime > 12 * 60 * 60)
             {
-                diff = 1.1f * 60 * 60;
+                diff = 2.2f * 60 * 60;
             }
             // AUTUMN OFFSET END
             var diffS = clockTime - (OldClockTime - diff);
