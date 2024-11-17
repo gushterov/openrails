@@ -110,7 +110,7 @@ namespace Orts.Viewer3D
             // }
             // SUMMER OFFSET END
             // AUTUMN OFFSET START
-            var diff = -0.1f * 60 * 60;
+            var diff = 0.1f * 60 * 60;
             if (clockTime > 12 * 60 * 60)
             {
                 diff = 2.2f * 60 * 60;

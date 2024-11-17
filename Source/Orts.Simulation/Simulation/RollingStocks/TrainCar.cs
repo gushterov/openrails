@@ -3069,7 +3069,7 @@ namespace Orts.Simulation.RollingStocks
             switch (Simulator.Random.Next(4))
             {
                 case 0:
-                    VibrationRotationVelocityRadpS.Y += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * 2 / CarLengthM;
+                    VibrationRotationVelocityRadpS.Y += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength / CarLengthM;
                     break;
                 case 1:
                     VibrationRotationVelocityRadpS.Z += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * 2 / CarLengthM;
@@ -3079,6 +3079,7 @@ namespace Orts.Simulation.RollingStocks
                     break;
                 case 3:
                     VibrationTranslationVelocityMpS.Y += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength;
+                    VibrationRotationVelocityRadpS.X += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * 2 / CarLengthM;
                     break;
             }
         }
