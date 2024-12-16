@@ -514,7 +514,11 @@ namespace Orts.Simulation.RollingStocks
 
             if (CarBogieCentreLengthM == 0)
             {
-                CarBogieCentreLengthM = (CarCouplerFaceLengthM - 4.3f);
+                CarBogieCentreLengthM = CarCouplerFaceLengthM - 4.3f;
+
+                // Prevent negative values on very short train cars
+                if (CarBogieCentreLengthM < 0)
+                    CarBogieCentreLengthM = CarLengthM * 0.65f;
             }
 
             if (CarAirHoseLengthM == 0)
@@ -1125,6 +1129,9 @@ namespace Orts.Simulation.RollingStocks
 
             if (BrakeSystem == null)
                 BrakeSystem = MSTSBrakeSystem.Create(CarBrakeSystemType, this);
+
+            if (TrackGaugeM <= 0) // Use gauge of route/sim settings if gauge wasn't defined
+                TrackGaugeM = Simulator.RouteTrackGaugeM;
         }
 
         // Compute total mass of wagon including freight animations and variable loads like containers

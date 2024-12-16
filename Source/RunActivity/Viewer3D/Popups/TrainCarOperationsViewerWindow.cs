@@ -75,6 +75,7 @@ namespace Orts.Viewer3D.Popups
         internal static Texture2D RearAngleCockPartial;
         internal static Texture2D ResetBrakesOff;
         internal static Texture2D ResetBrakesOn;
+        internal static Texture2D ResetBrakesWarning;
 
         public List<bool> AngleCockAPartiallyOpened = new List<bool>();
         public List<bool> AngleCockBPartiallyOpened = new List<bool>();
@@ -85,6 +86,8 @@ namespace Orts.Viewer3D.Popups
         public int RowsCount;
         public int SpacerRowCount;
         public int SymbolsRowCount;
+        public bool BrakeHoseCarCoupling;
+
         const int SymbolWidth = 32;
         public static bool FontChanged;
         public static bool FontToBold;
@@ -104,7 +107,7 @@ namespace Orts.Viewer3D.Popups
             set;
             get;
         }
-    public int NewCarPosition
+        public int NewCarPosition
         {
             set;
             get;
@@ -234,6 +237,7 @@ namespace Orts.Viewer3D.Popups
 
                 Rectangle ResetBrakesOffRect = new Rectangle(64, 256, 32, 32);
                 Rectangle ResetBrakesOnRect = new Rectangle(96, 256, 32, 32);
+                Rectangle ResetBrakesWarningRect = new Rectangle(96, 32, 32, 32);
 
                 var GraphicsDeviceRender = Owner.Viewer.RenderProcess.GraphicsDevice;
                 var TrainOperationsPath = System.IO.Path.Combine(Owner.Viewer.ContentPath, "TrainOperations\\TrainOperationsMap32.png");
@@ -283,6 +287,7 @@ namespace Orts.Viewer3D.Popups
 
                 ResetBrakesOff = SharedTextureManager.Get(GraphicsDeviceRender, TrainOperationsPath, ResetBrakesOffRect);
                 ResetBrakesOn = SharedTextureManager.Get(GraphicsDeviceRender, TrainOperationsPath, ResetBrakesOnRect);
+                ResetBrakesWarning = SharedTextureManager.Get(GraphicsDeviceRender, TrainOperationsPath, ResetBrakesWarningRect);
 
                 PowerOn = SharedTextureManager.Get(GraphicsDeviceRender, TrainOperationsPath, PowerOnRect);
                 PowerOff = SharedTextureManager.Get(GraphicsDeviceRender, TrainOperationsPath, PowerOffRect);
@@ -318,7 +323,7 @@ namespace Orts.Viewer3D.Popups
                 var locationY = newTop;
                 if (Owner.Viewer.TrainCarOperationsWindow.LayoutMoved)
                 {
-                    CkeckCollision(newWidth, newHeight, newTop, ref locationX, ref locationY);
+                    CkeckCollision(newWidth, newHeight, ref locationX, ref locationY);
                     Owner.Viewer.TrainCarOperationsWindow.LayoutMoved = false;
                 }
                 MoveTo(locationX, locationY);
@@ -375,7 +380,7 @@ namespace Orts.Viewer3D.Popups
                     var car = PlayerTrain.Cars[CarPosition];
                     //Reset brakes
                     var warningCarPos = Owner.Viewer.TrainCarOperationsWindow.WarningCarPosition.Where(x => x == true).Count();
-                    line.Add(new buttonInitializeBrakes(0, 0, textHeight, Owner.Viewer, CarPosition, warningCarPos));
+                    line.Add(new buttonInitializeBrakes(0, 0, textHeight, Owner.Viewer, warningCarPos));
 
                     if (car != PlayerTrain.Cars.First())
                         AddSpace(false);
@@ -474,27 +479,31 @@ namespace Orts.Viewer3D.Popups
                     LastPlayerTrainCars = Owner.Viewer.PlayerTrain.Cars.Count;
                     CarPosition = CarPosition >= LastPlayerTrainCars ? LastPlayerTrainCars - 1 : CarPosition;
                     if (Owner.Viewer.PlayerLocomotive != null) LastPlayerLocomotiveFlippedState = Owner.Viewer.PlayerLocomotive.Flipped;
- 
+
                     Layout();
                     UpdateWindowSize();
                 }
 
                 TrainCar trainCar = Owner.Viewer.PlayerTrain.Cars[CarPosition];
                 bool isElectricDieselLocomotive = (trainCar is MSTSElectricLocomotive) || (trainCar is MSTSDieselLocomotive);
-                
+
                 if (OldCarPosition != CarPosition || TrainCarOperationsChanged || carOperations.CarOperationChanged
                     || trainCarOperations.CarIdClicked || carOperations.RearBrakeHoseChanged || carOperations.FrontBrakeHoseChanged)
                 {
                     // Updates CarPosition
                     CarPosition = CouplerChanged ? NewCarPosition : CarPosition;
-                    
+
                     if (CabCameraEnabled)// Displays camera 1
                     {
                         CabCameraEnabled = false;
                     }
                     else if (OldCarPosition != CarPosition || (trainCarOperations.CarIdClicked && CarPosition == 0))
                     {
-                        Owner.Viewer.FrontCamera.Activate();
+                        if (Owner.Viewer.FrontCamera.AttachedCar != null && Owner.Viewer.FrontCamera.IsCameraFront)
+                            Owner.Viewer.FrontCamera.Activate();
+
+                        if (Owner.Viewer.BackCamera.AttachedCar != null && !Owner.Viewer.FrontCamera.IsCameraFront)
+                            Owner.Viewer.BackCamera.Activate();
                     }
                     OldCarPosition = CarPosition;
                     Layout();
@@ -542,7 +551,7 @@ namespace Orts.Viewer3D.Popups
                 windowHeight = Vbox != null ? Vbox.Position.Height : 0;
             }
         }
-        
+
         class buttonLoco : Image
         {
             readonly Viewer Viewer;
@@ -651,13 +660,13 @@ namespace Orts.Viewer3D.Popups
             readonly Viewer Viewer;
             readonly TrainCarOperationsViewerWindow TrainCarViewer;
             readonly int WarningCars;
-            public buttonInitializeBrakes(int x, int y, int size, Viewer viewer, int carPosition, int warningCars)
+            public buttonInitializeBrakes(int x, int y, int size, Viewer viewer, int warningCars)
                 : base(x, y, size, size)
             {
                 Viewer = viewer;
                 TrainCarViewer = Viewer.TrainCarOperationsViewerWindow;
                 WarningCars = warningCars;
-                Texture = WarningCars > 2 ? ResetBrakesOn : ResetBrakesOff;
+                Texture = WarningCars > 2 ? ResetBrakesOn : WarningCars == 0 ? ResetBrakesOff : ResetBrakesWarning;
                 Source = new Rectangle(0, 0, size, size);
                 Click += new Action<Control, Point>(buttonInitializeBrakes_Click);
             }
@@ -834,7 +843,6 @@ namespace Orts.Viewer3D.Popups
             readonly TrainCarOperationsViewerWindow TrainCarViewer;
             readonly int CarPosition;
             readonly bool First;
-            readonly float carAngleCockAOpenAmount;
             public buttonFrontAngleCock(int x, int y, int size, Viewer viewer, TrainCar car, int carPosition)
                 : base(x, y, size, size)
             {
@@ -902,8 +910,8 @@ namespace Orts.Viewer3D.Popups
                 if (Last) return;
 
                 new ToggleAngleCockBCommand(Viewer.Log, (Viewer.PlayerTrain.Cars[CarPosition] as MSTSWagon), !(Viewer.PlayerTrain.Cars[CarPosition] as MSTSWagon).BrakeSystem.AngleCockBOpen);
-                var carAngleCockBOpenAmount = (Viewer.PlayerTrain.Cars[CarPosition] as MSTSWagon).BrakeSystem.AngleCockBOpenAmount; 
-                
+                var carAngleCockBOpenAmount = (Viewer.PlayerTrain.Cars[CarPosition] as MSTSWagon).BrakeSystem.AngleCockBOpenAmount;
+
                 if ((Viewer.PlayerTrain.Cars[CarPosition] as MSTSWagon).BrakeSystem.AngleCockBOpen && carAngleCockBOpenAmount >= 1)
                 {
                     Viewer.Simulator.Confirmer.Information(Viewer.Catalog.GetString("Rear angle cock opened"));
@@ -1210,7 +1218,7 @@ namespace Orts.Viewer3D.Popups
                 return Texture;
             }
         }
-        public void CkeckCollision(int newWidth, int newHeight, int newTop, ref int locationX, ref int locationY)
+        public void CkeckCollision(int newWidth, int newHeight, ref int locationX, ref int locationY)
         {
             var trainCarOperations = Owner.Viewer.TrainCarOperationsWindow;
             var trainOperationsViewer = Owner.Viewer.TrainCarOperationsViewerWindow;
@@ -1225,7 +1233,6 @@ namespace Orts.Viewer3D.Popups
 
             // logic to apply
             var displaySizeX = Owner.Viewer.DisplaySize.X;
-            var halfDisplaySizeX = displaySizeX / 2;
             var DisplaySizeY = Owner.Viewer.DisplaySize.Y;
             var halfDisplaySizeY = DisplaySizeY / 2;
             var topMarging = tcoLocation.Y;

@@ -778,6 +778,7 @@ namespace ORTS
                 (pbPressureUnit, new Control[] { labelPressureUnit, comboPressureUnit }),
                 (pbOtherUnits, new Control[] { labelOtherUnits, comboOtherUnits }),
                 (pbEnableTcsScripts, new[] { checkEnableTCSScripts }),
+                (pbAutoSave, new[] { checkAutoSaveActive }),
                 (pbOverspeedMonitor, new[] { checkOverspeedMonitor }),
 
                 // Audio tab
@@ -810,6 +811,9 @@ namespace ORTS
                 (pbControlConfirmations, new Control[] { labelControlConfirmations, comboControlConfirmations }),
                 (pbWebServerPort, new Control[] { labelWebServerPort }),
                 (pbPerformanceTuner, new Control[] { checkPerformanceTuner, labelPerformanceTunerTarget }),
+
+                // Experimental tab
+                (pbSuperElevation, new[] { ElevationText }),
             };
             foreach ((PictureBox pb, Control[] controls) in helpIconControls)
             {
@@ -829,6 +833,7 @@ namespace ORTS
         {
             var urls = new Dictionary<object, string>
             {
+                // General tab
                 {
                     pbAlerter,
                     BaseDocumentationUrl + "/options.html#alerter-in-cab"
@@ -856,6 +861,10 @@ namespace ORTS
                 {
                     pbEnableTcsScripts,
                     BaseDocumentationUrl + "/options.html#disable-tcs-scripts"
+                },
+                {
+                    pbAutoSave,
+                    BaseDocumentationUrl + "/options.html#auto-save"
                 },
                 {
                     pbOverspeedMonitor,
@@ -966,6 +975,12 @@ namespace ORTS
                 {
                     pbPerformanceTuner,
                     BaseDocumentationUrl + "/options.html#performance-tuner"
+                },
+
+                // Experimental tab
+                {
+                    pbSuperElevation,
+                    BaseDocumentationUrl + "/options.html#super-elevation"
                 },
             };
             if (urls.TryGetValue(sender, out var url))
