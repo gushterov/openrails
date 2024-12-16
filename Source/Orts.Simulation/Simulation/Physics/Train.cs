@@ -14827,40 +14827,52 @@ namespace Orts.Simulation.Physics
                             {
                                 if (thisSignal.SignalLocation > lengthOffset)
                                 {
-                                    SignalHead thisHead = thisSignal.SignalRef.SignalHeads.FirstOrDefault(x => x.signalType.Function.MstsFunction == MstsSignalFunction.SPEED);
-                                    if (thisHead?.CurrentSpeedInfo is ObjectSpeedInfo thisSpeedInfo)
+                                    try
                                     {
-                                        float validSpeed;
-
-                                        if (thisSpeedInfo.speed_reset == 1)
+                                        SignalHead thisHead = thisSignal.SignalRef.SignalHeads.FirstOrDefault(x =>
+                                            x.signalType.Function.MstsFunction == MstsSignalFunction.SPEED);
+                                        if (thisHead?.CurrentSpeedInfo is ObjectSpeedInfo thisSpeedInfo)
                                         {
-                                            validSpeed = progressiveMaxSpeedLimitMpS;
+                                            float validSpeed;
+
+                                            if (thisSpeedInfo.speed_reset == 1)
+                                            {
+                                                validSpeed = progressiveMaxSpeedLimitMpS;
+                                            }
+                                            else
+                                            {
+                                                validSpeed = IsFreight
+                                                    ? thisSpeedInfo.speed_freight
+                                                    : thisSpeedInfo.speed_pass;
+
+                                                if (!thisSpeedInfo.speed_isWarning && validSpeed > 0f)
+                                                {
+                                                    progressiveMaxSpeedLimitMpS = validSpeed;
+                                                }
+                                            }
+
+                                            if (validSpeed > 0f)
+                                            {
+                                                thisItem = new TrainObjectItem(
+                                                    thisSignal.SignalRef.TranslateTMAspect(thisHead.state),
+                                                    validSpeed,
+                                                    thisSpeedInfo.speed_isWarning,
+                                                    thisSignal.SignalLocation + sectionDistanceToTrainM,
+                                                    thisSignal.SignalRef);
+                                                PlayerTrainSignals[dir][function].Add(thisItem);
+                                            }
                                         }
                                         else
                                         {
-                                            validSpeed = IsFreight ? thisSpeedInfo.speed_freight : thisSpeedInfo.speed_pass;
-
-                                            if (!thisSpeedInfo.speed_isWarning && validSpeed > 0f)
-                                            {
-                                                progressiveMaxSpeedLimitMpS = validSpeed;
-                                            }
-                                        }
-
-                                        if (validSpeed > 0f)
-                                        {
                                             thisItem = new TrainObjectItem(
-                                                thisSignal.SignalRef.TranslateTMAspect(thisHead.state),
-                                                validSpeed,
-                                                thisSpeedInfo.speed_isWarning,
                                                 thisSignal.SignalLocation + sectionDistanceToTrainM,
                                                 thisSignal.SignalRef);
                                             PlayerTrainSignals[dir][function].Add(thisItem);
                                         }
                                     }
-                                    else
+                                    catch
                                     {
-                                        thisItem = new TrainObjectItem(thisSignal.SignalLocation + sectionDistanceToTrainM, thisSignal.SignalRef);
-                                        PlayerTrainSignals[dir][function].Add(thisItem);
+
                                     }
                                 }
                             }
