@@ -2670,7 +2670,7 @@ namespace Orts.Simulation.RollingStocks
                         if (WheelslipState != Wheelslip.Occurring)
                         {
                             WheelslipState = Wheelslip.Occurring;
-                            Simulator.Confirmer.Warning(CabControl.Wheelslip, CabSetting.On);
+                            // Simulator.Confirmer.Warning(CabControl.Wheelslip, CabSetting.On);
                             Trace.TraceInformation("Display Wheelslip#1 - CarID {0} WheelSlip {1}", CarID, HuDIsWheelSlip);
                         }
                     }
@@ -2681,7 +2681,7 @@ namespace Orts.Simulation.RollingStocks
                             if (WheelslipState != Wheelslip.Warning)
                             {
                                 WheelslipState = Wheelslip.Warning;
-                                Simulator.Confirmer.Confirm(CabControl.Wheelslip, CabSetting.Warn1);
+                                // Simulator.Confirmer.Confirm(CabControl.Wheelslip, CabSetting.Warn1);
                             }
                         }
                         else
@@ -2689,7 +2689,7 @@ namespace Orts.Simulation.RollingStocks
                             if (WheelslipState != Wheelslip.None)
                             {
                                 WheelslipState = Wheelslip.None;
-                                Simulator.Confirmer.Confirm(CabControl.Wheelslip, CabSetting.Off);
+                                // Simulator.Confirmer.Confirm(CabControl.Wheelslip, CabSetting.Off);
                             }
                         }
                     }
@@ -2699,13 +2699,13 @@ namespace Orts.Simulation.RollingStocks
                     if (WheelSlip && (WheelslipState != Wheelslip.Occurring))
                     {
                         WheelslipState = Wheelslip.Occurring;
-                        Simulator.Confirmer.Warning(CabControl.Wheelslip, CabSetting.On);
+                        // Simulator.Confirmer.Warning(CabControl.Wheelslip, CabSetting.On);
                         Trace.TraceInformation("Display Wheelslip#2");
                     }
                     if ((!WheelSlip) && (WheelslipState != Wheelslip.None))
                     {
                         WheelslipState = Wheelslip.None;
-                        Simulator.Confirmer.Confirm(CabControl.Wheelslip, CabSetting.Off);
+                        // Simulator.Confirmer.Confirm(CabControl.Wheelslip, CabSetting.Off);
                     }
                 }
             }
