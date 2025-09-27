@@ -94,13 +94,13 @@ namespace Orts.Viewer3D
             // {
             //     diff = -1.5f * 60 * 60;
             // }
-            // WINTER OFFSET END
+            // SPRING OFFSET END
             // WINTER OFFSET START
-            var diff = -1f * 60 * 60;
-            if (clockTime > 12 * 60 * 60)
-            {
-                diff = 1f * 60 * 60;
-            }
+            // var diff = -1f * 60 * 60;
+            // if (clockTime > 12 * 60 * 60)
+            // {
+            //     diff = 1f * 60 * 60;
+            // }
             // WINTER OFFSET END
             // SUMMER OFFSET START
             // var diff = -2f * 60 * 60;
@@ -116,7 +116,10 @@ namespace Orts.Viewer3D
             //     diff = 2.2f * 60 * 60;
             // }
             // AUTUMN OFFSET END
-            var diffS = clockTime - (OldClockTime - diff);
+            // var diffS = clockTime - (OldClockTime - diff);
+            // return (float)diffS / 1200;
+            
+            var diffS = clockTime - (OldClockTime - DaylightOffsetS);
             return (float)diffS / 1200;
         }
     }

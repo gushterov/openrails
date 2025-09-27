@@ -1748,10 +1748,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
                         { 
                             if (loco.Train.DetermineDPLeadLocomotive(loco) is MSTSLocomotive lead && (lead.BailOff || (lead.EngineBrakeController != null && lead.EngineBrakeController.TrainBrakeControllerState == ControllerState.BailOff)))
                             {
-                                if (BrakeValve == BrakeValveType.Distributor)
-                                    ControlResPressurePSI = 0;
-
-                                float dp = Math.Max(MaxReleaseRatePSIpS, loco.EngineBrakeReleaseRatePSIpS) * elapsedClockSeconds;
+                               float dp = Math.Max(MaxReleaseRatePSIpS, loco.EngineBrakeReleaseRatePSIpS) * elapsedClockSeconds;
                                 AutoCylPressurePSI -= dp;
                                 if (AutoCylPressurePSI < 0)
                                     AutoCylPressurePSI = 0;
