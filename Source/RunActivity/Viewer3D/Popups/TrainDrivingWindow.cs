@@ -227,6 +227,7 @@ namespace Orts.Viewer3D.Popups
 
         public bool normalTextMode = true;// Standard text
         public bool TrainDrivingUpdating = false;
+        public int CurrentWidth = 0;
         public static bool MonoFont;
         public static bool FontChanged;
         public static bool FontToBold;
@@ -488,6 +489,15 @@ namespace Orts.Viewer3D.Popups
 
                 var newHeight = (int)MathHelper.Clamp(desiredHeight, (normalTextMode ? WindowHeightMin : 100), WindowHeightMax);
                 var newWidth = (int)MathHelper.Clamp(desiredWidth, (normalTextMode ? WindowWidthMin : 100), WindowWidthMax);
+
+                // Stable window width
+                if (normalTextMode) CurrentWidth = 0;// Reset CurrentWidth value
+                if (!normalTextMode && newWidth != CurrentWidth)
+                {
+                    var newWidthHigher = newWidth > CurrentWidth;
+                    newWidth = newWidthHigher ? newWidth : CurrentWidth;
+                    CurrentWidth = newWidthHigher ? newWidth : CurrentWidth;
+                }
 
                 // Move the dialog up if we're expanding it, or down if not; this keeps the center in the same place.
                 var newTop = Location.Y + (Location.Height - newHeight) / 2;
@@ -761,7 +771,7 @@ namespace Orts.Viewer3D.Popups
                 {
                     FirstCol = Viewer.Catalog.GetString(locomotive is MSTSSteamLocomotive ? "Regulator" : "Throttle"),
                     LastCol = $"{Round(locomotive.ThrottlePercent)}%" +
-                    (locomotive is MSTSDieselLocomotive && train.DPMode == 1 ? $"({Round(train.DPThrottlePercent)}%)" : ""),
+                        (locomotive is MSTSDieselLocomotive && train.DPMode == 1 ? $" | {Round(train.DPThrottlePercent)}%" : ""),
                     KeyPressed = throttleKey,
                     SymbolCol = ""//throttleKey,
                 });
@@ -1038,23 +1048,27 @@ namespace Orts.Viewer3D.Popups
 
             if (dynamicBrakeStatus != null && locomotive.IsLeadLocomotive())
             {
-                if (locomotive.DynamicBrakePercent >= 0)
+                var dynBrakeString = "";
+                var dynBrakeColor = "";
+
+                if (locomotive.DynamicBrakePercent < 0)
+                    dynBrakeString = Viewer.Catalog.GetString("Off");
+                else if (!locomotive.DynamicBrake)
                 {
-                    AddLabel(new ListLabel
-                    {
-                        FirstCol = Viewer.Catalog.GetString("Dynamic brake"),
-                        LastCol = locomotive.DynamicBrake ? dynamicBrakeStatus : Viewer.Catalog.GetString("Setup") + ColorCode[Color.Cyan] +
-                         (locomotive is MSTSDieselLocomotive && train.DPMode == -1 ? string.Format("({0:F0}%)", train.DPDynamicBrakePercent) : string.Empty),
-                    });
+                    dynBrakeString = Viewer.Catalog.GetString("Setup");
+                    dynBrakeColor = ColorCode[Color.Cyan];
                 }
                 else
+                    dynBrakeString = dynamicBrakeStatus;
+
+                if (locomotive is MSTSDieselLocomotive && train.DPMode == -1)
+                    dynBrakeString += string.Format(" | {0:F0}%", train.DPDynamicBrakePercent);
+
+                AddLabel(new ListLabel
                 {
-                    AddLabel(new ListLabel
-                    {
-                        FirstCol = Viewer.Catalog.GetString("Dynamic brake"),
-                        LastCol = Viewer.Catalog.GetString("Off") + (locomotive is MSTSDieselLocomotive && train.DPMode == -1 ? string.Format("({0:F0}%)", train.DPDynamicBrakePercent) : string.Empty),
-                    });
-                }
+                    FirstCol = Viewer.Catalog.GetString("Dynamic brake"),
+                    LastCol = dynBrakeString + dynBrakeColor,
+                });
             }
 
             AddSeparator();
@@ -1177,7 +1191,7 @@ namespace Orts.Viewer3D.Popups
                 }
                 else if (locomotive.IsWaterScoopDown && !locomotive.ScoopIsBroken)
                 {
-                    waterScoopIndicator = Viewer.Catalog.GetString("Down") + (locomotive.IsOverTrough() ? ColorCode[Color.Cyan] : ColorCode[Color.Orange]);
+                    waterScoopIndicator = Viewer.Catalog.GetString("Down") + (locomotive.IsOverTrough ? ColorCode[Color.Cyan] : ColorCode[Color.Orange]);
                     waterScoopKey = Symbols.ArrowToRight + ColorCode[Color.Yellow];
                 }
                 else

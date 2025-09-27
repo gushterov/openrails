@@ -37,14 +37,12 @@ using Microsoft.Xna.Framework;
 using Orts.Common;
 using Orts.Formats.Msts;
 using Orts.Parsers.Msts;
-using Orts.Simulation.AIs;
 using Orts.Simulation.Physics;
 using Orts.Simulation.RollingStocks.Coupling;
 using Orts.Simulation.RollingStocks.SubSystems;
 using Orts.Simulation.RollingStocks.SubSystems.Brakes;
 using Orts.Simulation.RollingStocks.SubSystems.PowerSupplies;
 using Orts.Simulation.Signalling;
-using Orts.Simulation.Timetables;
 using ORTS.Common;
 using ORTS.Scripting.Api;
 using System;
@@ -208,6 +206,7 @@ namespace Orts.Simulation.RollingStocks
         public bool DerailPossible = false;
         public bool DerailExpected = false;
         public float DerailElapsedTimeS;
+        public bool HasDerailed = false;
 
         public float MaxHandbrakeForceN;
         public float MaxBrakeForceN = 89e3f;
@@ -272,7 +271,6 @@ namespace Orts.Simulation.RollingStocks
         public bool BrakeSkidWarning = false;
         public bool HUDBrakeSkid = false;
 
-        float BrakeWheelTreadForceN; // The retarding force apparent on the tread of the wheel
         float WagonBrakeAdhesiveForceN; // The adhesive force existing on the wheels of the wagon
         public float SkidFriction = 0.08f; // Friction if wheel starts skidding - based upon wheel dynamic friction of approx 0.08
         public float HuDBrakeShoeFriction;
@@ -424,36 +422,53 @@ namespace Orts.Simulation.RollingStocks
         }
 
         public float LocalThrottlePercent;
+        public float MaxThrottlePercent
+        {
+            get
+            {
+                float percent = 100;
+                if (RemoteControlGroup == 0 && Train != null && Train.LeadLocomotive is MSTSLocomotive locomotive)
+                {
+                    if (!locomotive.TrainControlSystem.TractionAuthorization)
+                    {
+                        percent = 0;
+                    }
+                    else if (percent > locomotive.TrainControlSystem.MaxThrottlePercent)
+                    {
+                        percent = Math.Max(locomotive.TrainControlSystem.MaxThrottlePercent, 0);
+                    }
+                }
+                if (this is MSTSLocomotive loco)
+                {
+                    if (percent > 100 - loco.LocomotivePowerSupply.ThrottleReductionPercent) percent = 100 - loco.LocomotivePowerSupply.ThrottleReductionPercent;
+                    if (percent > loco.LocomotivePowerSupply.MaxThrottlePercent) percent = loco.LocomotivePowerSupply.MaxThrottlePercent / 100;
+                }
+                return percent;
+            }
+        }
         // represents the MU line travelling through the train.  Uncontrolled locos respond to these commands.
         public float ThrottlePercent
         {
             get
             {
+                float percent;
                 if (RemoteControlGroup == 0 && Train != null)
                 {
-                    if (Train.LeadLocomotive is MSTSLocomotive locomotive)
-                    {
-                        if (!locomotive.TrainControlSystem.TractionAuthorization
-                            || Train.MUThrottlePercent <= 0)
-                        {
-                            return 0;
-                        }
-                        else if (Train.MUThrottlePercent > locomotive.TrainControlSystem.MaxThrottlePercent)
-                        {
-                            return Math.Max(locomotive.TrainControlSystem.MaxThrottlePercent, 0);
-                        }
-                    }
-
-                    return Train.MUThrottlePercent;
+                    percent = Train.MUThrottlePercent;
                 }
                 else if (RemoteControlGroup == 1 && Train != null)
                 {
-                    return Train.DPThrottlePercent;
+                    percent = Train.DPThrottlePercent;
                 }
                 else
                 {
-                    return LocalThrottlePercent;
+                    percent = LocalThrottlePercent;
                 }
+                if (this is MSTSLocomotive loco)
+                {
+                    if (loco.LocomotivePowerSupply.ThrottleReductionPercent > 0) percent *= 1 - loco.LocomotivePowerSupply.ThrottleReductionPercent / 100;
+                }
+                return Math.Min(percent, MaxThrottlePercent);
             }
             set
             {
@@ -509,7 +524,12 @@ namespace Orts.Simulation.RollingStocks
                 {
                     percent = LocalDynamicBrakePercent;
                 }
-                return Math.Max(percent, this is MSTSLocomotive loco ? loco.DynamicBrakeBlendingPercent : -1);
+                if (this is MSTSLocomotive loco)
+                {
+                    if (loco.DynamicBrakeBlendingPercent > percent) percent = loco.DynamicBrakeBlendingPercent;
+                    if (loco.LocomotivePowerSupply.PowerSupplyDynamicBrakePercent > percent) percent = loco.LocomotivePowerSupply.PowerSupplyDynamicBrakePercent;
+                }
+                return percent;
             }
             set
             {
@@ -549,7 +569,7 @@ namespace Orts.Simulation.RollingStocks
 
         // TrainCar.Update() must set these variables
         /// <summary>
-        /// Force transmitted to rail, excluding brake force
+        /// Force transmitted to rail, excluding brake and friction force
         /// Adhesion-corrected tractive force
         /// </summary>
         public float MotiveForceN;
@@ -557,12 +577,13 @@ namespace Orts.Simulation.RollingStocks
         /// Tractive force generated by the engine(s)
         /// </summary>
         public float TractiveForceN = 0f;
-        public float PrevTractiveForceN;
+        public float RollingFrictionForceN;
         // Gravity forces have negative values on rising grade. 
         // This means they have the same sense as the motive forces and will push the train downhill.
         public float GravityForceN;  // Newtons  - signed relative to direction of car.
         public float CurveForceN;   // Resistive force due to curve, in Newtons
         public float WindForceN;  // Resistive force due to wind
+        public float TractionForceN = 0f;
         public float DynamicBrakeForceN = 0f; // Raw dynamic brake force for diesel and electric locomotives
 
         // Derailment variables
@@ -974,15 +995,6 @@ namespace Orts.Simulation.RollingStocks
 
             AbsSpeedMpS = Math.Abs(_SpeedMpS);
 
-            //TODO: next if block has been inserted to flip trainset physics in order to get viewing direction coincident with loco direction when using rear cab.
-            // To achieve the same result with other means, without flipping trainset physics, the block should be deleted
-            //      
-            if (IsDriveable && Train != null & Train.IsPlayerDriven && (this as MSTSLocomotive).UsingRearCab)
-            {
-                GravityForceN = -GravityForceN;
-                CurrentElevationPercent = -CurrentElevationPercent;
-            }
-
             UpdateCurveSpeedLimit(elapsedClockSeconds);
             UpdateCurveForce(elapsedClockSeconds);
             UpdateTunnelForce();
@@ -1093,108 +1105,94 @@ namespace Orts.Simulation.RollingStocks
 
         public virtual void UpdateBrakeSlideCalculation()
         {
-
-            // Only apply slide, and advanced brake friction, if advanced adhesion is selected, simplecontrolphysics is not set, and it is a Player train
-            if (Simulator.UseAdvancedAdhesion && !Simulator.Settings.SimpleControlPhysics && IsPlayerTrain)
+            if (this is MSTSLocomotive locomotive)
             {
-
-                // ************  Check if diesel or electric - assumed already be cover by advanced adhesion model *********
-
-                if (this is MSTSDieselLocomotive || this is MSTSElectricLocomotive)
+                // If advanced adhesion model indicates wheel slip warning, then check other conditions (throttle and brake force) to determine whether it is a wheel slip or brake skid
+                if (WheelSlipWarning && ThrottlePercent < 0.1f && BrakeRetardForceN > 25.0)
                 {
-                    // If advanced adhesion model indicates wheel slip warning, then check other conditions (throttle and brake force) to determine whether it is a wheel slip or brake skid
-                    if (WheelSlipWarning && ThrottlePercent < 0.1f && BrakeRetardForceN > 25.0) 
-                    {
-                        BrakeSkidWarning = true;  // set brake skid flag true
-                    }
-                    else
-                    {
-                        BrakeSkidWarning = false;
-                    }
-
-                    // If advanced adhesion model indicates wheel slip, then check other conditions (throttle and brake force) to determine whether it is a wheel slip or brake skid
-                    if (WheelSlip && ThrottlePercent < 0.1f && BrakeRetardForceN > 25.0)
-                    {
-                        BrakeSkid = true;  // set brake skid flag true
-                    }
-                    else
-                    {
-                        BrakeSkid = false;
-                    }
-                }
-
-                else if (!(this is MSTSDieselLocomotive) || !(this is MSTSElectricLocomotive))
-                {
-
-                    // Calculate tread force on wheel - use the retard force as this is related to brakeshoe coefficient, and doesn't vary with skid.
-                    BrakeWheelTreadForceN = BrakeRetardForceN;
-
-                    // Determine whether car is experiencing a wheel slip during braking
-                    if (!BrakeSkidWarning && AbsSpeedMpS > 0.01)
-                    {
-                        var wagonbrakeadhesiveforcen = MassKG * GravitationalAccelerationMpS2 * Train.WagonCoefficientFriction; // Adhesive force wheel normal 
-
-                        if (BrakeWheelTreadForceN > 0.80f * WagonBrakeAdhesiveForceN && ThrottlePercent > 0.01)
-                        {
-                            BrakeSkidWarning = true; 	// wagon wheel is about to slip
-                        }
-                    }
-                    else if ( BrakeWheelTreadForceN < 0.75f * WagonBrakeAdhesiveForceN)
-                    {
-                        BrakeSkidWarning = false; 	// wagon wheel is back to normal
-                    }
-
-                    // Reset WSP dump valve lockout
-                    if (WheelBrakeSlideProtectionFitted && WheelBrakeSlideProtectionDumpValveLockout && (ThrottlePercent > 0.01 || AbsSpeedMpS <= 0.002))
-                    {
-                        WheelBrakeSlideProtectionTimerS = wheelBrakeSlideTimerResetValueS;
-                        WheelBrakeSlideProtectionDumpValveLockout = false;
-
-                    }       
-
-                    // Calculate adhesive force based upon whether in skid or not
-                    if (BrakeSkid)
-                    {
-                        WagonBrakeAdhesiveForceN = MassKG * GravitationalAccelerationMpS2 * SkidFriction;  // Adhesive force if wheel skidding
-                    }
-                    else
-                    {
-                        WagonBrakeAdhesiveForceN = MassKG * GravitationalAccelerationMpS2 * Train.WagonCoefficientFriction; // Adhesive force wheel normal
-                    }
-                                   
-
-                    // Test if wheel forces are high enough to induce a slip. Set slip flag if slip occuring 
-                    if (!BrakeSkid && AbsSpeedMpS > 0.01)  // Train must be moving forward to experience skid
-                    {
-                        if (BrakeWheelTreadForceN > WagonBrakeAdhesiveForceN)
-                        {
-                            BrakeSkid = true; 	// wagon wheel is slipping
-                            var message = "Car ID: " + CarID + " - experiencing braking force wheel skid.";
-                            Simulator.Confirmer.Message(ConfirmLevel.Warning, message);
-                        }
-                    }
-                    else if (BrakeSkid && AbsSpeedMpS > 0.01)
-                    {
-                        if (BrakeWheelTreadForceN < WagonBrakeAdhesiveForceN || BrakeForceN == 0.0f)
-                        {
-                            BrakeSkid = false; 	// wagon wheel is not slipping
-                        }
-                        
-                    }
-                    else
-                    {
-                        BrakeSkid = false; 	// wagon wheel is not slipping
-
-                    }
+                    BrakeSkidWarning = true;  // set brake skid flag true
                 }
                 else
                 {
-                    BrakeSkid = false; 	// wagon wheel is not slipping
+                    BrakeSkidWarning = false;
+                }
+
+                // If advanced adhesion model indicates wheel slip, then check other conditions (throttle and brake force) to determine whether it is a wheel slip or brake skid
+                if (WheelSlip && ThrottlePercent < 0.1f && BrakeRetardForceN > 25.0)
+                {
+                    BrakeSkid = true;  // set brake skid flag true
+                }
+                else
+                {
+                    BrakeSkid = false;
                 }
             }
-            else  // set default values if simple adhesion model, or if diesel or electric locomotive is used, which doesn't check for brake skid.
+            // Only apply slide, and advanced brake friction, if advanced adhesion is selected, simplecontrolphysics is not set, and it is a Player train
+            else if (Simulator.UseAdvancedAdhesion && !Simulator.Settings.SimpleControlPhysics && IsPlayerTrain)
+            {
+                // Determine whether car is experiencing a wheel slip during braking
+                if (!BrakeSkidWarning && AbsSpeedMpS > 0.01)
+                {
+                    var wagonbrakeadhesiveforcen = MassKG * GravitationalAccelerationMpS2 * Train.WagonCoefficientFriction; // Adhesive force wheel normal 
+
+                    if (BrakeRetardForceN > 0.80f * WagonBrakeAdhesiveForceN && ThrottlePercent > 0.01)
+                    {
+                        BrakeSkidWarning = true; 	// wagon wheel is about to slip
+                    }
+                }
+                else if (BrakeRetardForceN < 0.75f * WagonBrakeAdhesiveForceN)
+                {
+                    BrakeSkidWarning = false; 	// wagon wheel is back to normal
+                }
+
+                // Reset WSP dump valve lockout
+                if (WheelBrakeSlideProtectionFitted && WheelBrakeSlideProtectionDumpValveLockout && (ThrottlePercent > 0.01 || AbsSpeedMpS <= 0.002))
+                {
+                    WheelBrakeSlideProtectionTimerS = wheelBrakeSlideTimerResetValueS;
+                    WheelBrakeSlideProtectionDumpValveLockout = false;
+
+                }       
+
+                // Calculate adhesive force based upon whether in skid or not
+                if (BrakeSkid)
+                {
+                    WagonBrakeAdhesiveForceN = MassKG * GravitationalAccelerationMpS2 * SkidFriction;  // Adhesive force if wheel skidding
+                }
+                else
+                {
+                    WagonBrakeAdhesiveForceN = MassKG * GravitationalAccelerationMpS2 * Train.WagonCoefficientFriction; // Adhesive force wheel normal
+                }
+                                   
+
+                // Test if wheel forces are high enough to induce a slip. Set slip flag if slip occuring 
+                if (!BrakeSkid && AbsSpeedMpS > 0.01)  // Train must be moving forward to experience skid
+                {
+                    if (BrakeRetardForceN > WagonBrakeAdhesiveForceN)
+                    {
+                        BrakeSkid = true; 	// wagon wheel is slipping
+                        var message = "Car ID: " + CarID + " - experiencing braking force wheel skid.";
+                        Simulator.Confirmer.Message(ConfirmLevel.Warning, message);
+                    }
+                }
+                else if (BrakeSkid && AbsSpeedMpS > 0.01)
+                {
+                    if (BrakeRetardForceN < WagonBrakeAdhesiveForceN || BrakeForceN == 0.0f)
+                    {
+                        BrakeSkid = false; 	// wagon wheel is not slipping
+                    }
+                        
+                }
+                else
+                {
+                    BrakeSkid = false;  // wagon wheel is not slipping
+                }
+                BrakeForceN = BrakeRetardForceN;
+                if (BrakeSkid) BrakeForceN = Math.Min(BrakeForceN, MassKG * GravitationalAccelerationMpS2 * SkidFriction);
+            }
+            else  // set default values if simple adhesion model
             {
                 BrakeSkid = false; 	// wagon wheel is not slipping
+                BrakeForceN = BrakeRetardForceN;
             }
 
 #if DEBUG_BRAKE_SLIDE
@@ -1733,8 +1731,18 @@ namespace Orts.Simulation.RollingStocks
                     {
                         DerailExpected = true;
                         Simulator.Confirmer.Message(ConfirmLevel.Warning, Simulator.Catalog.GetStringFmt("Car {0} has derailed on the curve.", CarID));
-                      //  Trace.TraceInformation("Car Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5} Nadal {6} Coeff {7}", CarID, CouplerForceU, CouplerForceUSmoothed.SmoothedValue, TotalWagonLateralDerailForceN, TotalWagonVerticalDerailForceN, WagonCouplerAngleDerailRad, NadalDerailmentCoefficient, DerailmentCoefficient);
-                     //   Trace.TraceInformation("Car Ahead Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5}", CarAhead.CarID, CarAhead.CouplerForceU, CarAhead.CouplerForceUSmoothed.SmoothedValue, CarAhead.TotalWagonLateralDerailForceN, CarAhead.TotalWagonVerticalDerailForceN, CarAhead.WagonCouplerAngleDerailRad);
+                        if (!HasDerailed)
+                        {
+                            string derailReason = "defect";
+                            if (CouplerForceU > 0 && CouplerSlackM < 0) { derailReason = "jackknifed"; }
+                            else if (CouplerForceU < 0 && CouplerSlackM > 0) { derailReason = "stringlined"; }
+                            Trace.TraceInformation("Car {0} derailed ({1}), on {2} curve with radius {3}, at speed {4}, after traveling {5}",
+                                CarID, derailReason, GetCurveDirection(), FormatStrings.FormatDistance(CurrentCurveRadiusM, IsMetric), FormatStrings.FormatSpeed(AbsSpeedMpS, IsMetric), FormatStrings.FormatDistance(DistanceM, IsMetric));
+                            // DistanceM is not a good location measure, as it is based on the train. Two railcars derailing at the same location have a different distance.
+                        }
+                        HasDerailed = true;
+                        //  Trace.TraceInformation("Car Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5} Nadal {6} Coeff {7}", CarID, CouplerForceU, CouplerForceUSmoothed.SmoothedValue, TotalWagonLateralDerailForceN, TotalWagonVerticalDerailForceN, WagonCouplerAngleDerailRad, NadalDerailmentCoefficient, DerailmentCoefficient);
+                        //   Trace.TraceInformation("Car Ahead Derail - CarID: {0}, Coupler: {1}, CouplerSmoothed {2}, Lateral {3}, Vertical {4}, Angle {5}", CarAhead.CarID, CarAhead.CouplerForceU, CarAhead.CouplerForceUSmoothed.SmoothedValue, CarAhead.TotalWagonLateralDerailForceN, CarAhead.TotalWagonVerticalDerailForceN, CarAhead.WagonCouplerAngleDerailRad);
                     }
                     else if (DerailPossible)
                     {
@@ -1744,12 +1752,15 @@ namespace Orts.Simulation.RollingStocks
                     else
                     {
                         DerailElapsedTimeS = 0; // Reset timer if derail is not possible
+                        HasDerailed = false;
                     }
 
                     if (AbsSpeedMpS < 0.01)
                     {
                         DerailExpected = false;
                         DerailPossible = false;
+                        DerailElapsedTimeS = 0;
+                        HasDerailed = false;
                     }
 
 //                    if (CarID == "0 - 84" || CarID == "0 - 83" || CarID == "0 - 82" || CarID == "0 - 81" || CarID == "0 - 80" || CarID == "0 - 79")
@@ -1766,6 +1777,7 @@ namespace Orts.Simulation.RollingStocks
                     DerailExpected = false;
                     DerailPossible = false;
                     DerailElapsedTimeS = 0;
+                    HasDerailed = false;
                 }
 
 
@@ -2061,14 +2073,13 @@ namespace Orts.Simulation.RollingStocks
                 // Base Curve Resistance (from refernce i)) = (Vehicle mass x Coeff Friction) * (Track Gauge + Vehicle Fixed Wheelbase) / (2 * curve radius)
                 // Vehicle Fixed Wheel base is the distance between the wheels, ie bogie or fixed wheels
 
-                var rBaseWagonN = 9.81f * MassKG * Train.WagonCoefficientFriction * (TrackGaugeM + RigidWheelBaseM) / (2.0f * CurrentCurveRadiusM);
+                float rBaseWagonN = GravitationalAccelerationMpS2 * MassKG * Train.WagonCoefficientFriction * (TrackGaugeM + RigidWheelBaseM) / (2.0f * CurrentCurveRadiusM);
 
                 // Speed Curve Resistance (from reference ii) - second term only) = ((Speed^2 / Curve Radius) - (Superelevation / Track Gauge) * Gravitational acceleration) * Constant
 
-                var speedConstant = 1.5f;
-                var MToMM = 1000;
-                var rspeedKgpTonne = speedConstant * Math.Abs((SpeedMpS * SpeedMpS / CurrentCurveRadiusM) - ((MToMM * SuperElevationM / MToMM * TrackGaugeM) * GravitationalAccelerationMpS2));
-                var rSpeedWagonN = GravitationalAccelerationMpS2 * (Kg.ToTonne(MassKG) * rspeedKgpTonne);
+                float speedConstant = 1.5f;
+                float rspeedKgpTonne = speedConstant * Math.Abs((SpeedMpS * SpeedMpS / CurrentCurveRadiusM) - (GravitationalAccelerationMpS2 * SuperElevationM / TrackGaugeM));
+                float rSpeedWagonN = GravitationalAccelerationMpS2 * (Kg.ToTonne(MassKG) * rspeedKgpTonne);
 
                 CurveForceN = rBaseWagonN + rSpeedWagonN;
             }
@@ -2113,8 +2124,8 @@ namespace Orts.Simulation.RollingStocks
                 String.Format("{0}", FormatStrings.FormatSpeedDisplay(SpeedMpS, IsMetric)),
                 loco.DieselEngines[0].GearBox.HuDShaftRPM,
                 // For Locomotive HUD display shows "forward" motive power (& force) as a positive value, braking power (& force) will be shown as negative values.
-                FormatStrings.FormatPower(TractiveForceN * WheelSpeedMpS, IsMetric, false, false),
-                String.Format("{0}{1}", FormatStrings.FormatForce(TractiveForceN, IsMetric), WheelSlip ? "!!!" : WheelSlipWarning ? "???" : ""),
+                FormatStrings.FormatPower(loco.LocomotiveAxles.DrivePowerW, IsMetric, false, false),
+                String.Format("{0}{1}", FormatStrings.FormatForce(loco.LocomotiveAxles.DriveForceN, IsMetric), WheelSlip ? "!!!" : WheelSlipWarning ? "???" : ""),
                 Simulator.Catalog.GetString(locomotivetypetext)
                 );
             }
@@ -2128,8 +2139,8 @@ namespace Orts.Simulation.RollingStocks
                 ThrottlePercent,
                 String.Format("{0}", FormatStrings.FormatSpeedDisplay(SpeedMpS, IsMetric)),
                 // For Locomotive HUD display shows "forward" motive power (& force) as a positive value, braking power (& force) will be shown as negative values.
-                FormatStrings.FormatPower(TractiveForceN * WheelSpeedMpS, IsMetric, false, false),
-                String.Format("{0}{1}", FormatStrings.FormatForce(TractiveForceN, IsMetric), WheelSlip ? "!!!" : WheelSlipWarning ? "???" : ""),
+                FormatStrings.FormatPower((this as MSTSWagon).LocomotiveAxles.DrivePowerW, IsMetric, false, false),
+                String.Format("{0}{1}", FormatStrings.FormatForce((this as MSTSWagon).LocomotiveAxles.DriveForceN, IsMetric), WheelSlip ? "!!!" : WheelSlipWarning ? "???" : ""),
                 Simulator.Catalog.GetString(locomotivetypetext)
                 );
             }
@@ -2161,6 +2172,8 @@ namespace Orts.Simulation.RollingStocks
             outf.Write(UiD);
             outf.Write(CarID);
             BrakeSystem.Save(outf);
+            outf.Write(TractionForceN);
+            outf.Write(DynamicBrakeForceN);
             outf.Write(MotiveForceN);
             outf.Write(FrictionForceN);
             outf.Write(SpeedMpS);
@@ -2183,6 +2196,8 @@ namespace Orts.Simulation.RollingStocks
             UiD = inf.ReadInt32();
             CarID = inf.ReadString();
             BrakeSystem.Restore(inf);
+            TractionForceN = inf.ReadSingle();
+            DynamicBrakeForceN = inf.ReadSingle();
             MotiveForceN = inf.ReadSingle();
             FrictionForceN = inf.ReadSingle();
             SpeedMpS = inf.ReadSingle();
@@ -2824,8 +2839,7 @@ namespace Orts.Simulation.RollingStocks
             m.Backward = fwd;
 
             // Update gravity force when position is updated, but before any secondary motion is added
-            GravityForceN = MassKG * GravitationalAccelerationMpS2 * fwd.Y;
-            CurrentElevationPercent = 100f * (fwd.Y / (float)Math.Sqrt(1 - fwd.Y * fwd.Y));
+            UpdateGravity(m);
 
             // Consider body roll from superelevation and from tilting.
             UpdateTilting(traveler, elapsedTimeS, speed, direction);
@@ -2872,6 +2886,8 @@ namespace Orts.Simulation.RollingStocks
                     p.FindCenterLine();
                 }
             }
+
+            UpdatePositionFlags();
         }
 
         #region Traveller-based updates
@@ -3092,140 +3108,67 @@ namespace Orts.Simulation.RollingStocks
         }
         #endregion
 
+        public bool IsOverSwitch { get; private set; }
+        public bool IsOverCrossover { get; private set; }
+        public bool IsOverTrough { get; private set; }
+
+        void UpdatePositionFlags()
+        {
+            // Position flags can only change when we're moving!
+            if (Train == null || AbsSpeedMpS < 0.01f) return;
+
+            // Calculate the position of the ends of this car relative to the REAR of the train
+            var rearOffsetM = Train.PresentPosition[1].TCOffset;
+            for (var i = Train.Cars.IndexOf(this) + 1; i < Train.Cars.Count; i++)
+                rearOffsetM += Train.Cars[i - 1].CouplerSlackM + Train.Cars[i - 1].GetCouplerZeroLengthM() + Train.Cars[i].CarLengthM;
+            var frontOffsetM = rearOffsetM + CarLengthM;
+
+            var isOverSwitch = false;
+            var isOverCrossover = false;
+            var isOverTrough = false;
+
+            // Scan through the track sections forwards from the REAR of the train (`Train.PresentPosition[1]`),
+            // stopping as soon as we've passed this car (`checkedM`) or run out of track (`currentPin.Link`)
+            var checkedM = 0f;
+            var lastPin = new TrPin { Link = -1, Direction = -1 };
+            var currentPin = new TrPin { Link = Train.PresentPosition[1].TCSectionIndex, Direction = Train.PresentPosition[1].TCDirection };
+            while (checkedM <= frontOffsetM && currentPin.Link != -1)
+            {
+                var section = Simulator.Signals.TrackCircuitList[currentPin.Link];
+
+                // Does this car overlap this track section?
+                if (checkedM <= frontOffsetM && rearOffsetM <= checkedM + section.Length)
+                {
+                    if (section.CircuitType == TrackCircuitSection.TrackCircuitType.Junction) isOverSwitch = true;
+                    if (section.CircuitType == TrackCircuitSection.TrackCircuitType.Crossover) isOverCrossover = true;
+                    if (section.TroughInfo != null)
+                    {
+                        foreach (var troughs in section.TroughInfo)
+                        {
+                            var trough = troughs[currentPin.Direction];
+                            // Start and end are -1 if the trough extends beyond this section
+                            var troughStart = trough.TroughStart < 0 ? 0 : trough.TroughStart;
+                            var troughEnd = trough.TroughEnd < 0 ? section.Length : trough.TroughEnd;
+                            if (checkedM + troughStart <= frontOffsetM && rearOffsetM <= checkedM + troughEnd) isOverTrough = true;
+                        }
+                    }
+                }
+                checkedM += section.Length;
+
+                var nextPin = section.GetNextActiveLink(currentPin.Direction, lastPin.Link);
+                lastPin = currentPin;
+                currentPin = nextPin;
+            }
+
+            IsOverSwitch = isOverSwitch;
+            IsOverCrossover = isOverCrossover;
+            IsOverTrough = isOverTrough;
+        }
+
         // TODO These three fields should be in the TrainCarViewer.
         public int TrackSoundType = 0;
         public WorldLocation TrackSoundLocation = WorldLocation.None;
         public float TrackSoundDistSquared = 0;
-
-
-        /// <summary>
-        /// Checks if traincar is over trough. Used to check if refill possible
-        /// </summary>
-        /// <returns> returns true if car is over trough</returns>
-
-        public bool IsOverTrough()
-        {
-            var isOverTrough = false;
-            // start at front of train
-            int thisSectionIndex = Train.PresentPosition[0].TCSectionIndex;
-            if (thisSectionIndex < 0) return isOverTrough;
-            float thisSectionOffset = Train.PresentPosition[0].TCOffset;
-            int thisSectionDirection = Train.PresentPosition[0].TCDirection;
-
-
-            float usedCarLength = CarLengthM;
-            float processedCarLength = 0;
-            bool validSections = true;
-
-            while (validSections)
-            {
-                TrackCircuitSection thisSection = Train.signalRef.TrackCircuitList[thisSectionIndex];
-                isOverTrough = false;
-
-                // car spans sections
-                if ((CarLengthM - processedCarLength) > thisSectionOffset)
-                {
-                    usedCarLength = thisSectionOffset - processedCarLength;
-                }
-
-                // section has troughs
-                if (thisSection.TroughInfo != null)
-                {
-                    foreach (TrackCircuitSection.troughInfoData[] thisTrough in thisSection.TroughInfo)
-                    {
-                        float troughStartOffset = thisTrough[thisSectionDirection].TroughStart;
-                        float troughEndOffset = thisTrough[thisSectionDirection].TroughEnd;
-
-                        if (troughStartOffset > 0 && troughStartOffset > thisSectionOffset)      // start of trough is in section beyond present position - cannot be over this trough nor any following
-                        {
-                            return isOverTrough;
-                        }
-
-                        if (troughEndOffset > 0 && troughEndOffset < (thisSectionOffset - usedCarLength)) // beyond end of trough, test next
-                        {
-                            continue;
-                        }
-
-                        if (troughStartOffset <= 0 || troughStartOffset < (thisSectionOffset - usedCarLength)) // start of trough is behind
-                        {
-                            isOverTrough = true;
-                            return isOverTrough;
-                        }
-                    }
-                }
-                // tested this section, any need to go beyond?
-
-                processedCarLength += usedCarLength;
-                {
-                    // go back one section
-                    int thisSectionRouteIndex = Train.ValidRoute[0].GetRouteIndexBackward(thisSectionIndex, Train.PresentPosition[0].RouteListIndex);
-                    if (thisSectionRouteIndex >= 0)
-                    {
-                        thisSectionIndex = thisSectionRouteIndex;
-                        thisSection = Train.signalRef.TrackCircuitList[thisSectionIndex];
-                        thisSectionOffset = thisSection.Length;  // always at end of next section
-                        thisSectionDirection = Train.ValidRoute[0][thisSectionRouteIndex].Direction;
-                    }
-                    else // ran out of train
-                    {
-                        validSections = false;
-                    }
-                }
-            }
-            return isOverTrough;
-        }
-
-        /// <summary>
-        /// Checks if traincar is over junction or crossover. Used to check if water scoop breaks
-        /// </summary>
-        /// <returns> returns true if car is over junction</returns>
-
-        public bool IsOverJunction()
-        {
-
-            // To Do - This identifies the start of the train, but needs to be further refined to work for each carriage.
-            var isOverJunction = false;
-            // start at front of train
-            int thisSectionIndex = Train.PresentPosition[0].TCSectionIndex;
-            float thisSectionOffset = Train.PresentPosition[0].TCOffset;
-            int thisSectionDirection = Train.PresentPosition[0].TCDirection;
-
-
-            float usedCarLength = CarLengthM;
-
-            if (Train.PresentPosition[0].TCSectionIndex != Train.PresentPosition[1].TCSectionIndex)
-            {
-                try
-                {
-                    var copyOccupiedTrack = Train.OccupiedTrack.ToArray();
-                    foreach (var thisSection in copyOccupiedTrack)
-                    {
-
-                        //                    Trace.TraceInformation(" Track Section - Index {0} Ciruit Type {1}", thisSectionIndex, thisSection.CircuitType);
-
-                        if (thisSection.CircuitType == TrackCircuitSection.TrackCircuitType.Junction || thisSection.CircuitType == TrackCircuitSection.TrackCircuitType.Crossover)
-                        {
-
-                            // train is on a switch; let's see if car is on a switch too
-                            WorldLocation switchLocation = TileLocation(Simulator.TDB.TrackDB.TrackNodes[thisSection.OriginalIndex].UiD);
-                            var distanceFromSwitch = WorldLocation.GetDistanceSquared(WorldPosition.WorldLocation, switchLocation);
-                            if (distanceFromSwitch < CarLengthM * CarLengthM + Math.Min(SpeedMpS * 3, 150))
-                            {
-                                isOverJunction = true;
-                                return isOverJunction;
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-
-                }
-            }
-
-            return isOverJunction;
-        }
-
 
         public static WorldLocation TileLocation(UiD uid)
         {
@@ -3528,6 +3471,40 @@ namespace Orts.Simulation.RollingStocks
             }
 
             return new LatLonDirection(latLon, directionDeg); ;
+        }
+
+        public int GetWagonNumAxles() { return WagonNumAxles; }
+
+        public float GetGravitationalAccelerationMpS2() { return GravitationalAccelerationMpS2; }
+
+        /// <summary>
+        /// Update the gravity force and % gradient of this train car at the current position
+        /// </summary>
+        public void UpdateGravity()
+        {
+            UpdateGravity(WorldPosition.XNAMatrix);
+        }
+
+        /// <summary>
+        /// Update the gravity force and % gradient of this train car at an arbitrary position
+        /// </summary>
+        /// <param name="orientation">Matrix giving the train car orientation used to determine gravity.</param>
+        public void UpdateGravity(Matrix orientation)
+        {
+            // Percent slope = 100 * rise / run -> the Y component of the forward vector gives us the 'rise'
+            // Derive the 'run' by assuming a hypotenuse length of 1, so per Pythagoras run = sqrt(1 - rise^2)
+            float rise = orientation.Backward.Y;
+
+            GravityForceN = MassKG * GravitationalAccelerationMpS2 * rise;
+            CurrentElevationPercent = 100f * (rise / (float)Math.Sqrt(1 - rise * rise));
+
+            // Reverse gravity force and % gradient on locomotives operated from the rear cab
+            // FUTURE: Change rear cabs to not require such forbidden manipulations of physics
+            if (IsDriveable && Train != null & Train.IsPlayerDriven && (this as MSTSLocomotive).UsingRearCab)
+            {
+                GravityForceN = -GravityForceN;
+                CurrentElevationPercent = -CurrentElevationPercent;
+            }
         }
     }
 
