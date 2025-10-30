@@ -234,6 +234,7 @@ namespace Orts.Formats.Msts
         ORTS_EOT_DISARM,
         ORTS_EOT_ARM_TWO_WAY,
         ORTS_EOT_EMERGENCY_BRAKE,
+        ORTS_AMMETER_REQUESTED,
 
         // TCS Controls
         ORTS_TCS,

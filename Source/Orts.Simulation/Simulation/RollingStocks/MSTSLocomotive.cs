@@ -2717,7 +2717,13 @@ namespace Orts.Simulation.RollingStocks
             ApplyDirectionToTractiveForce(ref TractiveForceN);
 
             UpdateDynamicBrakeForce(elapsedClockSeconds);
-            TractiveForceN -= Math.Sign(WheelSpeedMpS) * DynamicBrakeForceN;
+            try
+            {
+                TractiveForceN -= Math.Sign(WheelSpeedMpS) * DynamicBrakeForceN;
+            }
+            catch (System.ArithmeticException)
+            {
+            }
 
             for (int i=0; i<LocomotiveAxles.Count; i++)
             {
@@ -5409,6 +5415,60 @@ namespace Orts.Simulation.RollingStocks
                         data = TractiveForceN / MaxForceN * MaxCurrentA;
                         if (cvc.ControlType.Type == CABViewControlTypes.AMMETER_ABS) data = Math.Abs(data);
                         break;
+                    }                
+                case CABViewControlTypes.ORTS_AMMETER_REQUESTED:
+                    {
+                        var direction = 0; // Forwards
+                        if (cvc is CVCGauge && ((CVCGauge)cvc).Orientation == 0)
+                            direction = ((CVCGauge)cvc).Direction;
+                        if (MaxCurrentA == 0)
+                            MaxCurrentA = (float)cvc.MaxValue;
+                        if (LocomotiveAxles.Count > 0)
+                        {
+                            data = 0.0f;
+                            if (DynamicBrake)
+                            {
+                                float maxdynamic = DynamicBrake ? 1 : 0;
+                                float d = DynamicBrakePercent / 100;
+                                bool dynamicLimited = d > maxdynamic;
+                                if (dynamicLimited) d = maxdynamic;
+                                d = MathHelper.Clamp(d, 0, 1);
+                                
+                                if (d > 0 && DynamicBrakeForceCurves != null && AbsTractionSpeedMpS > 0)
+                                {
+                                    data = DynamicBrakeForceCurves.Get(d, AbsTractionSpeedMpS) * (1 - PowerReduction) / 1000.0f;
+                                    data = -data;
+                                }
+                            }
+                            else
+                            {
+                                float t = ThrottlePercent / 100;
+                                if (t > 0)
+                                {
+                                    float maxthrottle = MaxThrottlePercent / 100;
+                                    if (DynamicBrake) maxthrottle = 0;
+                                    // For diesel locomotives, also take into account the throttle setting associated to the current engine RPM
+                                    if (IsPlayerTrain && this is MSTSDieselLocomotive diesel && !diesel.TractiveForcePowerLimited)
+                                    {
+                                        maxthrottle = Math.Min(maxthrottle, diesel.DieselEngines.ApparentThrottleSetting / 100.0f);
+                                    }
+
+                                    if (t > maxthrottle) t = maxthrottle;
+                                    t = MathHelper.Clamp(t, 0, 1);
+                                    if (maxthrottle > 0 && Direction != Direction.N && LocomotivePowerSupply.MainPowerSupplyOn)
+                                    {
+                                        data = TractiveForceCurves.Get(t, AbsTractionSpeedMpS) * (1 - PowerReduction) / 1000.0f;
+                                    }
+
+                                    data = Math.Abs(data);
+                                }
+                            }
+                            if (direction == 1)
+                                data = -data;
+                            break;
+                        }
+                        data = TractiveForceN / MaxForceN * MaxCurrentA;
+                        break;
                     }
                 case CABViewControlTypes.LOAD_METER:
                     {
@@ -5664,6 +5724,12 @@ namespace Orts.Simulation.RollingStocks
                     {
                         if (CruiseControl != null && CruiseControl.SkipThrottleDisplay) break;
                         data = GetThrottleHandleValue(false);
+                        
+                        if (cvc.Feature == "HideOnNegativeForce")
+                        {
+                            cvc.IsVisible = DynamicBrakeForceN == 0.0;
+                        }
+                        
                         break;
                     }
                 case CABViewControlTypes.THROTTLE_DISPLAY:

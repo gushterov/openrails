@@ -343,6 +343,7 @@ namespace Orts.Simulation.RollingStocks
                 // Locomotive controls
                 case CABViewControlTypes.AMMETER:
                 case CABViewControlTypes.AMMETER_ABS:
+                case CABViewControlTypes.ORTS_AMMETER_REQUESTED:
                 case CABViewControlTypes.DYNAMIC_BRAKE_FORCE:
                 case CABViewControlTypes.LOAD_METER:
                 case CABViewControlTypes.ORTS_SIGNED_TRACTION_BRAKING:
