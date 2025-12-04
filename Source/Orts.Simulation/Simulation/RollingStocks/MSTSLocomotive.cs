@@ -5437,7 +5437,7 @@ namespace Orts.Simulation.RollingStocks
                                 if (d > 0 && DynamicBrakeForceCurves != null && AbsTractionSpeedMpS > 0)
                                 {
                                     data = DynamicBrakeForceCurves.Get(d, AbsTractionSpeedMpS) * (1 - PowerReduction) / 1000.0f;
-                                    data = -data;
+                                    data = -data * cvc.DynamicBrakeScale;
                                 }
                             }
                             else

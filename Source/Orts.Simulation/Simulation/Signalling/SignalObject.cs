@@ -2009,25 +2009,30 @@ namespace Orts.Simulation.Signalling
         /// </summary>
         public void AddHead(int trItem, int TDBRef, SignalItem sigItem)
         {
-            // create SignalHead
-            SignalHead head = new SignalHead(this, trItem, TDBRef, sigItem);
-
-            // set junction link
-            if (head.TrackJunctionNode != 0)
+            try
             {
-                if (head.JunctionPath == 0)
-                {
-                    head.JunctionMainNode =
-                       trackNodes[head.TrackJunctionNode].TrPins[trackNodes[head.TrackJunctionNode].Inpins].Link;
-                }
-                else
-                {
-                    head.JunctionMainNode =
-                       trackNodes[head.TrackJunctionNode].TrPins[trackNodes[head.TrackJunctionNode].Inpins + 1].Link;
-                }
-            }
-            SignalHeads.Add(head);
+                // create SignalHead
+                SignalHead head = new SignalHead(this, trItem, TDBRef, sigItem);
 
+                // set junction link
+                if (head.TrackJunctionNode != 0)
+                {
+                    if (head.JunctionPath == 0)
+                    {
+                        head.JunctionMainNode = trackNodes[head.TrackJunctionNode].TrPins[trackNodes[head.TrackJunctionNode].Inpins].Link;
+                    }
+                    else
+                    {
+                        head.JunctionMainNode = trackNodes[head.TrackJunctionNode].TrPins[trackNodes[head.TrackJunctionNode].Inpins + 1].Link;
+                    }
+                }
+
+                SignalHeads.Add(head);
+            }
+            catch (IndexOutOfRangeException)
+            {
+                
+            }
         }
 
         /// <summary>

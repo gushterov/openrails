@@ -650,14 +650,21 @@ namespace Orts.Viewer3D.Popups
                     localScrollLayout(SelectedCarPosition);
                 }
 
-                // Restore LastCarIDSelected (F9) after returning from different camera views
-                if (CarIdClicked && Owner.Viewer.Camera.AttachedCar.CarID != LastCarIDSelected)
+                try
                 {
-                    trainCarViewer.CurrentCarID = LastCarIDSelected;
-                    trainCarViewer.CarPosition = CarPosition = PlayerTrain.Cars.TakeWhile(x => x.CarID != LastCarIDSelected).Count();
-                    SelectedCarPosition = CarPosition;
-                    trainCarViewer.TrainCarOperationsChanged = true;
-                    SetCameraView();
+                    // Restore LastCarIDSelected (F9) after returning from different camera views
+                    if (CarIdClicked && Owner.Viewer.Camera.AttachedCar.CarID != LastCarIDSelected)
+                    {
+                        trainCarViewer.CurrentCarID = LastCarIDSelected;
+                        trainCarViewer.CarPosition = CarPosition = PlayerTrain.Cars.TakeWhile(x => x.CarID != LastCarIDSelected).Count();
+                        SelectedCarPosition = CarPosition;
+                        trainCarViewer.TrainCarOperationsChanged = true;
+                        SetCameraView();
+                    }
+                }
+                catch (NullReferenceException)
+                {
+
                 }
 
                 UserCommand? controlDiesel = GetPressedKey(UserCommand.ControlDieselHelper, UserCommand.ControlDieselPlayer, UserCommand.ControlInitializeBrakes);
@@ -795,7 +802,6 @@ namespace Orts.Viewer3D.Popups
             Viewer = viewer;
             TrainCar = Viewer.TrainCarOperationsWindow;
             TrainCarViewer = Viewer.TrainCarOperationsViewerWindow;
-            var currentCameraCarID = Viewer.Camera.AttachedCar.CarID;
 
             TrainCarViewer.CurrentCarID = TrainCar.LastCarIDSelected;
             TrainCarViewer.CarPosition = TrainCar.CarPosition = PlayerTrain.Cars.TakeWhile(x => x.CarID != TrainCar.LastCarIDSelected).Count();

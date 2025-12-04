@@ -487,6 +487,7 @@ namespace Orts.Formats.Msts
 
         public double UnitsExponent = 1.0f;
         public float UnitsScale = 1.0f;
+        public float DynamicBrakeScale = 1.0f;
         public float UnitsOffset;
         
         public string Feature = "None";
@@ -712,6 +713,7 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("ortscabviewpoint", ()=>{ParseCabViewpoint(stf); }),
                 new STFReader.TokenProcessor("ortsunitsexponent", ()=>{ UnitsExponent = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
                 new STFReader.TokenProcessor("ortsunitsscalefactor", ()=>{ UnitsScale = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
+                new STFReader.TokenProcessor("ortsdynamicbrakescalefactor", ()=>{ DynamicBrakeScale = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
                 new STFReader.TokenProcessor("ortsunitsoffset", ()=>{ UnitsOffset = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
             });
         }
