@@ -614,12 +614,6 @@ namespace Orts.Viewer3D.Popups
                 var trainCarWebpage = Owner.Viewer.TrainCarOperationsWebpage;
                 var isFormationReversed = Owner.Viewer.IsFormationReversed;
 
-                CabCameraEnabled = Owner.Viewer.Camera is CabCamera || Owner.Viewer.Camera == Owner.Viewer.ThreeDimCabCamera;
-                if (CarIdClicked && !CabCameraEnabled && !trainCarViewer.Visible && (!FrontActive || !BackActive))
-                {
-                    SetCameraView();
-                }
-
                 // Allows interaction with <Alt>+<PageDown> and <Alt>+<PageUP>.
                 if (CarPositionChanged && Owner.Viewer.Camera.AttachedCar != null && !(Owner.Viewer.Camera is CabCamera) && Owner.Viewer.Camera != Owner.Viewer.ThreeDimCabCamera && (trainCarViewer.Visible || Visible))
                 {
@@ -659,7 +653,6 @@ namespace Orts.Viewer3D.Popups
                         trainCarViewer.CarPosition = CarPosition = PlayerTrain.Cars.TakeWhile(x => x.CarID != LastCarIDSelected).Count();
                         SelectedCarPosition = CarPosition;
                         trainCarViewer.TrainCarOperationsChanged = true;
-                        SetCameraView();
                     }
                 }
                 catch (NullReferenceException)

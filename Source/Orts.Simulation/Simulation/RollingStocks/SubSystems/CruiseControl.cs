@@ -187,6 +187,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         public bool TrainBrakePriorityIfCCAccelerating = false;
         public bool WasBraking = false;
         public bool WasForceReset = true;
+        public float SamplingPeriodS = 0.02f;
+        private float timeSinceLastUpdateS = 0;
+        private const float SpeedToleranceMpS = 0.2f; // Deadband around requested speed before CC reacts
 
 
         public bool SelectedSpeedPressed = false;
@@ -284,7 +287,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             StartInAutoMode = other.StartInAutoMode;
             ThrottleNeutralPosition = other.ThrottleNeutralPosition;
             ModeSwitchAllowedWithThrottleNotAtZero = other.ModeSwitchAllowedWithThrottleNotAtZero;
-
+            SamplingPeriodS = other.SamplingPeriodS;
         }
 
         public void Parse(STFReader stf)
@@ -376,6 +379,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                     case "trainbrakemaxpercentvalue": TrainBrakeMaxPercentValue = stf.ReadFloatBlock(STFReader.UNITS.Any, 0.85f); break;
                     case "startinautomode": StartInAutoMode = stf.ReadBoolBlock(false); break;
                     case "throttleneutralposition": ThrottleNeutralPosition = stf.ReadBoolBlock(false); break;
+                    case "samplingperiods": SamplingPeriodS = stf.ReadFloatBlock(STFReader.UNITS.Any, 0.5f); break;
                     case "modeswitchallowedwiththrottlenotatzero": ModeSwitchAllowedWithThrottleNotAtZero = stf.ReadBoolBlock(false); break;
                     case "docomputenumberofaxles": DoComputeNumberOfAxles = stf.ReadBoolBlock(false); break;
                     case "options":
@@ -550,8 +554,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 }
                 else
                 {
-                    float prevTrainBrakePercent = TrainBrakePercent;
-                    CalculateRequiredForce(elapsedClockSeconds, Locomotive.AbsWheelSpeedMpS);
+                    timeSinceLastUpdateS += elapsedClockSeconds;
+                    if (timeSinceLastUpdateS >= SamplingPeriodS)
+                    {
+                        CalculateRequiredForce(timeSinceLastUpdateS, Locomotive.AbsWheelSpeedMpS);
+                        timeSinceLastUpdateS = 0;
+                    }
                     CCThrottleOrDynBrakePercent = MathHelper.Clamp(CCThrottleOrDynBrakePercent, -100, 100);
                     if (CCThrottleOrDynBrakePercent > 0 && ForceResetRequiredAfterBraking && (!WasForceReset || WasBraking && SelectedMaxAccelerationPercent > 0))
                     {
@@ -1188,6 +1196,29 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             }
 
             float deltaSpeedMpS = SetSpeedMpS - AbsWheelSpeedMpS;
+            if (Math.Abs(deltaSpeedMpS) <= SpeedToleranceMpS)
+                deltaSpeedMpS = 0;
+
+            // Anticipate force ramp delays: estimate how much speed we may still gain/lose
+            // while tractive/dynamic brake force ramps down to zero.
+            float timeToReduceTractionS = 0f;
+            if (CCThrottleOrDynBrakePercent > 0)
+            {
+                timeToReduceTractionS = ThrottleFullRangeDecreaseTimeSeconds * (CCThrottleOrDynBrakePercent / 100f);
+            }
+
+            float timeToReleaseBrakeS = 0f;
+            if (CCThrottleOrDynBrakePercent < 0)
+            {
+                timeToReleaseBrakeS = DynamicBrakeFullRangeDecreaseTimeSeconds * (-CCThrottleOrDynBrakePercent / 100f);
+            }
+
+            float accelMarginMpS = Math.Max(0f, RelativeAccelerationMpSS) * timeToReduceTractionS;
+            float brakeMarginMpS = Math.Max(0f, -RelativeAccelerationMpSS) * timeToReleaseBrakeS;
+
+            // Effective deltas that consider residual acceleration/deceleration during ramp-down
+            float deltaForAccel = deltaSpeedMpS - accelMarginMpS;
+            float deltaForBrake = deltaSpeedMpS + brakeMarginMpS;
             if (SpeedSelMode == SpeedSelectorMode.Parking && !EngineBrakePriority)
             {
                 if (CCThrottleOrDynBrakePercent > 0 || AbsWheelSpeedMpS == 0)
@@ -1276,6 +1307,11 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                                 float maxStep = (AccelerationDemandMpSS - RelativeAccelerationMpSS) * 2;
                                 IncreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, Math.Min(CCThrottleOrDynBrakePercent+maxStep, 0));
                             }
+                            // Approaching set speed; start releasing brake earlier due to dynamic brake ramp-down delay
+                            if (deltaForBrake >= 0)
+                            {
+                                IncreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, 0);
+                            }
                             if (DynamicBrakeIsSelectedForceDependant)
                             {
                                 float maxPercent = SelectedMaxAccelerationPercent;
@@ -1339,13 +1375,22 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                                 float accelDiff = AccelerationDemandMpSS - Locomotive.AccelerationMpSS;
                                 target = Math.Min(CCThrottleOrDynBrakePercent + accelDiff * 10, demandedPercent);
                             }
-                            else
+                            else if (CCThrottleOrDynBrakePercent > demandedPercent)
                                 target = demandedPercent;
                         }
-                        if (target > CCThrottleOrDynBrakePercent)
-                            IncreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, target.Value);
-                        else if (target < CCThrottleOrDynBrakePercent)
-                            DecreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, target.Value);
+
+                        if (!target.HasValue && deltaForAccel <= 0)
+                        {
+                            // Approaching set speed; start reducing earlier due to traction ramp-down delay
+                            target = Math.Min(CCThrottleOrDynBrakePercent, demandedPercent);
+                        }
+                        if (target.HasValue)
+                        {
+                            if (target > CCThrottleOrDynBrakePercent)
+                                IncreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, target.Value);
+                            else if (target < CCThrottleOrDynBrakePercent)
+                                DecreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, target.Value);
+                        }
                     }
                 }
             }

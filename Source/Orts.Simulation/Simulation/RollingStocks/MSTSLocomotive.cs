@@ -5722,7 +5722,7 @@ namespace Orts.Simulation.RollingStocks
 
                 case CABViewControlTypes.THROTTLE:
                     {
-                        if (CruiseControl != null && CruiseControl.SkipThrottleDisplay) break;
+                        // if (CruiseControl != null && CruiseControl.SkipThrottleDisplay) break;
                         data = GetThrottleHandleValue(false);
                         
                         if (cvc.Feature == "HideOnNegativeForce")
