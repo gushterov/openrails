@@ -43,7 +43,7 @@ snow texture names are recognized: ``ORTSDefaultSnow.ace`` and
 ``ORTSDefaultDMSnow.ace``, to be positioned within folder ``TERRTEX\SNOW`` of 
 the concerned route. For the snow textures that are missing in the ``SNOW`` 
 subfolder, and only for them, ORTS uses such files to display snow, if they 
-are present, instead of using file ``blank.bmp``.
+are present.
 
 To have a minimum working snow texture set, the file ``microtex.ace`` must 
 also be present in the ``SNOW`` subfolder.
@@ -715,11 +715,10 @@ In the ``.trk`` file of the route the parameter ``loadingscreen`` can be used as
 
 	LoadingScreen ( Load.ace )
 
-If in the main directory of the route there is a file with the same name but with extension ``.dds`` 
-and the :ref:`DDS texture support<options-dds-textures>` is enabled
+A DDS extension takes precedence over ACE so, if
+in the main directory of the route there is a file with the same name but with extension ``.dds``,
 the latter is displayed instead of that with ``.ace`` extension.
-If the parameter is omitted then the file ``load.ace`` is loaded (as in MSTS) or ``load.dds`` 
-(if present and, again, the dds support is enabled).
+If the filename parameter is omitted then the file ``load.ace`` is loaded (as in MSTS) or ``load.dds`` if present.
 
 The loading screen image can have any resolution and aspect ratio; it will be displayed letter-boxed
 on the screen keeping the aspect ratio.
@@ -800,11 +799,11 @@ Alternatively, the original .trk file can be left unmodified, and a new .trk fil
 inserted into an ``OpenRails`` folder in the root folder of the route. This is 
 explained :ref:`here <features-route-modify-trk>`. 
 
-To avoid also forest trees on roads following line::
+To avoid also forest trees on roads insert the following line which sets the Boolean value to true::
 
   ORTSUserPreferenceRemoveForestTreesFromRoads ( 1 )
 
-must be added below line::
+and must be added below line::
 
   ORTSUserPreferenceForestClearDistance ( 2 )
 

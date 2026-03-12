@@ -39,50 +39,75 @@ the WAG / ENG file is discussed.
 Resistive Forces
 ----------------
 
-Open Rails physics calculates resistance based on real world physics:
-gravity, mass, rolling resistance and optionally curve resistance. This is
-calculated individually for each car in the train. The program calculates
-rolling resistance, or friction, based on the Friction parameters in the
-Wagon section of .wag/.eng file. Open Rails identifies whether the .wag
-file uses the *FCalc* utility or other friction data. If *FCalc* was used to
-determine the Friction variables within the .wag file, Open Rails compares
-that data to the Open Rails Davis equations to identify the closest match
-with the Open Rails Davis equation. If no-FCalc Friction parameters are
-used in the .wag file, Open Rails ignores those values, substituting its
-actual Davis equation values for the train car.
+Open Rails physics calculates resistance based on real world principles:
+gravity, mass, wind, rolling resistance, and curve resistance. This is
+calculated individually for each car in the train.
+
+The program supports a few methods for determining rolling resistance.
+The oldest method, intended only to support legacy content, uses the
+``Friction`` parameters in the Wagon section of .wag/.eng file.
+Open Rails identifies whether the .wag file used the *FCalc* utility or
+other friction data. If *FCalc* was used to determine the Friction variables
+within the .wag file, Open Rails attempts to determine the Davis coefficients
+originally used to derive the Friction parameters. If no FCalc Friction
+parameters are used in the .wag file, Open Rails ignores those values,
+substituting resistance calculated by the original 1923 Davis equation.
 
 .. index::
    single: ORTSDavis_A
    single: ORTSDavis_B
    single: ORTSDavis_C
+   single: ORTSBearingType
    
-A basic (simplified) Davis formula is used in the following form:
+For new content, it is preferred to not use the ``Friction`` parameters,
+and instead enter the Davis coefficients directly as this is more
+prototypical. In the Wagon section, the parameters ``ORTSDavis_A``,
+``ORTSDavis_B``, and ``ORTSDavis_C`` can be used to provide these values.
+When using this method, the wagon section should also specify the type of
+wheel bearings used with the ``ORTSBearingType`` parameter.
+These values are then used in a generic form of the Davis formula:
 
 F\ :sub:`res` = ORTSDavis_A + speedMpS * (ORTSDavis_B + ORTSDavis_C * speedMpS\ :sup:`2`\ )
 
-Where F\ :sub:`res` is the friction force of the car. The rolling resistance
-can be defined either by *FCalc* or ORTSDavis_A, _B and _C components. If
-one of the *ORTSDavis* components is zero, *FCalc* is used. Therefore, e.g.
-if the data doesn't contain the B part of the Davis formula, a very small
-number should be used instead of zero.
+Where F\ :sub:`res` is the friction force of the car when travelling at a
+speed of *speedMpS*. Note that in this formula, unlike the empirical Davis
+formula, the weight of the rolling stock and the number of axles are not
+considered by this equation; the ORTSDavis values must be set already
+accounting for the weight and number of axles. Accepted units of measure
+for ORTSDavis parameters and the list of bearing types can be found in the
+:ref:`required parameters table <required-params>`.
+
+In the case that ORTSDavis coefficients are not known or prove awkward to calculate,
+Open Rails can automatically calculate rolling resistance using other data
+in combination with the 1926 Davis equation (for grease and friction bearings)
+or the 1992 CN equation (for roller and low bearings). If given a supported
+``ORTSBearingType``, missing A and B coefficients will be found from the rail
+vehicle weight and number of axles. Likewise, if the C coefficient is missing it
+is automatically calculated from the ``ORTSWagonFrontalArea`` and
+``ORTSDavisDragConstant`` values (or defaults, if those are missing).
+While the auto-calculated results will be reasonable for standard rolling stock,
+manual entry of ORTSDavis coefficients is still preferred for more complicated
+rolling stock such as steam locomotives, multiple units, high speed trains,
+articulated units, and anything studied in experiments other than Davis.
 
 .. index::
    single: ORTSMergeSpeed
    single: ORTSStandstillFriction
 
-When a train is initially started, additional force is needed to overcome
-the initial higher bearing torque (forces) and track resistance.  Starting resistance is calculated 
-automatically by Open Rails based upon empirical prototypical data at low speeds. 
-By selecting different values for ``ORTSBearingType`` different values of starting 
-resistance will be applied. The Open Rails calculation for starting resistance takes 
-into account different conditions, such as weather (for example, snowing or clear), 
-wagon (axle) load, wheel bearing temperature and wheel diameter. Hence when using the OR calculation 
-the correct values should be inserted in ``ORTSNumberAxles`` parameter in the wagon section, and 
-``ORTSNumberDriveAxles`` in the engine section. The ``WheelRadius`` value should also be 
-inserted in both sections as appropriate.
+The various forms of Davis equation are only accurate above 5 mph or so. They
+prove inaccurate at low speeds as additional force is needed to overcome
+the initial higher bearing torque (forces) and track resistance. Starting resistance
+is calculated automatically by Open Rails based upon environmental conditions
+and the setting of ``ORTSBearingType``. Each bearing type has a different starting
+resistance profile based on empirical prototypical data, including consideration
+for the temperature of the bearing, wagon (axle) load, and wheel diameter. Hence
+when using the OR calculation  the correct values should be inserted in ``ORTSNumberAxles``
+parameter in the wagon section, and ``ORTSNumberDriveAxles`` in the engine section. The
+``WheelRadius`` value should also be inserted in both sections as appropriate.
 
-Alternatively the low-speed friction force can be manually specified by the user by setting 
-``ORTSStandstillFriction`` and ``ORTSMergeSpeed``.
+Alternatively the low-speed friction force can be manually specified by the user by
+setting the zero-speed force in ``ORTSStandstillFriction`` and the speed at which the
+regular Davis equation takes over with ``ORTSMergeSpeed``.
 
 .. index::
    single: ORTSTrackGauge
@@ -249,6 +274,8 @@ performance of the wheelset.
 ``NumberWheelsetAxles`` - number of axles in the wheelset.
 ``ORTSFlangeAngle`` - flange angle of the wheels in the wheelset.
 ``ORTSInertia`` - inertia of the wheels in the wheelset.
+``AxleRailTractionType`` - indicates the type of rail traction for the axle. 
+Valid inputs are Rack, Rack_Adhesion or Adhesion.
 
 The first model -- simple adhesion model -- is a simple tractive force
 condition-based computation. If the tractive force reaches its actual
@@ -385,6 +412,59 @@ cylinder or sometimes it has two of the cranks separated by 45 deg instead. Thes
 Rad (default) or Deg. The separations should be described around the full 360 deg of rotation, so for example, 
 a 3 cylinder locomotive would be - ORTSWheelCrankAngleDifference ( 0deg, 120deg, 240deg ).
 
+.. _physics-rack_railway:
+
+Rack Railway Operation
+----------------------
+
+Whilst the steepest adhesion track gradient is 1 in 7.2 ( 13.8% ), this gradient will significantly reduce the load 
+that can be hauled up the gradient, so often railway designers elect to add a cog wheel to the train which engages 
+a rack rail in the track, and by this method the train is able to haul itself up the hill without any wheel slippage.
+
+In regards to steam rack locomotives there are potentially three different types, as follows:
+
+a) Pure Rack Locomotive - which has wheels supporting its weight, but is driven only by a Cog wheel.
+
+b) Combined Rack and Adhesion locomotive - this type has two different steam engines, with one driving the rack cog wheel, 
+and one driving the adhesion wheels.
+
+c) Rack locomotive with driven adhesion wheels - in this variation the Cog wheel is on the same drive axle as the adhesion wheels. 
+This type of locomotive could run on adhesion tracks as well as rack tracks.
+
+To configure a rack railway operation into OR, the following parameters need to be configured into the files indicated.
+
+i) In the TSECTION.DAT file add the entry ``ORTSRackShape ( )`` into all the track shapes that have rack rails included.
+
+ii) In the Rack locomotive ENG file it will be necessary to add one or more :ref:`Steam Engines <physics-multiple-steam-engines>`
+ depending upon the type of rack locomotive being crerated.
+
+iii) It will also be necessary to define which axles are Adhesion or Rack driven. This can be done by adjusting the :ref:`Axles <physics-adhesion:>` parameters.
+
+iv) In the WAG file (for wagons only) add the entry ``BrakingCogWheelFitted`` to indicate that the cog wheel is used for braking.
+
+This configuration should eliminate all wheel slip and skids when the train is on a rack section of track.
+
+.. _physics-riggenbach_counter_pressure_brake:
+
+Riggenbach Counter Pressure Brake
+---------------------------------
+
+To assist in braking some steam locomotives were fitted with Counter Pressure Braking system. Either steam or air could be used. A series of 
+valves were fitted around the steam cylinder which allowed the cylinder to be reconfigured as a either and air compressor or to reverse the 
+steam operation. This created a retarding force which could be used to brake the locomotive.
+
+To set this feature up the following parametrs need to be add:
+
+``ORTSCounterPressureBraking`` - is added to the engine section of the ENG file, and set to true if a Riggenbach brake has been fitted to the locomotive. 
+This will apply for all steam locomotives with only one steam engine.
+
+``CounterPressureBraking`` - for locomotives with multiple steam engines on the same locomotive (such as a rack locomotive) then this value is set to true 
+within the steam engine block that provides the counter pressure braking.
+
+Two steam effects are provided to model the exhaust steam from the counter pressure braking. These effects can be enabled by adding ``CounterPressureBrake1FX``
+ and  ``CounterPressureBrake2FX`` to the locomotive steam effects.
+
+Steam effects can be added to the locomotive by using sound trigger 323 to turn the sounds ON, and 324 to turn the sounds OFF.
 
 Engine -- Classes of Motive Power
 =================================
@@ -1510,6 +1590,8 @@ cylinder also tended to reach finite limits as well. These factors
 typically combined to place limits on the power of a locomotive depending
 upon the design factors used.
 
+.. _physics-multiple-steam-engines:
+
 Steam Locomotives with Multiple Engines
 .......................................
 
@@ -1522,8 +1604,8 @@ engines need to be added to the engine section of the ENG file. These should hav
 following format::
 
     ORTSSteamEngines ( x
-        Wheelset (
-           
+        Steam (
+           ..............
         )
     )
 
@@ -1536,6 +1618,7 @@ The following parameters can be used to configure the steam engine::
 ``CylinderDiameter`` - diameter of steam cylinder.
 ``MaxIndicatedHorsepower`` - maximum indicated horsepower of steam engine.
 ``AttachedAxle`` - the axle wheelset that the steam engine is attached to.
+``ExcessRodBalance`` - the weeight of the excess balance on the connecting rods
 
 To specify the engine as a Booster engine, the following additional parameters 
 can be used::
@@ -1543,8 +1626,8 @@ can be used::
 ``BoosterCutoff`` - the cutoff point for the Booster steam cylinder.
 ``BoosterThrottleCutoff`` - the locomotive cutoff point where the Booster unlatches.
 ``BoosterGearRatio`` - the gear ratio of the Booster engine.
-``AuxiliarySteamEngineType`` - by inserting "Booster" into this parameter the 
-engine is defined as a Booster engine.
+``AuxiliarySteamEngineType`` - the purpose of the steam engine can be defined by entering 
+one of Adhesion, Rack or Booster.
 
 The following steam effects are defined for the 2nd multuple engine:
 
@@ -1569,6 +1652,65 @@ ii) Cylinder Cocks Exhaust - the exhaust out of the cylinder drainage cocks,
 
 The following CAB controls have been defined, ``STEAM_BOOSTER_AIR``, ``STEAM_BOOSTER_IDLE``,
  ``STEAM_BOOSTER_LATCH``, ``STEAM_BOOSTER_PRESSURE``.
+
+Boiler Water and Water Gauge
+............................
+
+The management of boiler water on a steam locomotive is important for maintaining steam productions as 
+well as ensuring that water levels do not drop far enough to expose the firebox crown and the fusible plugs.
+
+The Water Glass is the primary indication used by the fireman to manage boiler water levels, however as the 
+locomotive goes up and down grades, the water level will appear to significantly change. The amount of variation 
+will be determined by a number of factors, and principal amongst them are the following.
+
+``ORTSBoilerLength`` - length of the boiler (UoM distance)
+``ORTSWaterGaugeGlassHeight`` - length of the water gauge (UoM Distance)
+``ORTSBoilerDiameter`` - diameter of the boiler (UoM Distance)
+``ORTSBoilerCrownHeight`` - Height of boiler crown above centre line of the boiler (UoM Distance)
+``ORTSBoilerCrownCoverageHeight`` - Amount of water required to cover the crown (UoM Distance)
+``ORTSteamLocomotiveBoilerOrientation`` - indicates the boiler orientation, valid values are Horizontal, 
+CabForward, CabCentre, Vertical, Sloping. Default = Horizontal
+``ORTSBoilerAngle`` - Angle of boiler to horizontal, typically for Sloping boilers on steep inclines. (UoM Degree)
+
+To display the changing water level with gradient in the Cab, use ``BOILER_WATER_GRADE`` in place of 
+``BOILER_WATER`` in the CVF file. For example,
+
+"``Type ( BOILER_WATER_GRADE GAUGE )``"
+
+Steam Water Injectors
+.....................
+
+Water injectors are typically modelled by default, and sizes and injection rates will be calculated automatically by OR.
+
+If desired the user may customise some of the default values by using the following parameters:
+
+``ORTSInjectorTypes ( x, y )`` - will allow the user to set up a combination of exhaust or live steam injectors for the 
+locomotive. Use 0 = Live steam and 1 = Exhaust steam in either of the x or y positions. Note if ``ORTSInjectorTypes`` is not 
+present then InjectorTypes will be used if it is present in ENG file.
+
+``ORTSInjectorSize ( x, y )`` - the size of each injector can be indicated in this parameter. The values will be in 
+mm, and typically should not be greater then 19mm. (UoM Distance)
+
+
+Locomotive Back Pressure
+........................
+
+OR calculates a default back pressure value for the exhaust steam emitted from the cylinder.
+
+The user may customise the default value where appropriate values are known, ie from test reports, etc.
+
+To customise the backpressure curve use:
+
+``ORTSCylinderBackPressureVsSteamOutput ( x, y )`` - where x = series of cylinder steam usage rates in lb/h, and y = back 
+pressure in psig.
+
+Note: The older parameter ``ortscylinderbackpressure`` is inaccurate and no longer supported in OR. An error message will 
+display if OR detects the use of this parameter.
+
+To display the back pressure in the Cab, use ``BACK_PR``.
+
+Sound effects on the steam locomotive can be varied by using the volume control parameter ``BackPressureControlled``.
+
 
 Locomotive Types
 ................
@@ -2161,6 +2303,8 @@ iii. `Testing Resources for Open Rails Steam Locomotives
 .. |-| unicode:: U+00AD .. soft hyphen
   :trim:
 
+.. _required-params:
+
 +-----------------------------------------------------------+-------------------+-------------------+-------------------+
 |Parameter                                                  |Description        |Recommended Units  |Typical Examples   |
 +===========================================================+===================+===================+===================+
@@ -2273,9 +2417,10 @@ iii. `Testing Resources for Open Rails Steam Locomotives
 |                                                           |friction           |lbf/mph^2          |(1.43lbf/mph^2)    |
 |                                                           |                   |Use FCalc          |                   |
 +-----------------------------------------------------------+-------------------+-------------------+-------------------+
-|ORTS |-| Bearing |-| Type ( x )                            |Bearing type,      || Roller,          |( Roller )         |
-|                                                           |defaults to        || Friction,        |                   |
-|                                                           |Friction           || Low              |                   |
+|ORTS |-| Bearing |-| Type ( x )                            |Bearing type used  || Grease,          |( Roller )         |
+|                                                           |to determine       || Friction,        |                   |
+|                                                           |rolling resistance || Roller           |                   |
+|                                                           |                   || Low              |                   |
 |                                                           |                   |                   |                   |
 +-----------------------------------------------------------+-------------------+-------------------+-------------------+
 |**Friction (Engine section)**                                                                                          |
@@ -2399,9 +2544,9 @@ OR supports the following special visual effects in a steam locomotive:
   turbo-generator is not fitted to the locomotive it is recommended that this
   effect is left out of the effects section which will ensure that it is not
   displayed in OR.
-- Safety valves (named ``SafetyValvesFX``) -- represents the discharge of the
-  steam valves if the maximum boiler pressure is exceeded. It will appear
-  whenever the safety valve operates.
+- Safety valves (named ``SafetyValvesFX, SafetyValves2FX, SafetyValves3FX, SafetyValves4FX``) 
+-- represents the discharge of the steam valves if the maximum boiler pressure is exceeded. 
+They will appear whenever the relevant safety valve operates.
 - Whistle (named ``WhistleFX``) -- represents the steam discharge from the
   whistle.
 - Injectors (named ``Injectors1FX`` and ``Injectors2FX``) -- represents the
@@ -4769,10 +4914,7 @@ impact due to the wind will be zero.
 
 **Wind Lateral Force Resistance**  - When the wind blows from the side of the
 train, the train will be pushed against the outside track rail, thus increasing
-the amount of resistance experienced by the train.
-
-To activate calculation of wind resistance, select the tickbox for "Wind dependent
-resistance" in the Simulation TAB of the options menu. As wind only becomes
+the amount of resistance experienced by the train. As wind only becomes
 significant at higher train speeds, the wind resistance calculation only commences
 once the train speed exceeds 5 mph.
 
@@ -4808,9 +4950,9 @@ parameters can be inputted via the WAG file or section.
 ``ORTSWagonFrontalArea`` -- The frontal cross sectional area of the wagon. The default units
 are in ft^2, so if entering metres, include the Units of Measure.
 
-``ORTSDavisDragConstant`` -- OR by default uses the standard Davis Drag constants. If alternate
-drag constants are used in calculating the still air resistance, then it might be worthwhile
-inputting these values.
+``ORTSDavisDragConstant`` -- OR assigns a default drag constant based on the type of
+rolling stock. For more specifity or for less typical types of rolling stock, the drag
+coefficient can be entered manually. Typical values are unitless in the range of 0.0002 - 0.0024.
 
 
 .. _physics-track-sanding:
@@ -4905,7 +5047,7 @@ However for those who like to customise, the following parameter can be inputted
    single: ORTSTrailLocomotiveResistanceFactor
 
 ``ORTSTrailLocomotiveResistanceFactor`` -- The constant value by which the leading locomotive resistance
-needs to be decreased for trailing operation.
+needs to be multiplied for trailing operation (eg: 0.5 halves resistance, default 0.2083).
 
 For steam locomotive tenders it may be necessary to enter this value depending upon the Drag constant used
 to calculate the tender resistance.
@@ -5323,11 +5465,13 @@ the tables below.
 .. index::
    single: DoesBrakeCutPower
    single: BrakeCutsPowerAtBrakeCylinderPressure
+   single: OrtsEmergencyBrakeCutsDynamicBrake
 
-Two other parameters in the Engine section of the ENG file are used by the TCS:
+Other parameters in the Engine section of the ENG file are used by the TCS:
 
 - ``DoesBrakeCutPower( x )`` sets whether applying brake on the locomotive cuts the traction (1 for enabled, 0 for disabled)
 - ``BrakeCutsPowerAtBrakeCylinderPressure( x )`` sets the minimum pressure in the brake cylinder that cuts the traction (by default 4 PSI)
+- ``OrtsEmergencyBrakeCutsDynamicBrake`` sets whether an emergency braking disables dynamic brakes
 
 
 Train Derailment
