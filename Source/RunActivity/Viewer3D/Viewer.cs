@@ -233,6 +233,7 @@ namespace Orts.Viewer3D
         public int CabExceedsDisplayHorizontally; // difference between cabview texture horizontal resolution and display vertical resolution
         public int CabYLetterboxPixels { get; set; } // offset the cab when drawing it if it is smaller than the display; both coordinates should always be >= 0
         public int CabXLetterboxPixels { get; set; }
+        public bool CabLetterboxActive { get; private set; } // Effective letterbox state after aspect handling
         public float CabTextureInverseRatio = 0.75f; // default of inverse of cab texture ratio 
 
         public CommandLog Log { get { return Simulator.Log; } }
@@ -693,7 +694,14 @@ namespace Orts.Viewer3D
             int unstretchedCabHeightPixels = (int)(CabTextureInverseRatio * windowWidth);
             int unstretchedCabWidthPixels = (int)(windowHeight / CabTextureInverseRatio);
             float windowInverseRatio = (float)windowHeight / windowWidth;
-            if (Settings.Letterbox2DCab)
+            bool useLetterbox = Settings.Letterbox2DCab;
+            if (useLetterbox && windowInverseRatio < CabTextureInverseRatio)
+            {
+                // For wide screens, prefer zoom-to-fill instead of letterboxing (avoids side bars).
+                useLetterbox = false;
+            }
+            CabLetterboxActive = useLetterbox;
+            if (useLetterbox)
             {
                 CabWidthPixels = Math.Min((int)Math.Round(windowHeight / CabTextureInverseRatio), windowWidth);
                 CabHeightPixels = Math.Min((int)Math.Round(windowWidth * CabTextureInverseRatio), windowHeight);

@@ -4510,7 +4510,6 @@ namespace Orts.Simulation.RollingStocks
                     {
                         GearBoxController.StartDecrease();
                         Simulator.Confirmer.ConfirmWithPerCent(CabControl.GearBox, CabSetting.Decrease, GearBoxController.CurrentNotch);
-                        AlerterReset(TCSEvent.GearBoxChanged);
                         SignalGearBoxChangeEvents();
 
                     }
