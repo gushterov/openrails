@@ -1702,6 +1702,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
                 // CylPressurePSI is the actual pressure applied to cylinders
                 var engineBrakeStatus = loco.EngineBrakeController?.TrainBrakeControllerState ?? ControllerState.Release;
                 var trainBrakeStatus = loco.TrainBrakeController.TrainBrakeControllerState;
+                bool bailOffCommandActive = loco.BailOff;
+                if (!bailOffCommandActive && loco.Train != null && loco.Train.DetermineDPLeadLocomotive(loco) is MSTSLocomotive leadLoco)
+                    bailOffCommandActive = leadLoco.BailOff;
                  // BailOff
                 if (engineBrakeStatus == ControllerState.BailOff)
                 {
@@ -1715,6 +1718,34 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
                         tenderBrakes.AutoCylPressurePSI -= dp;
                         if (tenderBrakes.AutoCylPressurePSI < 0)
                             tenderBrakes.AutoCylPressurePSI = 0;
+                    }
+                }
+                if (loco.BailOffOverridesTrainBrake && bailOffCommandActive && engineBrakeStatus != ControllerState.BailOff)
+                {
+                    float dp = Math.Max(MaxReleaseRatePSIpS, loco.EngineBrakeReleaseRatePSIpS) * elapsedClockSeconds;
+                    AutoCylPressurePSI -= dp;
+                    if (AutoCylPressurePSI - dp < 0)
+                        dp = AutoCylPressurePSI;
+
+                    if (loco.AttachedTender?.BrakeSystem is AirSinglePipe tenderBrakes)
+                    {
+                        tenderBrakes.AutoCylPressurePSI -= dp;
+                        if (tenderBrakes.AutoCylPressurePSI < 0)
+                            tenderBrakes.AutoCylPressurePSI = 0;
+                    }
+
+                    if (BrakeLine3PressurePSI > 0)
+                    {
+                        var dpEngine = Math.Min(dp, BrakeLine3PressurePSI);
+                        BrakeLine3PressurePSI -= dpEngine;
+                    }
+
+                    // Keep the independent-brake target in sync with the bailed-off pressure.
+                    // This prevents automatic re-application in running/lap as soon as bailoff is released.
+                    if (loco == loco.Train?.LeadLocomotive && loco.Train.BrakeLine3PressurePSI > 0)
+                    {
+                        var dpTrain = Math.Min(dp, loco.Train.BrakeLine3PressurePSI);
+                        loco.Train.BrakeLine3PressurePSI -= dpTrain;
                     }
                 }
                 // Emergency application
@@ -1761,6 +1792,18 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
                                     tenderBrakes.AutoCylPressurePSI -= dp;
                                     if (tenderBrakes.AutoCylPressurePSI < 0)
                                         tenderBrakes.AutoCylPressurePSI = 0;
+                                }
+
+                                if (loco.BailOffOverridesTrainBrake && lead.BailOff && BrakeLine3PressurePSI > 0)
+                                {
+                                    var dpEngine = Math.Min(dp, BrakeLine3PressurePSI);
+                                    BrakeLine3PressurePSI -= dpEngine;
+                                }
+
+                                if (loco.BailOffOverridesTrainBrake && lead.BailOff && loco == loco.Train?.LeadLocomotive && loco.Train.BrakeLine3PressurePSI > 0)
+                                {
+                                    var dpTrain = Math.Min(dp, loco.Train.BrakeLine3PressurePSI);
+                                    loco.Train.BrakeLine3PressurePSI -= dpTrain;
                                 }
                             }
                         }
@@ -2386,12 +2429,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
                         if (locoBrakeSystem is AirSinglePipe airSystem)
                         {
                             demandedBrakePressure = lead.BrakeSystem.GetCylPressurePSI() / airSystem.EngineRelayValveRatio;
-
-                            // Auto brake application will be bailed off if it's too great
-                            if (lead.BrakeSystem.GetCylPressurePSI() < airSystem.AutoCylPressurePSI * airSystem.RelayValveRatio)
-                                leadLoco.BailOff = true;
-                            if (airSystem.AutoCylPressurePSI == 0.0f)
-                                leadLoco.BailOff = false;
                         }
                         else // Backup if brake system fails to cast to AirSinglePipe
                             demandedBrakePressure = train.BrakeLine3PressurePSI;

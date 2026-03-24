@@ -137,6 +137,7 @@ namespace Orts.Simulation.RollingStocks
         public bool Sander;
         public bool Wiper;
         public bool BailOff;
+        public bool BailOffOverridesTrainBrake;
         public bool DynamicBrake;
         public float MaxPowerW;
         public float MaxForceN;
@@ -1111,6 +1112,7 @@ namespace Orts.Simulation.RollingStocks
                 case "engine(ortsdynamicbrakereplacementwithenginebrake": DynamicBrakeEngineBrakeReplacement = stf.ReadBoolBlock(false); break;
                 case "engine(ortsdynamicbrakereplacementwithenginebrakeatspeed": DynamicBrakeEngineBrakeReplacementSpeed = stf.ReadFloatBlock(STFReader.UNITS.SpeedDefaultMPH, null); break;
                 case "engine(ortsdynamicblendingminimumspeed": DynamicBrakeBlendingMinSpeedMpS = stf.ReadFloatBlock(STFReader.UNITS.SpeedDefaultMPH, null); break;
+                case "engine(ortsbailoffoverridestrainbrake": BailOffOverridesTrainBrake = stf.ReadBoolBlock(false); break;
                 case "engine(dynamicbrakesdelaytimebeforeengaging": DynamicBrakeDelayS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(dynamicbrakesresistorcurrentlimit": DynamicBrakeMaxCurrentA = stf.ReadFloatBlock(STFReader.UNITS.Current, null); break;
                 case "engine(numwheels": MSTSLocoNumDrvWheels = stf.ReadFloatBlock(STFReader.UNITS.None, 4.0f); if (MSTSLocoNumDrvWheels < 1) STFException.TraceWarning(stf, "Engine:NumWheels is less than 1, parts of the simulation may not function correctly"); break;
@@ -1280,6 +1282,7 @@ namespace Orts.Simulation.RollingStocks
             DynamicBrakePartialBailOff = locoCopy.DynamicBrakePartialBailOff;
             DynamicBrakeEngineBrakeReplacement = locoCopy.DynamicBrakeEngineBrakeReplacement;
             DynamicBrakeEngineBrakeReplacementSpeed = locoCopy.DynamicBrakeEngineBrakeReplacementSpeed;
+            BailOffOverridesTrainBrake = locoCopy.BailOffOverridesTrainBrake;
             DynamicBrakeBlendingMinSpeedMpS = locoCopy.DynamicBrakeBlendingMinSpeedMpS;
             DynamicBrakeMaxCurrentA = locoCopy.DynamicBrakeMaxCurrentA;
             DynamicBrakeSpeed1MpS = locoCopy.DynamicBrakeSpeed1MpS;
@@ -5224,7 +5227,7 @@ namespace Orts.Simulation.RollingStocks
             SignalEvent(newState ? Event.WiperOn : Event.WiperOff);
         }
 
-        public void SetBailOff(bool bailOff)
+        public virtual void SetBailOff(bool bailOff)
         {
             BailOff = bailOff;
             Simulator.Confirmer.Confirm(CabControl.BailOff, bailOff ? CabSetting.On : CabSetting.Off);
