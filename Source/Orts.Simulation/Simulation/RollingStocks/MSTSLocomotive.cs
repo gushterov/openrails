@@ -46,6 +46,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -418,6 +419,7 @@ namespace Orts.Simulation.RollingStocks
         public float DynamicBrakeDelayS;
         public bool DynamicBrakeAutoBailOff;
         public bool DynamicBrakePartialBailOff;
+        public float DynamicBrakeMaxAirBrakePressurePSI { get; private set; } = -1.0f;
         public bool DynamicBrakeEngineBrakeReplacement;
         public float DynamicBrakeEngineBrakeReplacementSpeed;
         public bool UsingRearCab;
@@ -927,6 +929,50 @@ namespace Orts.Simulation.RollingStocks
         /// <summary>
         /// Parse the wag file parameters required for the simulator and viewer classes
         /// </summary>
+        private static float ReadPressureBlockDefaultBarPSI(STFReader stf, string parameterName)
+        {
+            string rawValue = stf.ReadStringBlock(null);
+            if (string.IsNullOrWhiteSpace(rawValue))
+                return 0;
+
+            string valueWithUnit = rawValue.Trim();
+            int unitStart = 0;
+            while (unitStart < valueWithUnit.Length
+                && (char.IsDigit(valueWithUnit[unitStart]) || valueWithUnit[unitStart] == '+'
+                    || valueWithUnit[unitStart] == '-' || valueWithUnit[unitStart] == '.'
+                    || valueWithUnit[unitStart] == 'e' || valueWithUnit[unitStart] == 'E'))
+            {
+                unitStart++;
+            }
+
+            string numericPart = valueWithUnit.Substring(0, unitStart).Trim();
+            string unitPart = valueWithUnit.Substring(unitStart).Trim().ToLowerInvariant();
+
+            if (!float.TryParse(numericPart, NumberStyles.Float, CultureInfo.InvariantCulture, out float value))
+            {
+                STFException.TraceWarning(stf, $"Skipped invalid value '{rawValue}' for {parameterName}.");
+                return 0;
+            }
+
+            switch (unitPart)
+            {
+                case "":
+                case "bar":
+                    return Bar.ToPSI(value);
+                case "psi":
+                    return value;
+                case "kpa":
+                    return KPa.ToPSI(value);
+                case "inhg":
+                    return value * 0.4911542f;
+                case "cmhg":
+                    return value * 0.1933672f;
+                default:
+                    STFException.TraceWarning(stf, $"Unknown pressure unit '{unitPart}' for {parameterName}; using bar.");
+                    return Bar.ToPSI(value);
+            }
+        }
+
         public override void Parse(string lowercasetoken, STFReader stf)
         {
             switch (lowercasetoken)
@@ -1109,6 +1155,8 @@ namespace Orts.Simulation.RollingStocks
                 case "engine(dynamicbrakehasautobailoff":
                 case "engine(ortsdynamicbrakeshasautobailoff": DynamicBrakeAutoBailOff = stf.ReadBoolBlock(true); break;
                 case "engine(ortsdynamicbrakeshaspartialbailoff": DynamicBrakePartialBailOff = stf.ReadBoolBlock(false); break;
+                case "engine(dynamicbrakesmaxairbrakepressure": DynamicBrakeMaxAirBrakePressurePSI = stf.ReadFloatBlock(STFReader.UNITS.PressureDefaultPSI, null); break;
+                case "engine(ortsdynamicbrakesmaxairbrakepressure": DynamicBrakeMaxAirBrakePressurePSI = ReadPressureBlockDefaultBarPSI(stf, "Engine(ORTSDynamicBrakesMaxAirBrakePressure)"); break;
                 case "engine(ortsdynamicbrakereplacementwithenginebrake": DynamicBrakeEngineBrakeReplacement = stf.ReadBoolBlock(false); break;
                 case "engine(ortsdynamicbrakereplacementwithenginebrakeatspeed": DynamicBrakeEngineBrakeReplacementSpeed = stf.ReadFloatBlock(STFReader.UNITS.SpeedDefaultMPH, null); break;
                 case "engine(ortsdynamicblendingminimumspeed": DynamicBrakeBlendingMinSpeedMpS = stf.ReadFloatBlock(STFReader.UNITS.SpeedDefaultMPH, null); break;
@@ -1280,6 +1328,7 @@ namespace Orts.Simulation.RollingStocks
             DynamicBrakeForceCurves = locoCopy.DynamicBrakeForceCurves;
             DynamicBrakeAutoBailOff = locoCopy.DynamicBrakeAutoBailOff;
             DynamicBrakePartialBailOff = locoCopy.DynamicBrakePartialBailOff;
+            DynamicBrakeMaxAirBrakePressurePSI = locoCopy.DynamicBrakeMaxAirBrakePressurePSI;
             DynamicBrakeEngineBrakeReplacement = locoCopy.DynamicBrakeEngineBrakeReplacement;
             DynamicBrakeEngineBrakeReplacementSpeed = locoCopy.DynamicBrakeEngineBrakeReplacementSpeed;
             BailOffOverridesTrainBrake = locoCopy.BailOffOverridesTrainBrake;
@@ -2687,6 +2736,10 @@ namespace Orts.Simulation.RollingStocks
         }
         protected virtual void UpdateDynamicBrakeForce(float elapsedClockSeconds)
         {
+            bool cutOutByAirBrakePressure = DynamicBrakeMaxAirBrakePressurePSI > 0
+                && BrakeSystem is AirSinglePipe
+                && BrakeSystem.GetCylPressurePSI() > DynamicBrakeMaxAirBrakePressurePSI;
+
             if (ThrottlePercent <= 0 && TractionForceN == 0 && LocomotivePowerSupply.DynamicBrakeAvailable && Direction != Direction.N && DynamicBrakePercent >= 0)
             {
                 if (DynamicBrakeCommandStartTime == null)
@@ -2711,6 +2764,8 @@ namespace Orts.Simulation.RollingStocks
                 DynamicBrakeCommandStartTime = null;
             }
             float maxdynamic = DynamicBrake ? MaxDynamicBrakePercent / 100 : 0;
+            if (cutOutByAirBrakePressure)
+                maxdynamic = 0;
             float d = DynamicBrakePercent / 100;
             bool dynamicLimited = d > maxdynamic;
             if (dynamicLimited) d = maxdynamic;
@@ -5811,7 +5866,12 @@ namespace Orts.Simulation.RollingStocks
                         {
                             cvc.IsVisible = DynamicBrakeForceN == 0.0;
                         }
-                        
+
+                        if (cvc.Feature == "HideOnPositiveForce")
+                        {
+                            cvc.IsVisible = Math.Abs(TractiveForceN) == 0.0;
+                        }
+
                         break;
                     }
                 case CABViewControlTypes.THROTTLE_DISPLAY:
@@ -5911,6 +5971,10 @@ namespace Orts.Simulation.RollingStocks
                         if (cvc.Feature == "ShowOnNegativeForce")
                         {
                             cvc.IsVisible = DynamicBrakeForceN != 0.0;
+                        }
+                        if (cvc.Feature == "HideOnNegativeForce")
+                        {
+                            cvc.IsVisible = DynamicBrakeForceN == 0.0;
                         }
                         break;   
                     }

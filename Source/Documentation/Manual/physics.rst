@@ -3488,6 +3488,7 @@ the following parameters will adjust the behaviour of air brakes:
 .. index::
    single: DynamicBrakeHasAutoBailOff
    single: ORTSDynamicBrakesHasPartialBailOff
+   single: ORTSDynamicBrakesMaxAirBrakePressure
    single: ORTSDynamicBlendingRetainedPressure
    single: ORTSDynamicBlendingMinimumSpeed
    single: ORTSTrainDynamicBlendingTable
@@ -3500,6 +3501,11 @@ the following parameters will adjust the behaviour of air brakes:
   air brakes are released while dynamic brakes satisfy the train brake demand.
   If dynamic braking is not sufficient, air brakes will be partially applied
   so the combination air+dynamic provides the required brake demand.
+- ``Engine(ORTSDynamicBrakesMaxAirBrakePressure`` -- If set, dynamic brake force
+  is forced to zero whenever brake cylinder pressure is above this value; dynamic
+  braking resumes automatically when brake cylinder pressure drops below it.
+  Default unit is bar (for this ORTS parameter), but explicit units such as
+  ``psi``, ``bar``, ``kpa``, ``inhg``, ``cmhg`` are also accepted.
 - ``Engine(ORTSDynamicBlendingRetainedPressure`` -- Sets the brake cylinder
   pressure which, when used in combination with ORTSDynamicBrakesHasPartialBailOff,
   will remain applied regardless of the blended dynamic brake force. This
