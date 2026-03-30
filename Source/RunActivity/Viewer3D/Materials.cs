@@ -766,6 +766,10 @@ namespace Orts.Viewer3D
                 {
                     viewer.DayTexturesNotLoaded = true;
                 }
+                else
+                {
+                    Texture = Viewer.TextureManager.Get(texturePath, true);
+                }
             }
             else Texture = Viewer.TextureManager.Get(texturePath, true);
 
