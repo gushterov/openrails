@@ -967,6 +967,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
     public class MSTSTrainControlSystem : TrainControlSystem
     {
+        const float VigilanceEnableSpeedMpS = 20.0f / 3.6f; // Enable alerter above 20 km/h
+
         public enum MonitorState
         {
             Disabled,
@@ -994,7 +996,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
                     if (VigilanceMonitor.ResetOnZeroSpeed)
                     {
-                        enabled &= SpeedMpS() >= 0.1f;
+                        enabled &= SpeedMpS() >= VigilanceEnableSpeedMpS;
                     }
                 }
 
