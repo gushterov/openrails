@@ -51,33 +51,60 @@ namespace Orts.Viewer3D.Common
         {
             var texturePath = Path.GetDirectoryName(textureFilePath);
             var textureName = Path.GetFileName(textureFilePath);
-            var nightTexturePath = !File.Exists(texturePath + @"\Night\" + textureName) &&
-                !File.Exists(texturePath + @"\Night\" + Path.ChangeExtension(textureName, ".dds")) ? Path.GetDirectoryName(texturePath) + @"\Night\" : texturePath + @"\Night\";
+            if (String.IsNullOrEmpty(texturePath) || String.IsNullOrEmpty(textureName))
+                return null;
 
-            if (!String.IsNullOrEmpty(nightTexturePath + textureName) && Path.GetExtension(nightTexturePath + textureName) == ".dds" && File.Exists(nightTexturePath + textureName))
+            var nightTexturePath = Path.Combine(texturePath, "Night");
+            var nightTexture = ResolveNightTexture(nightTexturePath, textureName);
+            if (!String.IsNullOrEmpty(nightTexture))
+                return nightTexture;
+
+            var parentTexturePath = Path.GetDirectoryName(texturePath);
+            if (String.IsNullOrEmpty(parentTexturePath))
+                return null;
+
+            return ResolveNightTexture(Path.Combine(parentTexturePath, "Night"), textureName);
+        }
+
+        static string ResolveNightTexture(string nightTexturePath, string textureName)
+        {
+            if (String.IsNullOrEmpty(nightTexturePath) || String.IsNullOrEmpty(textureName))
+                return null;
+
+            var extension = Path.GetExtension(textureName);
+            var textureFileName = Path.GetFileNameWithoutExtension(textureName);
+
+            if (String.IsNullOrEmpty(textureFileName))
+                return null;
+
+            var nightTexturePathDds = Path.Combine(nightTexturePath, textureFileName + ".dds");
+            var nightTexturePathAce = Path.Combine(nightTexturePath, textureFileName + ".ace");
+            var requestedNightTexturePath = Path.Combine(nightTexturePath, textureName);
+
+            if (extension.Equals(".ace", StringComparison.OrdinalIgnoreCase))
             {
-                return nightTexturePath + textureName;
-            }
-            else if (!String.IsNullOrEmpty(nightTexturePath + textureName) && Path.GetExtension(nightTexturePath + textureName) == ".ace")
-            {
-                var alternativeTexture = Path.ChangeExtension(nightTexturePath + textureName, ".dds");
-                if (!String.IsNullOrEmpty(alternativeTexture.ToLower()) && File.Exists(alternativeTexture))
-                {
-                    return alternativeTexture;
-                }
-                else if (File.Exists(nightTexturePath + textureName))
-                {
-                    return nightTexturePath + textureName;
-                }
-                else
-                {
-                    return null;
-                }
-            }
-            else
-            {
+                if (File.Exists(nightTexturePathDds))
+                    return nightTexturePathDds;
+                if (File.Exists(requestedNightTexturePath))
+                    return requestedNightTexturePath;
                 return null;
             }
+
+            if (extension.Equals(".dds", StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(requestedNightTexturePath))
+                    return requestedNightTexturePath;
+                if (File.Exists(nightTexturePathAce))
+                    return nightTexturePathAce;
+                return null;
+            }
+
+            if (File.Exists(nightTexturePathDds))
+                return nightTexturePathDds;
+            if (File.Exists(nightTexturePathAce))
+                return nightTexturePathAce;
+
+            return null;
         }
 
         public static string GetRouteTextureFile(Simulator simulator, TextureFlags textureFlags, string textureName)

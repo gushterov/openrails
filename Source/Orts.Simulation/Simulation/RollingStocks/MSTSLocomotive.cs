@@ -453,7 +453,9 @@ namespace Orts.Simulation.RollingStocks
 
         public CombinedControl CombinedControlType;
         public float CombinedControlSplitPosition;
+        public bool CombinedControlControlsEngineBrake;
         public bool HasSmoothStruc;
+        private CombinedEngineBrakeCommandState CombinedEngineBrakeState = CombinedEngineBrakeCommandState.None;
 
         public float MaxContinuousForceN;
         public float SpeedOfMaxContinuousForceMpS;  // Speed where maximum tractive effort occurs
@@ -514,6 +516,14 @@ namespace Orts.Simulation.RollingStocks
         {
             DC,
             AC,
+        }
+
+        enum CombinedEngineBrakeCommandState
+        {
+            None,
+            Release,
+            Hold,
+            Apply,
         }
         public TractionMotorTypes TractionMotorType = TractionMotorTypes.DC;
         public List<ElectricMotor> TractionMotors = new List<ElectricMotor>();
@@ -1340,6 +1350,7 @@ namespace Orts.Simulation.RollingStocks
             DynamicBrakeSpeed4MpS = locoCopy.DynamicBrakeSpeed4MpS;
             CombinedControlType = locoCopy.CombinedControlType;
             CombinedControlSplitPosition = locoCopy.CombinedControlSplitPosition;
+            CombinedControlControlsEngineBrake = locoCopy.CombinedControlControlsEngineBrake;
             DynamicBrakeDelayS = locoCopy.DynamicBrakeDelayS;
             MaxDynamicBrakeForceN = locoCopy.MaxDynamicBrakeForceN;
             HasSmoothStruc = locoCopy.HasSmoothStruc;
@@ -1608,6 +1619,8 @@ namespace Orts.Simulation.RollingStocks
                 CombinedControlType = CombinedControl.ThrottleDynamic;
             else if (dynamic && train)
                 CombinedControlType = CombinedControl.DynamicAir;
+
+            CombinedControlControlsEngineBrake = independent && dynamic;
 
             if (train && !TrainBrakeController.IsValid())
                 TrainBrakeController = new ScriptedBrakeController(this);
@@ -2546,6 +2559,8 @@ namespace Orts.Simulation.RollingStocks
             {
                 LocalDynamicBrakePercent = Math.Max(LocalDynamicBrakePercent, DynamicBrakeController.SavedValue * 100);
             }
+
+            UpdateCombinedEngineBrakeControl();
 
             var throttleCurrentNotch = ThrottleController.CurrentNotch;
             ThrottleController.Update(elapsedClockSeconds);
@@ -4459,6 +4474,141 @@ namespace Orts.Simulation.RollingStocks
             else
                 return CombinedControlSplitPosition;
 
+        }
+
+        void UpdateCombinedEngineBrakeControl()
+        {
+            if (!CombinedControlControlsEngineBrake || CombinedControlType != CombinedControl.ThrottleDynamic || !IsLeadLocomotive()
+                || EngineBrakeController == null || DynamicBrakeController == null)
+            {
+                CombinedEngineBrakeState = CombinedEngineBrakeCommandState.None;
+                return;
+            }
+
+            var dynamicBrakeValue = DynamicBrakeController.CurrentValue;
+            CombinedEngineBrakeCommandState targetState;
+            if (dynamicBrakeValue <= 0.001f)
+                targetState = CombinedEngineBrakeCommandState.Release;
+            else if (dynamicBrakeValue >= 0.999f)
+                targetState = CombinedEngineBrakeCommandState.Apply;
+            else
+                targetState = CombinedEngineBrakeCommandState.Hold;
+
+            if (TryGetCombinedEngineBrakeValue(targetState, dynamicBrakeValue, out var value))
+            {
+                if (Math.Abs(EngineBrakeController.CurrentValue - value) > 0.0001f)
+                    SetEngineBrakeValue(value);
+                CombinedEngineBrakeState = targetState;
+            }
+            else
+            {
+                CombinedEngineBrakeState = CombinedEngineBrakeCommandState.None;
+            }
+        }
+
+        bool TryGetCombinedEngineBrakeValue(CombinedEngineBrakeCommandState state, float dynamicBrakeValue, out float value)
+        {
+            value = 0;
+            if (EngineBrakeController?.Notches == null || EngineBrakeController.Notches.Count == 0)
+                return false;
+
+            switch (state)
+            {
+                case CombinedEngineBrakeCommandState.Release:
+                    if (TryGetEngineBrakeNotchValue(out value, ControllerState.Release, ControllerState.FullQuickRelease, ControllerState.Neutral))
+                        return true;
+                    return TryGetEngineBrakeMinValue(out value);
+                case CombinedEngineBrakeCommandState.Hold:
+                    if (TryGetEngineBrakeNotchValue(out value, ControllerState.Running, ControllerState.Lap, ControllerState.Hold, ControllerState.SelfLap, ControllerState.SMESelfLap, ControllerState.HoldEngine))
+                        return true;
+                    if (TryGetEngineBrakeNotchValueByName(out value, "hold", "lap"))
+                        return true;
+                    return TryGetEngineBrakeIntermediateValue(out value, dynamicBrakeValue);
+                case CombinedEngineBrakeCommandState.Apply:
+                    if (TryGetEngineBrakeNotchValue(out value, ControllerState.Apply, ControllerState.FullServ, ControllerState.ContServ, ControllerState.BrakeNotch, ControllerState.ManualBraking))
+                        return true;
+                    return TryGetEngineBrakeMaxValue(out value);
+                default:
+                    return false;
+            }
+        }
+
+        bool TryGetEngineBrakeNotchValue(out float value, params ControllerState[] states)
+        {
+            foreach (var state in states)
+            {
+                var notch = EngineBrakeController.Notches.FirstOrDefault(n => n.Type == state);
+                if (notch != null)
+                {
+                    value = notch.Value;
+                    return true;
+                }
+            }
+
+            value = 0;
+            return false;
+        }
+
+        bool TryGetEngineBrakeNotchValueByName(out float value, params string[] names)
+        {
+            foreach (var notch in EngineBrakeController.Notches)
+            {
+                if (string.IsNullOrEmpty(notch.Name))
+                    continue;
+                foreach (var name in names)
+                {
+                    if (notch.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        value = notch.Value;
+                        return true;
+                    }
+                }
+            }
+
+            value = 0;
+            return false;
+        }
+
+        bool TryGetEngineBrakeMinValue(out float value)
+        {
+            value = 0;
+            if (EngineBrakeController.Notches.Count == 0)
+                return false;
+
+            value = EngineBrakeController.Notches.Min(n => n.Value);
+            return true;
+        }
+
+        bool TryGetEngineBrakeMaxValue(out float value)
+        {
+            value = 0;
+            if (EngineBrakeController.Notches.Count == 0)
+                return false;
+
+            var candidates = EngineBrakeController.Notches.Where(n => n.Type != ControllerState.Emergency).ToList();
+            if (candidates.Count == 0)
+                candidates = EngineBrakeController.Notches;
+            value = candidates.Max(n => n.Value);
+            return true;
+        }
+
+        bool TryGetEngineBrakeIntermediateValue(out float value, float preferredValue)
+        {
+            value = 0;
+            if (EngineBrakeController.Notches.Count == 0)
+                return false;
+
+            var min = EngineBrakeController.Notches.Min(n => n.Value);
+            var max = EngineBrakeController.Notches.Max(n => n.Value);
+            var candidates = EngineBrakeController.Notches
+                .Where(n => n.Value > min + 0.0001f && n.Value < max - 0.0001f && n.Type != ControllerState.Emergency)
+                .ToList();
+
+            if (candidates.Count == 0)
+                return false;
+
+            value = candidates.OrderBy(n => Math.Abs(n.Value - preferredValue)).First().Value;
+            return true;
         }
         #endregion
 
