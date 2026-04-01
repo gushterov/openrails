@@ -880,6 +880,14 @@ the cab view.
   by the cab view control. To subtract from the shown value, set z to a negative number.
   For example, a cab view control with units of BAR and ORTSUnitsOffset ( 0.987 ) would show
   pressure as absolute pressure, rather than gauge pressure.
+- ORTSQuantizationStep ( q ): Quantizes the shown value to discrete steps of q in the
+  control units, which can be used to simulate stepped electromechanical instruments.
+  For example, a speedometer with units of KM_PER_HOUR and ORTSQuantizationStep ( 1 )
+  updates in 1 km/h increments rather than continuously.
+- ORTSWobble ( a f ): Adds random sample-and-hold wobble with amplitude a (in control
+  units) and update frequency f (Hz). The second parameter is optional and defaults
+  to 8 Hz. For example, ORTSWobble ( 0.8 10 ) makes the displayed value jitter by
+  up to +/-0.8 units, refreshed 10 times per second.
 
 Note that while these tokens can be used to convert between many units, it is recommended
 to use built in Open Rails units wherever suitable.

@@ -491,6 +491,9 @@ namespace Orts.Formats.Msts
         public float UnitsScale = 1.0f;
         public float DynamicBrakeScale = 1.0f;
         public float UnitsOffset;
+        public float QuantizationStep;
+        public float WobbleAmplitude;
+        public float WobbleFrequency = 8.0f;
         
         public string Feature = "None";
         public bool IsVisible = true;
@@ -576,6 +579,20 @@ namespace Orts.Formats.Msts
                 STFException.TraceInformation(stf, "Skipped unknown ControlStyle " + stf.ReadItem());
                 Units = CABViewControlUnits.NONE;
             }
+            stf.SkipRestOfBlock();
+        }
+
+        protected void ParseQuantizationStep(STFReader stf)
+        {
+            QuantizationStep = stf.ReadFloatBlock(STFReader.UNITS.None, 0f);
+        }
+
+        protected void ParseWobble(STFReader stf)
+        {
+            stf.MustMatch("(");
+            WobbleAmplitude = stf.ReadFloat(STFReader.UNITS.None, 0f);
+            if (!stf.EndOfBlock())
+                WobbleFrequency = stf.ReadFloat(STFReader.UNITS.None, WobbleFrequency);
             stf.SkipRestOfBlock();
         }
 
@@ -717,6 +734,8 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("ortsunitsscalefactor", ()=>{ UnitsScale = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
                 new STFReader.TokenProcessor("ortsdynamicbrakescalefactor", ()=>{ DynamicBrakeScale = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
                 new STFReader.TokenProcessor("ortsunitsoffset", ()=>{ UnitsOffset = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
+                new STFReader.TokenProcessor("ortsquantizationstep", ()=>{ ParseQuantizationStep(stf); }),
+                new STFReader.TokenProcessor("ortswobble", ()=>{ ParseWobble(stf); }),
             });
         }
     }
@@ -816,6 +835,8 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("ortsunitsexponent", ()=>{ UnitsExponent = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
                 new STFReader.TokenProcessor("ortsunitsscalefactor", ()=>{ UnitsScale = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
                 new STFReader.TokenProcessor("ortsunitsoffset", ()=>{ UnitsOffset = stf.ReadFloatBlock(STFReader.UNITS.None, null); }),
+                new STFReader.TokenProcessor("ortsquantizationstep", ()=>{ ParseQuantizationStep(stf); }),
+                new STFReader.TokenProcessor("ortswobble", ()=>{ ParseWobble(stf); }),
             });
         }
     }

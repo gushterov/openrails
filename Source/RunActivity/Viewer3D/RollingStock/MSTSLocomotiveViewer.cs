@@ -1604,6 +1604,7 @@ namespace Orts.Viewer3D.RollingStock
         public readonly CabViewControl Control;
         protected readonly CabShader Shader;
         public readonly SpriteBatchMaterial ControlView;
+        readonly int WobbleSeed;
 
         protected Vector2 Position;
         protected Texture2D Texture;
@@ -1637,10 +1638,34 @@ namespace Orts.Viewer3D.RollingStock
             Locomotive = locomotive;
             Control = control;
             Shader = shader;
+            WobbleSeed = unchecked((int)Control.ControlType.Type * 73856093
+                ^ Control.ControlType.Id * 19349663
+                ^ (int)Control.PositionX * 83492791
+                ^ (int)Control.PositionY * 1640531513);
 
             ControlView = (SpriteBatchMaterial)viewer.MaterialManager.Load("SpriteBatch", effect: Shader);
 
             HasCabLightDirectory = CABTextureManager.LoadTextures(Viewer, Control.ACEFile);
+        }
+
+        float GetWobbleOffset()
+        {
+            if (Control.WobbleAmplitude <= 0 || Control.WobbleFrequency <= 0)
+                return 0;
+
+            // Keep speedometer needles steady at standstill.
+            if (Control.ControlType.Type == CABViewControlTypes.SPEEDOMETER && Math.Abs(Locomotive.SpeedMpS) <= 0.01f)
+                return 0;
+
+            var tick = unchecked((int)Math.Floor(Locomotive.Simulator.ClockTime * Control.WobbleFrequency) + WobbleSeed);
+            uint x = unchecked((uint)tick);
+            x ^= x >> 16;
+            x *= 2246822519u;
+            x ^= x >> 13;
+            x *= 3266489917u;
+            x ^= x >> 16;
+            var sample = (x / (float)uint.MaxValue) * 2.0f - 1.0f;
+            return sample * Control.WobbleAmplitude;
         }
 
         public CabViewControlType GetControlType()
@@ -1659,6 +1684,12 @@ namespace Orts.Viewer3D.RollingStock
                 data = (float)Control.ValueIfDisabled;
             else
                 data = Locomotive.GetDataOf(Control);
+
+            if (Control.QuantizationStep > 0)
+                data = (float)(Math.Round(data / Control.QuantizationStep, MidpointRounding.AwayFromZero) * Control.QuantizationStep);
+
+            if (Control.WobbleAmplitude > 0 && Control.WobbleFrequency > 0)
+                data += GetWobbleOffset();
 
             if (data < Control.MinValue)
                 return 0;
