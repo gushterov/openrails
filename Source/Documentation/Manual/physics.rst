@@ -1242,6 +1242,7 @@ Traction force retardation
     single: ORTSDynamicBrakePowerRampDownRate
     single: ORTSDynamicBrakePowerRampDownToZeroRate
     single: ORTSDelayTimeBeforeUpdating
+    single: ORTSDelayTimeBeforeUpdatingFromZero
 
 When the driver sets full throttle, the control electronics may not apply the full
 tractive force instantly, but it will instead linearly apply force until reaching
@@ -1272,6 +1273,11 @@ has not been moved for a defined amount of time. This can be implemented using t
 ``ORTSDelayTimeBeforeUpdating``, which has to be inserted for the desired
 controller in the ``EngineControllers`` block.
 
+For throttle controllers, it is possible to use a separate delay only when moving
+from position 0 to a higher notch. This is done with
+``ORTSDelayTimeBeforeUpdatingFromZero``. If this parameter is omitted, the regular
+``ORTSDelayTimeBeforeUpdating`` value is used for all transitions.
+
 Example::
 
   Engine (
@@ -1279,6 +1285,7 @@ Example::
       Throttle ( 0 1 0.1 0
         NumNotches ( 0 )
         ORTSDelayTimeBeforeUpdating ( 0.5s )
+        ORTSDelayTimeBeforeUpdatingFromZero ( 1s )
       )
       Brake_Dynamic ( 0 1 0.1 0
         NumNotches ( 0 )

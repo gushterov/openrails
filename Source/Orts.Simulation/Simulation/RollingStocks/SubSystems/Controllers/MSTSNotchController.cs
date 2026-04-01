@@ -143,7 +143,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         {
             get
             {
-                if (TimeSinceLastChange >= DelayTimeBeforeUpdating)
+                if (TimeSinceLastChange >= GetDelayTimeBeforeUpdating())
                     savedValue = currentValue;
                 return savedValue;
             }
@@ -168,6 +168,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         private float prevValue;
         public float TimeSinceLastChange { get; private set; }
         public float DelayTimeBeforeUpdating;
+        public float DelayTimeBeforeUpdatingFromZero = -1;
+        private const float ZeroThreshold = 0.0001f;
 
         #region CONSTRUCTORS
 
@@ -200,6 +202,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             StepSize = other.StepSize;
             CurrentNotch = other.CurrentNotch;
             DelayTimeBeforeUpdating = other.DelayTimeBeforeUpdating;
+            DelayTimeBeforeUpdatingFromZero = other.DelayTimeBeforeUpdatingFromZero;
 
             foreach (MSTSNotch notch in other.Notches)
             {
@@ -266,8 +269,24 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 {
                     DelayTimeBeforeUpdating = stf.ReadFloatBlock(STFReader.UNITS.Time, null);
                 }),
+                new STFReader.TokenProcessor("ortsdelaytimebeforeupdatingfromzero", () =>
+                {
+                    DelayTimeBeforeUpdatingFromZero = stf.ReadFloatBlock(STFReader.UNITS.Time, null);
+                }),
             });
             SetValue(CurrentValue);
+        }
+
+        private float GetDelayTimeBeforeUpdating()
+        {
+            if (DelayTimeBeforeUpdatingFromZero >= 0
+                && savedValue <= ZeroThreshold
+                && currentValue > ZeroThreshold)
+            {
+                return DelayTimeBeforeUpdatingFromZero;
+            }
+
+            return DelayTimeBeforeUpdating;
         }
 
         public int NotchCount()
