@@ -5,4 +5,10 @@
     <OutputPath>$(MSBuildThisFileDirectory)\..\Program\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(BuildDotNet)' != 'true'">
+    <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(BuildDotNet)' != 'true' AND '$(UsingMicrosoftNETSdk)' == 'true' AND '$(MSBuildProjectName)' != 'Launcher'">
+    <PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
+  </ItemGroup>
 </Project>
