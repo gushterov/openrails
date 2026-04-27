@@ -61,8 +61,8 @@ namespace Orts.Viewer3D
         private readonly float[,] DesertZones = { { 30, 45, -120, -105 } }; // minlat, maxlat, minlong, maxlong
         public float Time;
 
-        // Daylight offset (-12h to +12h)
-        public int DaylightOffset = 0;
+        // Daylight offset (-12h to +12h), adjustable in 15-minute (0.25h) steps
+        public float DaylightOffset = 0.0f;
 
         // Variables used for wind calculations
         const int WindSpeedBeaufort = 6;
@@ -540,17 +540,27 @@ namespace Orts.Viewer3D
                     weatherChangeOn = false;
                 }
 
-                // Daylight offset is useful for debugging night running timetables; it ranges from -12h to +12h
-                string FormatDaylightOffsetHour(int h) => h <= 0 ? h.ToString() : $"+{h}";
-                if (UserInput.IsPressed(UserCommand.DebugDaylightOffsetIncrease) && DaylightOffset < 12)
+                // Daylight offset is useful for debugging night running timetables; it ranges from -12h to +12h.
+                // Offset step is 15 minutes (0.25h) per key press.
+                const float daylightOffsetStepHours = 0.25f;
+                const float daylightOffsetLimitHours = 12.0f;
+                string FormatDaylightOffsetHour(float h)
                 {
-                    DaylightOffset += 1;
+                    int totalMinutes = (int)Math.Round(h * 60f, MidpointRounding.AwayFromZero);
+                    string sign = totalMinutes > 0 ? "+" : totalMinutes < 0 ? "-" : "";
+                    totalMinutes = Math.Abs(totalMinutes);
+                    return $"{sign}{totalMinutes / 60}:{totalMinutes % 60:00}";
+                }
+
+                if (UserInput.IsPressed(UserCommand.DebugDaylightOffsetIncrease) && DaylightOffset < daylightOffsetLimitHours)
+                {
+                    DaylightOffset = Math.Min(daylightOffsetLimitHours, DaylightOffset + daylightOffsetStepHours);
                     Viewer.Simulator.Confirmer.Message(ConfirmLevel.None, Viewer.Catalog.GetStringFmt("Increased daylight offset to {0} h", FormatDaylightOffsetHour(DaylightOffset)));
                 }
 
-                if (UserInput.IsPressed(UserCommand.DebugDaylightOffsetDecrease) && DaylightOffset > -12)
+                if (UserInput.IsPressed(UserCommand.DebugDaylightOffsetDecrease) && DaylightOffset > -daylightOffsetLimitHours)
                 {
-                    DaylightOffset -= 1;
+                    DaylightOffset = Math.Max(-daylightOffsetLimitHours, DaylightOffset - daylightOffsetStepHours);
                     Viewer.Simulator.Confirmer.Message(ConfirmLevel.None, Viewer.Catalog.GetStringFmt("Decreased daylight offset to {0} h", FormatDaylightOffsetHour(DaylightOffset)));
                 }
 
