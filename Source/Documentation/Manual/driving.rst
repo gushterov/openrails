@@ -1203,6 +1203,7 @@ of the train that is approaching. In this image, signal 462 is showing an APPROA
 An adjustment for "Daylight offset (hrs)" is provided for convenience to advance the sun as it moves 
 across the sky so that night time trains can be more easily observed in daylight.
 Use ``<Alt+Shift+=>`` to increase the offset and ``<Alt+Shift+->`` to decrease it.
+Each key press changes the offset by 15 minutes (0.25 hours).
 
 Additional Train Operation Commands
 ===================================

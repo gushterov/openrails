@@ -410,7 +410,7 @@ namespace Orts.Formats.Msts
     public class Variable_Trigger : Trigger
     {
         public enum Events { Speed_Inc_Past, Speed_Dec_Past, Distance_Inc_Past, Distance_Dec_Past,
-            Variable1_Inc_Past, Variable1_2_Inc_Past, Variable1_3_Inc_Past, Variable1_4_Inc_Past, Variable1_Dec_Past, Variable1_2_Dec_Past, Variable1_3_Dec_Past, Variable1_4_Dec_Past, Variable2_Inc_Past, Variable2_Dec_Past, Variable3_Inc_Past, Variable3_Dec_Past, BrakeCyl_Inc_Past, BrakeCyl_Dec_Past, CurveForce_Inc_Past, CurveForce_Dec_Past, AngleofAttack_Inc_Past, AngleofAttack_Dec_Past, WheelRpM_Dec_Past, WheelRPM_Inc_Past, ConcreteSleepers_Inc_Past, ConcreteSleepers_Dec_Past, CarInTunnel_Inc_Past, CarInTunnel_Dec_Past
+            Variable1_Inc_Past, Variable1_2_Inc_Past, Variable1_3_Inc_Past, Variable1_4_Inc_Past, Variable1_Dec_Past, Variable1_2_Dec_Past, Variable1_3_Dec_Past, Variable1_4_Dec_Past, Variable2_Inc_Past, Variable2_Dec_Past, Variable3_Inc_Past, Variable3_Dec_Past, BrakeCyl_Inc_Past, BrakeCyl_Dec_Past, CurveForce_Inc_Past, CurveForce_Dec_Past, AngleofAttack_Inc_Past, AngleofAttack_Dec_Past, WheelRpM_Dec_Past, WheelRPM_Inc_Past, ConcreteSleepers_Inc_Past, ConcreteSleepers_Dec_Past, CarInTunnel_Inc_Past, CarInTunnel_Dec_Past, ThrottleController_Inc_Past, ThrottleController_Dec_Past, DynamicBrakeController_Inc_Past, DynamicBrakeController_Dec_Past
         };
 
         public Events Event;
@@ -464,6 +464,10 @@ namespace Orts.Formats.Msts
                 case "concretesleepers_dec_past": Event = Events.ConcreteSleepers_Dec_Past; break;
                 case "carintunnel_inc_past": Event = Events.CarInTunnel_Inc_Past; break;
                 case "carintunnel_dec_past": Event = Events.CarInTunnel_Dec_Past; break;
+                case "throttlecontroller_inc_past": Event = Events.ThrottleController_Inc_Past; break;
+                case "throttlecontroller_dec_past": Event = Events.ThrottleController_Dec_Past; break;
+                case "dynamicbrakecontroller_inc_past": Event = Events.DynamicBrakeController_Inc_Past; break;
+                case "dynamicbrakecontroller_dec_past": Event = Events.DynamicBrakeController_Dec_Past; break;
             }
 
             while (!f.EndOfBlock())

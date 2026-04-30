@@ -523,6 +523,7 @@ There are a number of triggers as follows:
 
   - Variable1 reflects the throttle. For steam locomotives it is possible to have multiple steam engines, thus this variable can be applied
    to each engine, by using a sound trigger of the form ``Variable1_x_inc_past`` or ``Variable1_x_dec_past``, where x = steam engine number.
+   These triggers use the current sound variable value and therefore follow any configured throttle demand delay.
 
   - Variable2 reflects the engine's RPM (diesel) or Tractive Force (electric) or cylinder pressure (steam). Where a Booster Engine is fitted, 
   then ``Variable2BoosterControlled`` can be used to control cylinder pressure for booster engines on steam locomotives.
@@ -550,6 +551,14 @@ New variables introduced by OR:
   which makes the sound speed dependent too, and ``CurveForceControlled``. 
   Of course ``CurveForce_Inc_Past``, and ``CurveForce_Dec_Past`` are also 
   available for activating and deactivating the sound.
+- ThrottleController trigger events (``ThrottleController_Inc_Past`` and
+  ``ThrottleController_Dec_Past``) read the live throttle controller position
+  and can be used when sounds must trigger immediately when the driver moves
+  the throttle. Threshold values are in throttle percent (0 to 100).
+- DynamicBrakeController trigger events
+  (``DynamicBrakeController_Inc_Past`` and
+  ``DynamicBrakeController_Dec_Past``) read the live dynamic brake controller
+  position. Threshold values are in dynamic brake percent (0 to 100).
 
 Sound Loop Management
 ---------------------

@@ -2552,6 +2552,7 @@ namespace Orts.Viewer3D
     /// </summary>
     public sealed class ORTSVariableTrigger : ORTSTrigger
     {
+        static readonly Dictionary<string, bool> ThrottleDecTriggeredDuringCurrentDescentByCarId = new Dictionary<string, bool>();
         Orts.Formats.Msts.Variable_Trigger SMS;
         MSTSWagon car;
         SoundStream SoundStream;
@@ -2599,7 +2600,9 @@ namespace Orts.Viewer3D
                 case Orts.Formats.Msts.Variable_Trigger.Events.Variable2_Dec_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.Variable3_Dec_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.BrakeCyl_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.CurveForce_Dec_Past:                
+                case Orts.Formats.Msts.Variable_Trigger.Events.CurveForce_Dec_Past:
+                case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Dec_Past:
+                case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Dec_Past:
                     if (newValue < SMS.Threshold)
                     {
                         Signaled = true;
@@ -2620,7 +2623,9 @@ namespace Orts.Viewer3D
                 case Orts.Formats.Msts.Variable_Trigger.Events.AngleofAttack_Inc_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.WheelRPM_Inc_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.ConcreteSleepers_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.CarInTunnel_Inc_Past:                
+                case Orts.Formats.Msts.Variable_Trigger.Events.CarInTunnel_Inc_Past:
+                case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Inc_Past:
+                case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Inc_Past:
                     if (newValue > SMS.Threshold)
                     {
                         Signaled = true;
@@ -2631,6 +2636,28 @@ namespace Orts.Viewer3D
             }
 
             //Signaled = triggered;
+
+            // Play throttle dec trigger only once during a continuous descent sweep
+            // (e.g. Alt+X crossing multiple thresholds).
+            if ((SMS.Event == Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Dec_Past
+                || SMS.Event == Orts.Formats.Msts.Variable_Trigger.Events.Variable1_Dec_Past)
+                && car is MSTSLocomotive locomotive)
+            {
+                string carId = locomotive.CarID ?? string.Empty;
+                bool descending = newValue < StartValue;
+                if (descending)
+                {
+                    if (triggered)
+                    {
+                        if (ThrottleDecTriggeredDuringCurrentDescentByCarId.TryGetValue(carId, out bool alreadyTriggered) && alreadyTriggered)
+                            triggered = false;
+                        else
+                            ThrottleDecTriggeredDuringCurrentDescentByCarId[carId] = true;
+                    }
+                }
+                else
+                    ThrottleDecTriggeredDuringCurrentDescentByCarId.Remove(carId);
+            }
 
             StartValue = newValue;
             IsBellow = newValue < SMS.Threshold;
@@ -2718,6 +2745,16 @@ namespace Orts.Viewer3D
                 case Orts.Formats.Msts.Variable_Trigger.Events.CarInTunnel_Dec_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.CarInTunnel_Inc_Past:
                     return car.TrackSoundInTunnelTriggered;
+                case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Dec_Past:
+                case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Inc_Past:
+                    if (car is MSTSLocomotive locomotive)
+                        return locomotive.ThrottleController.CurrentValue * 100.0f;
+                    return 0;
+                case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Dec_Past:
+                case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Inc_Past:
+                    if (car is MSTSLocomotive locomotiveWithDynamicBrake && locomotiveWithDynamicBrake.DynamicBrakeController != null)
+                        return locomotiveWithDynamicBrake.DynamicBrakeController.CurrentValue * 100.0f;
+                    return 0;
                 default:
                     return 0;
             }
