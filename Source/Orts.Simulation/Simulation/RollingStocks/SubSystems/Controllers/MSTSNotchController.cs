@@ -26,12 +26,14 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
     public class MSTSNotch {
         public float Value;
         public bool Smooth;
+        public bool IsSubNotch;
         public ControllerState Type;
         public string Name;
-        public MSTSNotch(float v, int s, string type, string name, STFReader stf)
+        public MSTSNotch(float v, int s, string type, string name, STFReader stf, bool isSubNotch = false)
         {
             Value = v;
             Smooth = s == 0 ? false : true;
+            IsSubNotch = isSubNotch;
             Type = ControllerState.Dummy;  // Default to a dummy controller state if no valid alternative state used
             string lower = type.ToLower();
             if (lower.StartsWith("trainbrakescontroller"))
@@ -88,10 +90,11 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             }
             Name = name;
         }
-        public MSTSNotch(float v, bool s, int t)
+        public MSTSNotch(float v, bool s, int t, bool isSubNotch = false)
         {
             Value = v;
             Smooth = s;
+            IsSubNotch = isSubNotch;
             Type = (ControllerState)t;
         }
 
@@ -99,6 +102,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         {
             Value = other.Value;
             Smooth = other.Smooth;
+            IsSubNotch = other.IsSubNotch;
             Type = other.Type;
             Name = other.Name;
         }
@@ -169,7 +173,16 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         public float TimeSinceLastChange { get; private set; }
         public float DelayTimeBeforeUpdating;
         public float DelayTimeBeforeUpdatingFromZero = -1;
+        public float AutoSubNotchIncrementIntervalS;
+        public bool InstantSetToZeroOnZeroCommand;
+        public bool DisableSubNotchDecrease;
+        public float DisableSubNotchDecreaseBelow = float.NaN;
         private const float ZeroThreshold = 0.0001f;
+        private int autoSubNotchTargetNotch = -1;
+        private int autoSubNotchDirection;
+        private float autoSubNotchElapsedS;
+        private bool autoSubNotchIgnoresStop;
+        private int manualDisplayTargetNotch = -1;
 
         #region CONSTRUCTORS
 
@@ -203,6 +216,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             CurrentNotch = other.CurrentNotch;
             DelayTimeBeforeUpdating = other.DelayTimeBeforeUpdating;
             DelayTimeBeforeUpdatingFromZero = other.DelayTimeBeforeUpdatingFromZero;
+            AutoSubNotchIncrementIntervalS = other.AutoSubNotchIncrementIntervalS;
+            InstantSetToZeroOnZeroCommand = other.InstantSetToZeroOnZeroCommand;
+            DisableSubNotchDecrease = other.DisableSubNotchDecrease;
+            DisableSubNotchDecreaseBelow = other.DisableSubNotchDecreaseBelow;
 
             foreach (MSTSNotch notch in other.Notches)
             {
@@ -263,6 +280,27 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                             }
                             Notches.Add(new MSTSNotch(value, smooth, type, name, stf));
                         }),
+                        new STFReader.TokenProcessor("subnotch", ()=>{
+                            stf.MustMatch("(");
+                            float value = stf.ReadFloat(STFReader.UNITS.None, null);
+                            int smooth = stf.ReadInt(null);
+                            string type = stf.ReadString();
+                            string name = null;
+                            while(type != ")" && !stf.EndOfBlock())
+                            {
+                                switch (stf.ReadItem().ToLower())
+                                {
+                                    case "(":
+                                        stf.SkipRestOfBlock();
+                                        break;
+                                    case "ortslabel":
+                                        name = stf.ReadStringBlock(null);
+                                        break;
+                                }
+                                type = stf.ReadString();
+                            }
+                            Notches.Add(new MSTSNotch(value, smooth, type, name, stf, true));
+                        }),
                     });
                 }),
                 new STFReader.TokenProcessor("ortsdelaytimebeforeupdating", () =>
@@ -272,6 +310,34 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 new STFReader.TokenProcessor("ortsdelaytimebeforeupdatingfromzero", () =>
                 {
                     DelayTimeBeforeUpdatingFromZero = stf.ReadFloatBlock(STFReader.UNITS.Time, null);
+                }),
+                new STFReader.TokenProcessor("ortssubnotchincrementinterval", () =>
+                {
+                    AutoSubNotchIncrementIntervalS = stf.ReadFloatBlock(STFReader.UNITS.Time, null);
+                }),
+                new STFReader.TokenProcessor("ortsinstantsettozeroonzerocommand", () =>
+                {
+                    InstantSetToZeroOnZeroCommand = stf.ReadBoolBlock(false);
+                }),
+                new STFReader.TokenProcessor("ortsinstantzerocommand", () =>
+                {
+                    InstantSetToZeroOnZeroCommand = stf.ReadBoolBlock(false);
+                }),
+                new STFReader.TokenProcessor("ortsdisablesubnotchdecrease", () =>
+                {
+                    DisableSubNotchDecrease = stf.ReadBoolBlock(false);
+                }),
+                new STFReader.TokenProcessor("ortsnosubnotchdecrease", () =>
+                {
+                    DisableSubNotchDecrease = stf.ReadBoolBlock(false);
+                }),
+                new STFReader.TokenProcessor("ortsdisablesubnotchdecreasebelow", () =>
+                {
+                    DisableSubNotchDecreaseBelow = stf.ReadFloatBlock(STFReader.UNITS.None, null);
+                }),
+                new STFReader.TokenProcessor("ortsnosubnotchdecreasebelow", () =>
+                {
+                    DisableSubNotchDecreaseBelow = stf.ReadFloatBlock(STFReader.UNITS.None, null);
                 }),
             });
             SetValue(CurrentValue);
@@ -294,6 +360,20 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             return Notches.Count;
         }
 
+        public float DisplayValue
+        {
+            get
+            {
+                if (manualDisplayTargetNotch >= 0 && manualDisplayTargetNotch < Notches.Count)
+                    return Notches[manualDisplayTargetNotch].Value;
+                if (autoSubNotchTargetNotch >= 0 && autoSubNotchTargetNotch < Notches.Count)
+                    return Notches[autoSubNotchTargetNotch].Value;
+                return CurrentValue;
+            }
+        }
+
+        public bool IsAutoSubNotchTraversalActive => autoSubNotchTargetNotch >= 0 || manualDisplayTargetNotch >= 0;
+
         private float GetNotchBoost(float boost)
         {
             return (ToZero && ((CurrentNotch >= 0 && Notches[CurrentNotch].Smooth) || Notches.Count == 0 || 
@@ -305,6 +385,111 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             Notches.Add(new MSTSNotch(value, false, (int)ControllerState.Dummy));
         }
 
+        private int GetNextNotchIndex(int start, int direction, bool includeSubNotch)
+        {
+            int notch = start + direction;
+            while (notch >= 0 && notch < Notches.Count)
+            {
+                if (includeSubNotch || !Notches[notch].IsSubNotch)
+                    return notch;
+                notch += direction;
+            }
+            return start;
+        }
+
+        private void StartAutomaticSubNotchTraversal(int direction, int targetNotchIndex)
+        {
+            autoSubNotchDirection = direction;
+            autoSubNotchTargetNotch = targetNotchIndex;
+            autoSubNotchElapsedS = 0;
+            autoSubNotchIgnoresStop = true;
+        }
+
+        private void StopAutomaticSubNotchTraversal(bool keepUpdateValue)
+        {
+            autoSubNotchDirection = 0;
+            autoSubNotchTargetNotch = -1;
+            autoSubNotchElapsedS = 0;
+            autoSubNotchIgnoresStop = false;
+            if (!keepUpdateValue)
+                UpdateValue = 0;
+        }
+
+        private void ClearManualDisplayTarget()
+        {
+            manualDisplayTargetNotch = -1;
+        }
+
+        private bool UpdateAutomaticSubNotch(float elapsedSeconds)
+        {
+            if (autoSubNotchTargetNotch < 0 || AutoSubNotchIncrementIntervalS <= 0 || UpdateValue == 0)
+                return false;
+
+            if (CurrentNotch == autoSubNotchTargetNotch)
+            {
+                StopAutomaticSubNotchTraversal(false);
+                return true;
+            }
+
+            autoSubNotchElapsedS += elapsedSeconds;
+            while (autoSubNotchElapsedS >= AutoSubNotchIncrementIntervalS && autoSubNotchTargetNotch >= 0)
+            {
+                autoSubNotchElapsedS -= AutoSubNotchIncrementIntervalS;
+                int nextNotch = GetNextNotchIndex(CurrentNotch, autoSubNotchDirection, true);
+                if (nextNotch == CurrentNotch)
+                {
+                    StopAutomaticSubNotchTraversal(false);
+                    break;
+                }
+                CurrentNotch = nextNotch;
+                IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+                if (CurrentNotch == autoSubNotchTargetNotch)
+                    StopAutomaticSubNotchTraversal(false);
+            }
+            return true;
+        }
+
+        private bool TryExtendAutomaticSubNotchTraversal(int direction)
+        {
+            if (AutoSubNotchIncrementIntervalS <= 0 || autoSubNotchTargetNotch < 0 || autoSubNotchDirection != direction)
+                return false;
+
+            int nextTarget = GetNextNotchIndex(autoSubNotchTargetNotch, direction, false);
+            if (nextTarget == autoSubNotchTargetNotch)
+                return true;
+
+            // For instant-zero throttles: if an additional decrease command extends the queued target
+            // to zero, apply zero immediately instead of waiting for the remaining sub-notch countdown.
+            if (InstantSetToZeroOnZeroCommand
+                && direction < 0
+                && Notches[nextTarget].Value <= MinimumValue + ZeroThreshold)
+            {
+                StopAutomaticSubNotchTraversal(false);
+                controllerTarget = null;
+                ToZero = true;
+                SetValue(MinimumValue);
+                return true;
+            }
+
+            autoSubNotchTargetNotch = nextTarget;
+            return true;
+        }
+
+        private bool IsSubNotchDecreaseDisabledForTarget(int targetNotchIndex)
+        {
+            if (!DisableSubNotchDecrease
+                || targetNotchIndex < 0
+                || targetNotchIndex >= Notches.Count)
+            {
+                return false;
+            }
+
+            if (float.IsNaN(DisableSubNotchDecreaseBelow))
+                return true;
+
+            return Notches[targetNotchIndex].Value < DisableSubNotchDecreaseBelow - ZeroThreshold;
+        }
+
         /// <summary>
         /// Sets the actual value of the controller, and adjusts the actual notch to match.
         /// </summary>
@@ -314,6 +499,14 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         /// Sign is indicating the direction of change, being displayed by confirmer text.</returns>
         public int SetValue(float value)
         {
+            // Direct value assignments (mouse/combined handle/script) override any pending auto traversal.
+            StopAutomaticSubNotchTraversal(false);
+            ClearManualDisplayTarget();
+            controllerTarget = null;
+            ToZero = false;
+            if (InstantSetToZeroOnZeroCommand && value <= MinimumValue + ZeroThreshold)
+                value = MinimumValue;
+
             CurrentValue = IntermediateValue = MathHelper.Clamp(value, MinimumValue, MaximumValue);
             var oldNotch = CurrentNotch;
 
@@ -336,6 +529,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
 
         public float SetPercent(float percent)
         {
+            // Direct value assignments (e.g. analog controls) override pending auto traversal.
+            StopAutomaticSubNotchTraversal(false);
+            ClearManualDisplayTarget();
+            controllerTarget = null;
+            ToZero = false;
+
             if (percent > 100) SetValue(1);
             float v = (MinimumValue < 0 && percent < 0 ? -MinimumValue : MaximumValue) * percent / 100;
             CurrentValue = MathHelper.Clamp(v, MinimumValue, MaximumValue);
@@ -389,48 +588,284 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         {
             UpdateValue = 1;
 
+            // If a sub-notch auto-traversal in the same direction is already active,
+            // pressing again should queue the next main notch instead of waiting.
+            if (TryExtendAutomaticSubNotchTraversal(1))
+                return;
+
+            bool hadManualDisplayTarget = manualDisplayTargetNotch >= 0 && Notches.Count > 0;
+            if (hadManualDisplayTarget)
+            {
+                int nextDisplayTargetNotch = GetNextNotchIndex(manualDisplayTargetNotch, 1, false);
+                if (nextDisplayTargetNotch == manualDisplayTargetNotch)
+                {
+                    // If already at top displayed notch and actual value is also at/above it,
+                    // manual display mode is complete.
+                    if (Notches[manualDisplayTargetNotch].Value <= CurrentValue + ZeroThreshold)
+                    {
+                        ClearManualDisplayTarget();
+                        hadManualDisplayTarget = false;
+                    }
+                }
+
+                // While actual value is already above this displayed target step,
+                // advance only the displayed notch and keep actual value unchanged.
+                if (manualDisplayTargetNotch >= 0
+                    && nextDisplayTargetNotch != manualDisplayTargetNotch
+                    && Notches[nextDisplayTargetNotch].Value <= CurrentValue + ZeroThreshold)
+                {
+                    manualDisplayTargetNotch = nextDisplayTargetNotch;
+                    CurrentNotch = manualDisplayTargetNotch;
+                    UpdateValue = 0;
+                    return;
+                }
+            }
+
+            if (hadManualDisplayTarget && Notches.Count > 0)
+            {
+                // In display-hold mode, CurrentNotch may represent displayed target
+                // instead of actual power value. Re-align to actual value before
+                // starting real increase to avoid restarting from a lower notch.
+                CurrentNotch = GetNotch(CurrentValue);
+                IntermediateValue = CurrentValue;
+            }
+
+            int commandReferenceNotch = manualDisplayTargetNotch >= 0
+                ? manualDisplayTargetNotch
+                : (autoSubNotchTargetNotch >= 0 ? autoSubNotchTargetNotch : CurrentNotch);
+            ClearManualDisplayTarget();
+            StopAutomaticSubNotchTraversal(true);
+
             // When we have notches and the current Notch does not require smooth, we go directly to the next notch
             if ((Notches.Count > 0) && (CurrentNotch < Notches.Count - 1) && (!Notches[CurrentNotch].Smooth))
             {
-                ++CurrentNotch;
-                IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+                int targetNotch = GetNextNotchIndex(commandReferenceNotch, 1, false);
+                int directionToTarget = System.Math.Sign(targetNotch - CurrentNotch);
+                int nextNotch = GetNextNotchIndex(CurrentNotch, directionToTarget, true);
+                if (directionToTarget != 0)
+                {
+                    UpdateValue = directionToTarget;
+                    if (AutoSubNotchIncrementIntervalS > 0
+                        && ((directionToTarget > 0 && nextNotch > CurrentNotch && nextNotch < targetNotch)
+                        || (directionToTarget < 0 && nextNotch < CurrentNotch && nextNotch > targetNotch)))
+                    {
+                        CurrentNotch = nextNotch;
+                        IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+                        StartAutomaticSubNotchTraversal(directionToTarget, targetNotch);
+                    }
+                    else
+                    {
+                        if (directionToTarget < 0)
+                        {
+                            IntermediateValue = Notches[CurrentNotch].Value;
+                            CurrentNotch = targetNotch;
+                            CurrentValue = Notches[CurrentNotch].Value;
+                        }
+                        else
+                        {
+                            CurrentNotch = targetNotch;
+                            IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+                        }
+                    }
+                }
             }
 		}
 
         public void StopIncrease()
         {
+            if (autoSubNotchTargetNotch >= 0 && autoSubNotchIgnoresStop)
+                return;
             UpdateValue = 0;
+            StopAutomaticSubNotchTraversal(true);
         }
 
         public void StartDecrease( float? target, bool toZero = false)
         {
             controllerTarget = target;
-            ToZero = toZero;
+            ToZero = toZero
+                || (InstantSetToZeroOnZeroCommand
+                && target != null
+                && target <= MinimumValue + ZeroThreshold);
             StartDecrease();
         }
         
         public void StartDecrease()
         {
+            if (ToZero && InstantSetToZeroOnZeroCommand)
+            {
+                ClearManualDisplayTarget();
+                UpdateValue = 0;
+                controllerTarget = null;
+                StopAutomaticSubNotchTraversal(false);
+                SetValue(MinimumValue);
+                return;
+            }
+
+            if (!ToZero
+                && Notches.Count > 0
+                && CurrentNotch >= 0
+                && autoSubNotchTargetNotch >= 0
+                && autoSubNotchDirection > 0)
+            {
+                // While auto-increasing, a decrease command should retarget to the
+                // previous main notch. If that new target is still above current
+                // value, keep increasing until it is reached (independent of flags).
+                int referenceNotch = autoSubNotchTargetNotch;
+                int retargetNotch = GetNextNotchIndex(referenceNotch, -1, false);
+                if (retargetNotch != referenceNotch
+                    && Notches[retargetNotch].Value > CurrentValue + ZeroThreshold)
+                {
+                    ClearManualDisplayTarget();
+                    controllerTarget = null;
+                    ToZero = false;
+                    autoSubNotchTargetNotch = retargetNotch;
+                    UpdateValue = 1;
+                    return;
+                }
+            }
+
+            if (!ToZero && DisableSubNotchDecrease && Notches.Count > 0 && CurrentNotch >= 0)
+            {
+                // Profiles without sub-notch decrease keep actual throttle value while
+                // decrease commands only move the displayed/main target notch.
+                int referenceNotch = manualDisplayTargetNotch >= 0
+                    ? manualDisplayTargetNotch
+                    : (autoSubNotchTargetNotch >= 0 ? autoSubNotchTargetNotch : CurrentNotch);
+                int nextDisplayTargetNotch = GetNextNotchIndex(referenceNotch, -1, false);
+                if (nextDisplayTargetNotch != referenceNotch
+                    && !IsSubNotchDecreaseDisabledForTarget(nextDisplayTargetNotch))
+                {
+                    ClearManualDisplayTarget();
+                }
+                else
+                {
+                    bool targetIsAboveCurrentValue = nextDisplayTargetNotch != referenceNotch
+                        && Notches[nextDisplayTargetNotch].Value > CurrentValue + ZeroThreshold;
+
+                    // Reaching minimum notch should still be possible.
+                    if (nextDisplayTargetNotch != referenceNotch
+                        && Notches[nextDisplayTargetNotch].Value <= MinimumValue + ZeroThreshold)
+                    {
+                        ClearManualDisplayTarget();
+                        StopAutomaticSubNotchTraversal(false);
+                        SetValue(MinimumValue);
+                        return;
+                    }
+
+                    controllerTarget = null;
+                    ToZero = false;
+
+                    if (targetIsAboveCurrentValue)
+                    {
+                        // New requested main notch is still above current value: keep increasing
+                        // until the new target is reached.
+                        ClearManualDisplayTarget();
+                        if (autoSubNotchTargetNotch >= 0 && autoSubNotchDirection > 0 && UpdateValue > 0)
+                        {
+                            autoSubNotchTargetNotch = nextDisplayTargetNotch;
+                            return;
+                        }
+
+                        StopAutomaticSubNotchTraversal(false);
+                        int directionToTarget = System.Math.Sign(nextDisplayTargetNotch - CurrentNotch);
+                        if (directionToTarget > 0)
+                        {
+                            UpdateValue = directionToTarget;
+                            int nextNotch = GetNextNotchIndex(CurrentNotch, directionToTarget, true);
+                            if (AutoSubNotchIncrementIntervalS > 0
+                                && nextNotch > CurrentNotch
+                                && nextNotch < nextDisplayTargetNotch)
+                            {
+                                CurrentNotch = nextNotch;
+                                IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+                                StartAutomaticSubNotchTraversal(directionToTarget, nextDisplayTargetNotch);
+                            }
+                            else
+                            {
+                                CurrentNotch = nextDisplayTargetNotch;
+                                IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+                            }
+                            return;
+                        }
+                    }
+
+                    StopAutomaticSubNotchTraversal(false);
+                    if (nextDisplayTargetNotch != referenceNotch)
+                    {
+                        manualDisplayTargetNotch = nextDisplayTargetNotch;
+                        CurrentNotch = manualDisplayTargetNotch;
+                    }
+
+                    UpdateValue = 0;
+                    return;
+                }
+            }
+
+            ClearManualDisplayTarget();
+
             UpdateValue = -1;
+
+            // If a sub-notch auto-traversal in the same direction is already active,
+            // pressing again should queue the next main notch instead of waiting.
+            if (TryExtendAutomaticSubNotchTraversal(-1))
+                return;
+
+            int commandReferenceNotch = autoSubNotchTargetNotch >= 0 ? autoSubNotchTargetNotch : CurrentNotch;
+            StopAutomaticSubNotchTraversal(true);
 
             //If we have notches and the previous Notch does not require smooth, we go directly to the previous notch
             if ((Notches.Count > 0) && (CurrentNotch > 0) && SmoothMin() == null)
             {
-                //Keep intermediate value with the "previous" notch, so it will take a while to change notches
-                //again if the user keep holding the key
-                IntermediateValue = Notches[CurrentNotch].Value;
-                CurrentNotch--;
-                CurrentValue = Notches[CurrentNotch].Value;
+                int targetNotch = GetNextNotchIndex(commandReferenceNotch, -1, false);
+                int directionToTarget = System.Math.Sign(targetNotch - CurrentNotch);
+                int nextNotch = GetNextNotchIndex(CurrentNotch, directionToTarget, true);
+                if (directionToTarget != 0)
+                {
+                    UpdateValue = directionToTarget;
+                    if (AutoSubNotchIncrementIntervalS > 0
+                        && !(directionToTarget < 0 && IsSubNotchDecreaseDisabledForTarget(targetNotch))
+                        && ((directionToTarget > 0 && nextNotch > CurrentNotch && nextNotch < targetNotch)
+                        || (directionToTarget < 0 && nextNotch < CurrentNotch && nextNotch > targetNotch)))
+                    {
+                        CurrentNotch = nextNotch;
+                        IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+                        StartAutomaticSubNotchTraversal(directionToTarget, targetNotch);
+                    }
+                    else
+                    {
+                        if (directionToTarget < 0)
+                        {
+                            IntermediateValue = Notches[CurrentNotch].Value;
+                            CurrentNotch = targetNotch;
+                            CurrentValue = Notches[CurrentNotch].Value;
+                        }
+                        else
+                        {
+                            CurrentNotch = targetNotch;
+                            IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+                        }
+                    }
+                }
             }
         }
 
         public void StopDecrease()
         {
+            if (autoSubNotchTargetNotch >= 0 && autoSubNotchIgnoresStop)
+                return;
             UpdateValue = 0;
+            StopAutomaticSubNotchTraversal(true);
         }
 
         public float Update(float elapsedSeconds)
         {
+            if (UpdateAutomaticSubNotch(elapsedSeconds))
+            {
+                if (prevValue == CurrentValue) TimeSinceLastChange += elapsedSeconds;
+                prevValue = CurrentValue;
+                return CurrentValue;
+            }
+
             if (UpdateValue == 1 || UpdateValue == -1)
             {
                 CheckControllerTargetAchieved();
@@ -677,6 +1112,16 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 }
             }
             return notch;
+        }
+
+        public float GetFirstMainNotchAboveMinimumValue()
+        {
+            for (int i = 0; i < Notches.Count; i++)
+            {
+                if (!Notches[i].IsSubNotch && Notches[i].Value > MinimumValue + ZeroThreshold)
+                    return Notches[i].Value;
+            }
+            return MinimumValue;
         }
 
     }

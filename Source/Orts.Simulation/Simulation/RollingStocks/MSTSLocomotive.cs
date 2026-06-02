@@ -3972,6 +3972,19 @@ namespace Orts.Simulation.RollingStocks
 
         public void StartThrottleDecrease(float? target)
         {
+            float tzdFirstMain = ThrottleController.GetFirstMainNotchAboveMinimumValue();
+
+            // Some controllers send repeated "decrease notch" commands (target=null) even when moved to full zero.
+            // With instant-zero enabled, convert the final decrease from first power notch to the same zero routine as Alt+X.
+            if (target == null
+                && ThrottleController?.InstantSetToZeroOnZeroCommand == true
+                && ThrottleController.CurrentValue > ThrottleController.MinimumValue + 0.0001f
+                && ThrottleController.CurrentValue <= tzdFirstMain + 0.0001f)
+            {
+                StartThrottleToZero(ThrottleController.MinimumValue);
+                return;
+            }
+
             if (CruiseControl != null)
             {
                 if (CruiseControl.UseThrottleAsSpeedSelector && CruiseControl.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto && CruiseControl.SelectedSpeedMpS > 0)
@@ -4250,6 +4263,17 @@ namespace Orts.Simulation.RollingStocks
 
         public void SetThrottleValue(float value)
         {
+            float instantZeroThreshold = ThrottleController != null
+                ? ThrottleController.MinimumValue + System.Math.Max(0.0001f, ThrottleController.StepSize * 0.5f)
+                : 0.0001f;
+            float firstMainNotchThreshold = instantZeroThreshold;
+            if (ThrottleController?.InstantSetToZeroOnZeroCommand == true && ThrottleController.NotchCount() > 1)
+            {
+                // Some cabs/devices cannot physically reach exact zero and bottom out at first detent.
+                // In that case, treat any command at or below the first non-zero notch as "zero command".
+                firstMainNotchThreshold = ThrottleController.GetFirstMainNotchAboveMinimumValue() + 0.0001f;
+            }
+
             if (CruiseControl != null)
             {
                 if (CruiseControl.UseThrottleAsForceSelector && CruiseControl.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto)
@@ -4264,6 +4288,28 @@ namespace Orts.Simulation.RollingStocks
                     return;
                 }
             }
+
+            // For selected notched throttles, a direct "set to zero" command must snap immediately.
+            if (ThrottleController != null
+                && ThrottleController.InstantSetToZeroOnZeroCommand
+                && value <= firstMainNotchThreshold
+                && ThrottleController.CurrentValue > ThrottleController.MinimumValue + 0.0001f)
+            {
+                var oldValueAtZeroSnap = ThrottleController.IntermediateValue;
+                var zeroSnapChange = ThrottleController.SetValue(ThrottleController.MinimumValue);
+                if (zeroSnapChange != 0)
+                {
+                    new ContinuousThrottleCommand(Simulator.Log, false, ThrottleController.CurrentValue, Simulator.ClockTime);
+                    SignalEvent(Event.ThrottleChange);
+                }
+                if (oldValueAtZeroSnap != ThrottleController.IntermediateValue)
+                    Simulator.Confirmer.UpdateWithPerCent(
+                        this is MSTSSteamLocomotive ? CabControl.Regulator : CabControl.Throttle,
+                        CabSetting.Decrease,
+                        ThrottleController.CurrentValue * 100);
+                return;
+            }
+
             var controller = ThrottleController;
             var oldValue = controller.IntermediateValue;
             var change = controller.SetValue(value);
@@ -4281,6 +4327,12 @@ namespace Orts.Simulation.RollingStocks
 
         public void SetThrottlePercent(float percent)
         {
+            float instantZeroPercentThreshold = ThrottleController != null
+                ? (ThrottleController.MinimumValue + System.Math.Max(0.0001f, ThrottleController.StepSize * 0.5f)) * 100
+                : 0.01f;
+            if (ThrottleController?.InstantSetToZeroOnZeroCommand == true && ThrottleController.NotchCount() > 1)
+                instantZeroPercentThreshold = (ThrottleController.GetFirstMainNotchAboveMinimumValue() + 0.0001f) * 100;
+
             if (CruiseControl != null)
             {
                 if (CruiseControl.UseThrottleAsForceSelector && CruiseControl.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto)
@@ -4291,8 +4343,22 @@ namespace Orts.Simulation.RollingStocks
                 }
                 else if (CruiseControl.UseThrottleAsSpeedSelector && CruiseControl.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto)
                     CruiseControl.SetSpeed(MpS.FromMpS(percent * MaxSpeedMpS / 100, !CruiseControl.SpeedIsMph));
+                else if (ThrottleController != null
+                    && ThrottleController.InstantSetToZeroOnZeroCommand
+                    && percent <= instantZeroPercentThreshold
+                    && ThrottleController.CurrentValue > ThrottleController.MinimumValue + 0.0001f)
+                {
+                    SetThrottleValue(ThrottleController.MinimumValue);
+                }
                 else
                     ThrottleController.SetPercent(percent);
+            }
+            else if (ThrottleController != null
+                && ThrottleController.InstantSetToZeroOnZeroCommand
+                && percent <= instantZeroPercentThreshold
+                && ThrottleController.CurrentValue > ThrottleController.MinimumValue + 0.0001f)
+            {
+                SetThrottleValue(ThrottleController.MinimumValue);
             }
             else
                 ThrottleController.SetPercent(percent);
@@ -4333,9 +4399,7 @@ namespace Orts.Simulation.RollingStocks
                 {
                     if (CruiseControl.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto && !CruiseControl.UseThrottleAsSpeedSelector &&
                     !(CruiseControl.DynamicBrakeCommandHasPriorityOverCruiseControl && ThrottleController.CurrentValue <= 0))
-                    {
                         return;
-                    }
                 }
             }
             if (CruiseControl?.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto && CruiseControl.SelectedSpeedMpS > 0 && CruiseControl.UseThrottleAsSpeedSelector)
@@ -4343,11 +4407,17 @@ namespace Orts.Simulation.RollingStocks
                 ThrottleController.CurrentValue = 1;
             }
             if (CombinedControlType == CombinedControl.ThrottleDynamic && ThrottleController.CurrentValue <= 0)
+            {
                 StartDynamicBrakeIncrease(null);
+            }
             else if (CombinedControlType == CombinedControl.ThrottleAir && ThrottleController.CurrentValue <= 0)
+            {
                 StartTrainBrakeIncrease(null);
+            }
             else
+            {
                 StartThrottleToZero(0.0f);
+            }
         }
 
         public void StartThrottleToZero(float? target)
@@ -4376,7 +4446,9 @@ namespace Orts.Simulation.RollingStocks
             if (CruiseControl?.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto && CruiseControl.UseThrottleAsSpeedSelector)
                 return CruiseControl.SelectedSpeedMpS / MaxSpeedMpS;
 
-            return intermediateValue ? ThrottleController.IntermediateValue : ThrottleController.CurrentValue;
+            // For notched throttles with sub-notch interpolation, show the requested handle target
+            // immediately while effective traction continues to ramp through sub-notches.
+            return intermediateValue ? ThrottleController.IntermediateValue : ThrottleController.DisplayValue;
         }
 
         #endregion
@@ -4435,7 +4507,7 @@ namespace Orts.Simulation.RollingStocks
         /// <returns>Combined position into 0-1 range, where arrangement is [[1--throttle--0]split[0--dynamic|airbrake--1]]</returns>
         public float GetCombinedHandleValue(bool intermediateValue)
         {
-            var throttleValue = intermediateValue ? ThrottleController?.IntermediateValue : ThrottleController?.CurrentValue;
+            var throttleValue = intermediateValue ? ThrottleController?.IntermediateValue : ThrottleController?.DisplayValue;
             var dynamicsValue = intermediateValue ? DynamicBrakeController?.IntermediateValue : DynamicBrakeController?.CurrentValue;
             var brakesValue = intermediateValue ? TrainBrakeController?.IntermediateValue : TrainBrakeController?.CurrentValue;
 
@@ -6028,7 +6100,16 @@ namespace Orts.Simulation.RollingStocks
                 case CABViewControlTypes.CPH_DISPLAY:
                     {
                         if (CruiseControl != null && CruiseControl.SkipThrottleDisplay) break;
-                        data = (Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || Train.Autopilot) ? ThrottlePercent / 100f : LocalThrottlePercent / 100f;
+                        if (ThrottleController.IsAutoSubNotchTraversalActive)
+                        {
+                            // Some cabs animate the lever from THROTTLE_DISPLAY instead of THROTTLE.
+                            // During sub-notch interpolation, expose the requested handle target.
+                            data = GetThrottleHandleValue(false);
+                        }
+                        else
+                        {
+                            data = (Train.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING || Train.Autopilot) ? ThrottlePercent / 100f : LocalThrottlePercent / 100f;
+                        }
                         break;
                     }
                 case CABViewControlTypes.ENGINE_BRAKE:

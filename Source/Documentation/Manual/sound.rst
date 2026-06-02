@@ -552,9 +552,10 @@ New variables introduced by OR:
   Of course ``CurveForce_Inc_Past``, and ``CurveForce_Dec_Past`` are also 
   available for activating and deactivating the sound.
 - ThrottleController trigger events (``ThrottleController_Inc_Past`` and
-  ``ThrottleController_Dec_Past``) read the live throttle controller position
-  and can be used when sounds must trigger immediately when the driver moves
-  the throttle. Threshold values are in throttle percent (0 to 100).
+  ``ThrottleController_Dec_Past``) read the requested throttle handle position.
+  For sub-notch interpolation, this follows the commanded notch target while
+  traction still ramps through sub-notches. Threshold values are in throttle
+  percent (0 to 100).
 - DynamicBrakeController trigger events
   (``DynamicBrakeController_Inc_Past`` and
   ``DynamicBrakeController_Dec_Past``) read the live dynamic brake controller

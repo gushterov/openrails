@@ -146,9 +146,18 @@ namespace Orts.Viewer3D.RollingStock
             if (!UserInputCommands.ContainsKey(UserCommand.ControlBackwards))
                 UserInputCommands.Add(UserCommand.ControlBackwards, new Action[] { Noop, () => ReverserControlBackwards() });
 
-            UserInputCommands.Add(UserCommand.ControlThrottleIncrease, new Action[] { () => Locomotive.StopThrottleIncrease(), () => Locomotive.StartThrottleIncrease() });
-            UserInputCommands.Add(UserCommand.ControlThrottleDecrease, new Action[] { () => Locomotive.StopThrottleDecrease(), () => Locomotive.StartThrottleDecrease() });
-            UserInputCommands.Add(UserCommand.ControlThrottleZero, new Action[] { Noop, () => Locomotive.ThrottleToZero() });
+            UserInputCommands.Add(UserCommand.ControlThrottleIncrease, new Action[] {
+                () => Locomotive.StopThrottleIncrease(),
+                () => Locomotive.StartThrottleIncrease()
+            });
+            UserInputCommands.Add(UserCommand.ControlThrottleDecrease, new Action[] {
+                () => Locomotive.StopThrottleDecrease(),
+                () => Locomotive.StartThrottleDecrease()
+            });
+            UserInputCommands.Add(UserCommand.ControlThrottleZero, new Action[] {
+                Noop,
+                () => Locomotive.ThrottleToZero()
+            });
             UserInputCommands.Add(UserCommand.ControlGearUp, new Action[] { () => StopGearBoxIncrease(), () => StartGearBoxIncrease() });
             UserInputCommands.Add(UserCommand.ControlGearDown, new Action[] { () => StopGearBoxDecrease(), () => StartGearBoxDecrease() });
             UserInputCommands.Add(UserCommand.ControlTrainBrakeIncrease, new Action[] { () => Locomotive.StopTrainBrakeIncrease(), () => Locomotive.StartTrainBrakeIncrease(null) });
@@ -250,7 +259,14 @@ namespace Orts.Viewer3D.RollingStock
                     {
                         // Some cab controls need specific handling for better results
                         case CABViewControlTypes.THROTTLE:
-                            Locomotive.SetThrottlePercentWithSound(val * 100);
+                            if (Locomotive.ThrottleController?.InstantSetToZeroOnZeroCommand == true
+                                && val <= Locomotive.ThrottleController.GetFirstMainNotchAboveMinimumValue() + 0.0001f
+                                && Locomotive.ThrottleController.CurrentValue > Locomotive.ThrottleController.MinimumValue + 0.0001f)
+                            {
+                                Locomotive.ThrottleToZero();
+                            }
+                            else
+                                Locomotive.SetThrottlePercentWithSound(val * 100);
                             break;
                         case CABViewControlTypes.DIRECTION:
                             if (Locomotive is MSTSSteamLocomotive steam)
@@ -2456,7 +2472,15 @@ namespace Orts.Viewer3D.RollingStock
                     if (Locomotive.CruiseControl?.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto
                         && Locomotive.CruiseControl.SelectedMaxAccelerationPercent != 0 && Locomotive.CruiseControl.HasIndependentThrottleDynamicBrakeLever)
                         break;
-                    Locomotive.SetThrottleValue(ChangedValue(Locomotive.ThrottleController.IntermediateValue));
+                    var requestedThrottleValue = ChangedValue(Locomotive.ThrottleController.IntermediateValue);
+                    if (Locomotive.ThrottleController?.InstantSetToZeroOnZeroCommand == true
+                        && requestedThrottleValue <= Locomotive.ThrottleController.GetFirstMainNotchAboveMinimumValue() + 0.0001f
+                        && Locomotive.ThrottleController.CurrentValue > Locomotive.ThrottleController.MinimumValue + 0.0001f)
+                    {
+                        Locomotive.ThrottleToZero();
+                    }
+                    else
+                        Locomotive.SetThrottleValue(requestedThrottleValue);
                     break;
                 case CABViewControlTypes.ENGINE_BRAKE: Locomotive.SetEngineBrakeValue(ChangedValue(Locomotive.EngineBrakeController.IntermediateValue)); break;
                 case CABViewControlTypes.BRAKEMAN_BRAKE: Locomotive.SetBrakemanBrakeValue(ChangedValue(Locomotive.BrakemanBrakeController.IntermediateValue)); break;
@@ -2581,7 +2605,18 @@ namespace Orts.Viewer3D.RollingStock
                     if (Locomotive.CruiseControl?.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto
                         && Locomotive.CruiseControl.SelectedMaxAccelerationPercent != 0 && Locomotive.CruiseControl.HasIndependentThrottleDynamicBrakeLever)
                         break;
-                    Locomotive.SetCombinedHandleValue(ChangedValue(Locomotive.GetCombinedHandleValue(true)));
+                    var requestedCombinedValue = ChangedValue(Locomotive.GetCombinedHandleValue(true));
+                    if (Locomotive.ThrottleController?.InstantSetToZeroOnZeroCommand == true
+                        && Locomotive.CombinedControlSplitPosition > 0)
+                    {
+                        float requestedThrottle = 1 - MathHelper.Clamp(requestedCombinedValue, 0, Locomotive.CombinedControlSplitPosition) / Locomotive.CombinedControlSplitPosition;
+                        if (requestedThrottle <= Locomotive.ThrottleController.GetFirstMainNotchAboveMinimumValue() + 0.0001f
+                            && Locomotive.ThrottleController.CurrentValue > Locomotive.ThrottleController.MinimumValue + 0.0001f)
+                        {
+                            Locomotive.ThrottleToZero();
+                        }
+                    }
+                    Locomotive.SetCombinedHandleValue(requestedCombinedValue);
                     break;
 
                 // Steam locomotives only:

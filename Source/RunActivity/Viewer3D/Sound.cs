@@ -2748,7 +2748,7 @@ namespace Orts.Viewer3D
                 case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Dec_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Inc_Past:
                     if (car is MSTSLocomotive locomotive)
-                        return locomotive.ThrottleController.CurrentValue * 100.0f;
+                        return locomotive.ThrottleController.DisplayValue * 100.0f;
                     return 0;
                 case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Dec_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Inc_Past:

@@ -1243,6 +1243,8 @@ Traction force retardation
     single: ORTSDynamicBrakePowerRampDownToZeroRate
     single: ORTSDelayTimeBeforeUpdating
     single: ORTSDelayTimeBeforeUpdatingFromZero
+    single: ORTSDisableSubNotchDecrease
+    single: ORTSDisableSubNotchDecreaseBelow
 
 When the driver sets full throttle, the control electronics may not apply the full
 tractive force instantly, but it will instead linearly apply force until reaching
@@ -1293,6 +1295,14 @@ Example::
       )
     )
   )
+
+For notched throttle controllers that use ``SubNotch`` entries, setting
+``ORTSDisableSubNotchDecrease ( 1 )`` keeps decrease commands stepping between
+main notches without traversing the intermediate sub-notches. If you want that
+only below a given main notch, add ``ORTSDisableSubNotchDecreaseBelow`` with
+the boundary value. For example, ``ORTSDisableSubNotchDecreaseBelow ( 0.8 )``
+keeps normal sub-notch behavior at and above 0.80, while decreases to lower
+main notches use the no-sub-notch-decrease handling.
 
 Steam Locomotives
 -----------------
