@@ -3631,6 +3631,7 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
    single: ORTSBrakePipeTimeFactor
    single: ORTSEPBrakeControlsBrakePipe
    single: ORTSEPBrakeInhibitsTripleValve
+   single: ORTSCompressorStartDelay
    single: ORTSCompressorIsMuControlled
    single: Supply_Reservoir
    single: ORTSSupplyResCapacity
@@ -3802,6 +3803,10 @@ MaxAuxilaryChargingRate and EmergencyResChargingRate.
   Can also be implemented as ``Engine(ORTSSupplyResChargingRate`` for engines.
 - ``Engine(ORTSMainResChargingRate`` -- Rate of main reservoir pressure change
   in psi per second when the compressor is on (default .4).
+- ``Engine(ORTSCompressorStartDelay`` -- Delay in seconds between the
+  compressor start condition becoming true and the compressor switching on
+  (default 0). For example, ``Engine(ORTSCompressorStartDelay ( 3s ) )`` delays
+  compressor starts by 3 seconds.
 - ``Engine(ORTSEngineBrakeReleaseRate`` -- Rate of engine brake pressure
   decrease in psi per second
   (default 12.5).
