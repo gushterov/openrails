@@ -415,6 +415,15 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 UpdateValue = 0;
         }
 
+        private void StopDirectNotchChangeWithoutTarget()
+        {
+            if (controllerTarget != null)
+                return;
+
+            UpdateValue = 0;
+            IntermediateValue = CurrentValue;
+        }
+
         private void ClearManualDisplayTarget()
         {
             manualDisplayTargetNotch = -1;
@@ -593,6 +602,28 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             if (TryExtendAutomaticSubNotchTraversal(1))
                 return;
 
+            if (Notches.Count > 0
+                && CurrentNotch >= 0
+                && autoSubNotchTargetNotch >= 0
+                && autoSubNotchDirection < 0)
+            {
+                // While auto-decreasing, an increase command should retarget to the
+                // next main notch, hold the current sub-notch, and show the
+                // requested main notch.
+                int referenceNotch = autoSubNotchTargetNotch;
+                int retargetNotch = GetNextNotchIndex(referenceNotch, 1, false);
+                if (retargetNotch != referenceNotch)
+                {
+                    ClearManualDisplayTarget();
+                    controllerTarget = null;
+                    ToZero = false;
+                    StopAutomaticSubNotchTraversal(false);
+                    manualDisplayTargetNotch = retargetNotch;
+
+                    return;
+                }
+            }
+
             bool hadManualDisplayTarget = manualDisplayTargetNotch >= 0 && Notches.Count > 0;
             if (hadManualDisplayTarget)
             {
@@ -666,6 +697,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                             CurrentNotch = targetNotch;
                             IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
                         }
+                        StopDirectNotchChangeWithoutTarget();
                     }
                 }
             }
@@ -712,15 +744,27 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 // value, keep increasing until it is reached (independent of flags).
                 int referenceNotch = autoSubNotchTargetNotch;
                 int retargetNotch = GetNextNotchIndex(referenceNotch, -1, false);
-                if (retargetNotch != referenceNotch
-                    && Notches[retargetNotch].Value > CurrentValue + ZeroThreshold)
+                if (retargetNotch != referenceNotch)
                 {
-                    ClearManualDisplayTarget();
-                    controllerTarget = null;
-                    ToZero = false;
-                    autoSubNotchTargetNotch = retargetNotch;
-                    UpdateValue = 1;
-                    return;
+                    if (Notches[retargetNotch].Value > CurrentValue + ZeroThreshold)
+                    {
+                        ClearManualDisplayTarget();
+                        controllerTarget = null;
+                        ToZero = false;
+                        autoSubNotchTargetNotch = retargetNotch;
+                        UpdateValue = 1;
+                        return;
+                    }
+
+                    if (Notches[retargetNotch].Value > MinimumValue + ZeroThreshold)
+                    {
+                        ClearManualDisplayTarget();
+                        controllerTarget = null;
+                        ToZero = false;
+                        StopAutomaticSubNotchTraversal(false);
+                        manualDisplayTargetNotch = retargetNotch;
+                        return;
+                    }
                 }
             }
 
@@ -801,8 +845,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 }
             }
 
-            ClearManualDisplayTarget();
-
             UpdateValue = -1;
 
             // If a sub-notch auto-traversal in the same direction is already active,
@@ -810,7 +852,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             if (TryExtendAutomaticSubNotchTraversal(-1))
                 return;
 
-            int commandReferenceNotch = autoSubNotchTargetNotch >= 0 ? autoSubNotchTargetNotch : CurrentNotch;
+            int commandReferenceNotch = manualDisplayTargetNotch >= 0
+                ? manualDisplayTargetNotch
+                : (autoSubNotchTargetNotch >= 0 ? autoSubNotchTargetNotch : CurrentNotch);
+            ClearManualDisplayTarget();
             StopAutomaticSubNotchTraversal(true);
 
             //If we have notches and the previous Notch does not require smooth, we go directly to the previous notch
@@ -844,6 +889,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                             CurrentNotch = targetNotch;
                             IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
                         }
+                        StopDirectNotchChangeWithoutTarget();
                     }
                 }
             }
