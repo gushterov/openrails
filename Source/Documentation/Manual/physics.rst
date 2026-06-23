@@ -1243,6 +1243,7 @@ Traction force retardation
     single: ORTSDynamicBrakePowerRampDownToZeroRate
     single: ORTSDelayTimeBeforeUpdating
     single: ORTSDelayTimeBeforeUpdatingFromZero
+    single: ORTSSubNotchIncrementForceLimit
     single: ORTSDisableSubNotchDecrease
     single: ORTSDisableSubNotchDecreaseBelow
 
@@ -1297,12 +1298,18 @@ Example::
   )
 
 For notched throttle controllers that use ``SubNotch`` entries, setting
-``ORTSDisableSubNotchDecrease ( 1 )`` keeps decrease commands stepping between
-main notches without traversing the intermediate sub-notches. If you want that
-only below a given main notch, add ``ORTSDisableSubNotchDecreaseBelow`` with
-the boundary value. For example, ``ORTSDisableSubNotchDecreaseBelow ( 0.8 )``
-keeps normal sub-notch behavior at and above 0.80, while decreases to lower
-main notches use the no-sub-notch-decrease handling.
+``ORTSSubNotchIncrementForceLimit`` makes automatic follow-on sub-notch increases
+wait while the locomotive's current traction force is at or above the specified
+force. The driver's notch-up command still applies the first sub-notch step
+immediately. For example, ``ORTSSubNotchIncrementForceLimit ( 200kN )`` allows
+the next automatic sub-notch increase only while traction force is below 200 kN.
+
+Setting ``ORTSDisableSubNotchDecrease ( 1 )`` keeps decrease commands stepping
+between main notches without traversing the intermediate sub-notches. If you
+want that only below a given main notch, add ``ORTSDisableSubNotchDecreaseBelow``
+with the boundary value. For example, ``ORTSDisableSubNotchDecreaseBelow ( 0.8 )``
+keeps normal sub-notch behavior at and above 0.80, while decreases to lower main
+notches use the no-sub-notch-decrease handling.
 
 Steam Locomotives
 -----------------

@@ -2567,7 +2567,7 @@ namespace Orts.Simulation.RollingStocks
             UpdateCombinedEngineBrakeControl();
 
             var throttleCurrentNotch = ThrottleController.CurrentNotch;
-            ThrottleController.Update(elapsedClockSeconds);
+            ThrottleController.Update(elapsedClockSeconds, TractionForceN);
             if (CruiseControl != null && CruiseControl.ThrottlePercent != null)
             {
                 LocalThrottlePercent = CruiseControl.ThrottlePercent.Value;
@@ -2598,7 +2598,7 @@ namespace Orts.Simulation.RollingStocks
 				{
 					controlUpdated = true;
 				}
-				ThrottlePercent = ThrottleController.Update(elapsedClockSeconds) * 100.0f;
+				ThrottlePercent = ThrottleController.Update(elapsedClockSeconds, TractionForceN) * 100.0f;
 				if ((DynamicBrakeController != null) && (DynamicBrakePercent >= 0)) DynamicBrakePercent = DynamicBrakeController.Update(elapsedClockSeconds) * 100.0f;
 				return; //done, will go back and send the message to the remote train controller
 			}
@@ -6224,6 +6224,10 @@ namespace Orts.Simulation.RollingStocks
                         if (cvc.Feature == "HideOnNegativeForce")
                         {
                             cvc.IsVisible = DynamicBrakeForceN == 0.0;
+                        }
+                        if (cvc.Feature == "HideOnBailOff")
+                        {
+                            cvc.IsVisible = !BailOff;
                         }
                         break;   
                     }

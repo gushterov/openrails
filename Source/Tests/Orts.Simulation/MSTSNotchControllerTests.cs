@@ -145,6 +145,33 @@ namespace Tests.Orts.Simulation
         }
 
         [Fact]
+        public static void AutoIncreaseWithForceLimitAllowsFirstStepAboveLimit()
+        {
+            var controller = CreateSubNotchedThrottle();
+            controller.AutoSubNotchIncrementForceLimitN = 100000;
+
+            controller.StartIncrease();
+            controller.Update(5, 100000);
+
+            Assert.Equal(0.10f, controller.CurrentValue, 3);
+            Assert.Equal(0.50f, controller.DisplayValue, 3);
+        }
+
+        [Fact]
+        public static void AutoIncreaseWithForceLimitResumesBelowLimit()
+        {
+            var controller = CreateSubNotchedThrottle();
+            controller.AutoSubNotchIncrementForceLimitN = 100000;
+
+            controller.StartIncrease();
+            controller.Update(5, 100000);
+            controller.Update(1, 99999);
+
+            Assert.Equal(0.15f, controller.CurrentValue, 3);
+            Assert.Equal(0.50f, controller.DisplayValue, 3);
+        }
+
+        [Fact]
         public static void SecondDecreaseAfterHeldPreviousMainNotchStartsDecreasingBelowIt()
         {
             var controller = CreateSubNotchedThrottle();

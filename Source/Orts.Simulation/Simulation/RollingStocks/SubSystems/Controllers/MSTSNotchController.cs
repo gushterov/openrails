@@ -174,6 +174,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         public float DelayTimeBeforeUpdating;
         public float DelayTimeBeforeUpdatingFromZero = -1;
         public float AutoSubNotchIncrementIntervalS;
+        public float AutoSubNotchIncrementForceLimitN = float.NaN;
         public bool InstantSetToZeroOnZeroCommand;
         public bool DisableSubNotchDecrease;
         public float DisableSubNotchDecreaseBelow = float.NaN;
@@ -217,6 +218,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             DelayTimeBeforeUpdating = other.DelayTimeBeforeUpdating;
             DelayTimeBeforeUpdatingFromZero = other.DelayTimeBeforeUpdatingFromZero;
             AutoSubNotchIncrementIntervalS = other.AutoSubNotchIncrementIntervalS;
+            AutoSubNotchIncrementForceLimitN = other.AutoSubNotchIncrementForceLimitN;
             InstantSetToZeroOnZeroCommand = other.InstantSetToZeroOnZeroCommand;
             DisableSubNotchDecrease = other.DisableSubNotchDecrease;
             DisableSubNotchDecreaseBelow = other.DisableSubNotchDecreaseBelow;
@@ -315,6 +317,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 {
                     AutoSubNotchIncrementIntervalS = stf.ReadFloatBlock(STFReader.UNITS.Time, null);
                 }),
+                new STFReader.TokenProcessor("ortssubnotchincrementforcelimit", () =>
+                {
+                    AutoSubNotchIncrementForceLimitN = stf.ReadFloatBlock(STFReader.UNITS.Force, null);
+                }),
                 new STFReader.TokenProcessor("ortsinstantsettozeroonzerocommand", () =>
                 {
                     InstantSetToZeroOnZeroCommand = stf.ReadBoolBlock(false);
@@ -405,6 +411,13 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             autoSubNotchIgnoresStop = true;
         }
 
+        private void StartAutomaticSubNotchTraversal(int direction, int nextNotchIndex, int targetNotchIndex)
+        {
+            CurrentNotch = nextNotchIndex;
+            IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
+            StartAutomaticSubNotchTraversal(direction, targetNotchIndex);
+        }
+
         private void StopAutomaticSubNotchTraversal(bool keepUpdateValue)
         {
             autoSubNotchDirection = 0;
@@ -429,7 +442,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             manualDisplayTargetNotch = -1;
         }
 
-        private bool UpdateAutomaticSubNotch(float elapsedSeconds)
+        private bool UpdateAutomaticSubNotch(float elapsedSeconds, float currentTractionForceN)
         {
             if (autoSubNotchTargetNotch < 0 || AutoSubNotchIncrementIntervalS <= 0 || UpdateValue == 0)
                 return false;
@@ -437,6 +450,15 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             if (CurrentNotch == autoSubNotchTargetNotch)
             {
                 StopAutomaticSubNotchTraversal(false);
+                return true;
+            }
+
+            if (autoSubNotchDirection > 0
+                && !float.IsNaN(AutoSubNotchIncrementForceLimitN)
+                && !float.IsNaN(currentTractionForceN)
+                && System.Math.Abs(currentTractionForceN) >= AutoSubNotchIncrementForceLimitN)
+            {
+                autoSubNotchElapsedS = 0;
                 return true;
             }
 
@@ -680,9 +702,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                         && ((directionToTarget > 0 && nextNotch > CurrentNotch && nextNotch < targetNotch)
                         || (directionToTarget < 0 && nextNotch < CurrentNotch && nextNotch > targetNotch)))
                     {
-                        CurrentNotch = nextNotch;
-                        IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
-                        StartAutomaticSubNotchTraversal(directionToTarget, targetNotch);
+                        StartAutomaticSubNotchTraversal(directionToTarget, nextNotch, targetNotch);
                     }
                     else
                     {
@@ -820,9 +840,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                                 && nextNotch > CurrentNotch
                                 && nextNotch < nextDisplayTargetNotch)
                             {
-                                CurrentNotch = nextNotch;
-                                IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
-                                StartAutomaticSubNotchTraversal(directionToTarget, nextDisplayTargetNotch);
+                                StartAutomaticSubNotchTraversal(directionToTarget, nextNotch, nextDisplayTargetNotch);
                             }
                             else
                             {
@@ -872,9 +890,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                         && ((directionToTarget > 0 && nextNotch > CurrentNotch && nextNotch < targetNotch)
                         || (directionToTarget < 0 && nextNotch < CurrentNotch && nextNotch > targetNotch)))
                     {
-                        CurrentNotch = nextNotch;
-                        IntermediateValue = CurrentValue = Notches[CurrentNotch].Value;
-                        StartAutomaticSubNotchTraversal(directionToTarget, targetNotch);
+                        StartAutomaticSubNotchTraversal(directionToTarget, nextNotch, targetNotch);
                     }
                     else
                     {
@@ -905,7 +921,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
 
         public float Update(float elapsedSeconds)
         {
-            if (UpdateAutomaticSubNotch(elapsedSeconds))
+            return Update(elapsedSeconds, float.NaN);
+        }
+
+        public float Update(float elapsedSeconds, float currentTractionForceN)
+        {
+            if (UpdateAutomaticSubNotch(elapsedSeconds, currentTractionForceN))
             {
                 if (prevValue == CurrentValue) TimeSinceLastChange += elapsedSeconds;
                 prevValue = CurrentValue;
