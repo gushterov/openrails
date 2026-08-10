@@ -1774,6 +1774,21 @@ ENG or WAG file::
     OpeningDelay ( 1s )
   )
 
+.. index:: ORTSDoorBrakeCylinderPressure
+
+Modern multiple units often apply a holding brake while the passenger doors are released. This can
+be enabled on an air-braked locomotive by adding the following parameter to its engine section::
+
+  ORTSDoorBrakeCylinderPressure ( 2bar )
+
+The independent (locomotive) brake is raised to at least the specified pressure whenever any door in
+the train is opening, open, or closing. It is released according to the normal engine-brake release
+rate only after all doors report closed, so each car's ``ClosingDelay`` is respected. A manual
+independent-brake application above this pressure is not reduced by the interlock. The default unit
+is bar; explicit ``psi``, ``bar``, ``kpa``, ``inhg``, and ``cmhg`` units are also accepted. Omitting
+the parameter, or setting it to zero, disables the feature. An independent brake controller is
+required.
+
 
 .. _features-windows:
 

@@ -403,6 +403,7 @@ namespace Orts.Simulation.RollingStocks
         public float MainResChargingRatePSIpS = -1.0f;
         public float EngineBrakeReleaseRatePSIpS = 12.5f;
         public float EngineBrakeApplyRatePSIpS = 12.5f;
+        public float DoorBrakeCylinderPressurePSI { get; private set; }
         public float BrakePipeTimeFactorS = 0.0015f;
         public float BrakePipeDischargeTimeFactor;
         public float BrakeServiceTimeFactorPSIpS;
@@ -1139,6 +1140,7 @@ namespace Orts.Simulation.RollingStocks
                 case "engine(ortsmainreschargingrate": MainResChargingRatePSIpS = stf.ReadFloatBlock(STFReader.UNITS.PressureRateDefaultPSIpS, null); break;
                 case "engine(ortsenginebrakereleaserate": EngineBrakeReleaseRatePSIpS = stf.ReadFloatBlock(STFReader.UNITS.PressureRateDefaultPSIpS, null); break;
                 case "engine(ortsenginebrakeapplicationrate": EngineBrakeApplyRatePSIpS = stf.ReadFloatBlock(STFReader.UNITS.PressureRateDefaultPSIpS, null); break;
+                case "engine(ortsdoorbrakecylinderpressure": DoorBrakeCylinderPressurePSI = Math.Max(0, ReadPressureBlockDefaultBarPSI(stf, "Engine(ORTSDoorBrakeCylinderPressure)")); break;
                 case "engine(ortsbrakepipetimefactor": BrakePipeTimeFactorS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(ortsbrakeservicetimefactor": BrakeServiceTimeFactorPSIpS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(ortsbrakeemergencytimefactor": BrakeEmergencyTimeFactorPSIpS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
@@ -1405,6 +1407,7 @@ namespace Orts.Simulation.RollingStocks
             MainResChargingRatePSIpS = locoCopy.MainResChargingRatePSIpS;
             EngineBrakeApplyRatePSIpS = locoCopy.EngineBrakeApplyRatePSIpS;
             EngineBrakeReleaseRatePSIpS = locoCopy.EngineBrakeReleaseRatePSIpS;
+            DoorBrakeCylinderPressurePSI = locoCopy.DoorBrakeCylinderPressurePSI;
             BrakePipeDischargeTimeFactor = locoCopy.BrakePipeDischargeTimeFactor;
             DriveWheelOnlyBrakes = locoCopy.DriveWheelOnlyBrakes;
             DynamicBrakeBlendingEnabled = locoCopy.DynamicBrakeBlendingEnabled;
@@ -5091,6 +5094,22 @@ namespace Orts.Simulation.RollingStocks
             if (EngineBrakeController == null)
                 return;
             EngineBrakeController.SetPercent(percent);
+        }
+
+        internal void ApplyDoorBrakeInterlock(ref float pressurePSI, float previousPressurePSI, float elapsedClockSeconds)
+        {
+            if (DoorBrakeCylinderPressurePSI <= 0 || !(BrakeSystem is AirSinglePipe) || Train == null
+                || Train.DoorState(DoorSide.Both) == DoorState.Closed)
+            {
+                return;
+            }
+
+            float maximumEngineBrakePressurePSI = Math.Max(0,
+                EngineBrakeController.MaxPressurePSI - EngineBrakeController.FullServReductionPSI);
+            float targetPressurePSI = Math.Min(DoorBrakeCylinderPressurePSI, maximumEngineBrakePressurePSI);
+            float interlockPressurePSI = Math.Min(targetPressurePSI,
+                previousPressurePSI + Math.Max(0, EngineBrakeApplyRatePSIpS) * elapsedClockSeconds);
+            pressurePSI = Math.Max(pressurePSI, interlockPressurePSI);
         }
 
         public override string GetEngineBrakeStatus()

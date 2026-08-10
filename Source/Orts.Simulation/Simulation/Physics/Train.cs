@@ -4528,7 +4528,11 @@ namespace Orts.Simulation.Physics
                         BrakeLine4 = -1;
                 }
                 if (lead.EngineBrakeController != null)
+                {
+                    float previousEngineBrakePressurePSI = BrakeLine3PressurePSI;
                     lead.EngineBrakeController.UpdateEngineBrakePressure(ref BrakeLine3PressurePSI, elapsedClockSeconds);
+                    lead.ApplyDoorBrakeInterlock(ref BrakeLine3PressurePSI, previousEngineBrakePressurePSI, elapsedClockSeconds);
+                }
                 lead.BrakeSystem.PropagateBrakePressure(elapsedClockSeconds);
             }
             else if (TrainType == TRAINTYPE.STATIC)
