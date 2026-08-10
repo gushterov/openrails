@@ -1848,12 +1848,27 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
                                 }
                             }
                         }
-                        if (loco.DynamicBrakeEngineBrakeReplacement && loco.RemoteControlGroup == 0 && loco.AbsTractionSpeedMpS < loco.DynamicBrakeEngineBrakeReplacementSpeed && loco.Train.LeadLocomotive is MSTSLocomotive lead && lead.TrainBrakeController.TrainDynamicBrakeIntervention > 0)
+                        float dynamicBrakeDemand = MathHelper.Clamp(loco.DynamicBrakePercent / 100, 0, 1);
+                        bool belowReplacementSpeed = loco.AbsTractionSpeedMpS < loco.DynamicBrakeEngineBrakeReplacementSpeed;
+                        bool dynamicBrakeUnavailable = !loco.LocomotivePowerSupply.DynamicBrakeAvailable;
+                        if (loco.DynamicBrakeEngineBrakeReplacement && dynamicBrakeDemand > 0
+                            && (belowReplacementSpeed || dynamicBrakeUnavailable) && Car.FrictionBrakeBlendingMaxForceN > 0)
                         {
-                            var requiredBrakeForceN = loco.MaxDynamicBrakeForceN * lead.TrainBrakeController.TrainDynamicBrakeIntervention;
+                            float referenceSpeedMpS = belowReplacementSpeed
+                                ? loco.DynamicBrakeEngineBrakeReplacementSpeed
+                                : loco.AbsTractionSpeedMpS;
+                            float requiredBrakeForceN = loco.GetNominalDynamicBrakeForceN(dynamicBrakeDemand, referenceSpeedMpS);
+                            float maximumEngineBrakeCylinderPressurePSI = MaxCylPressurePSI;
+                            if (loco.EngineBrakeController != null)
+                            {
+                                float maximumEngineBrakePipePressurePSI = Math.Max(0,
+                                    loco.EngineBrakeController.MaxPressurePSI - loco.EngineBrakeController.FullServReductionPSI);
+                                maximumEngineBrakeCylinderPressurePSI = Math.Min(maximumEngineBrakeCylinderPressurePSI,
+                                    maximumEngineBrakePipePressurePSI * EngineRelayValveRatio);
+                            }
                             var reverseBlendingPressurePSI = Math.Min(Math.Max((requiredBrakeForceN - loco.DynamicBrakeForceN) / Car.FrictionBrakeBlendingMaxForceN * ReferencePressurePSI
-                            + BrakeCylinderSpringPressurePSI, 0), MaxCylPressurePSI);
-                            reverseBlendingPressurePSI /= RelayValveRatio;
+                            + BrakeCylinderSpringPressurePSI, 0), maximumEngineBrakeCylinderPressurePSI);
+                            reverseBlendingPressurePSI /= TwoStageLowSpeedActive ? TwoStageRelayValveRatio : RelayValveRatio;
                             if (demandedPressurePSI < reverseBlendingPressurePSI) demandedPressurePSI = reverseBlendingPressurePSI;
                         }
                     }

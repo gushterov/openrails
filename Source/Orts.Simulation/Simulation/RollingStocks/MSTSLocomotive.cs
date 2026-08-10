@@ -2744,17 +2744,23 @@ namespace Orts.Simulation.RollingStocks
         }
         public float GetAvailableDynamicBrakeForceN(float d)
         {
+            return GetNominalDynamicBrakeForceN(d, AbsTractionSpeedMpS) * (1 - PowerReduction);
+        }
+
+        internal float GetNominalDynamicBrakeForceN(float d, float speedMpS)
+        {
             float forceN = 0;
-            if (d > 0 && DynamicBrakeForceCurves != null && AbsTractionSpeedMpS > 0)
+            if (d > 0 && DynamicBrakeForceCurves != null && speedMpS > 0)
             {
-                forceN = DynamicBrakeForceCurves.Get(d, AbsTractionSpeedMpS) * (1 - PowerReduction);
+                forceN = DynamicBrakeForceCurves.Get(MathHelper.Clamp(d, 0, 1), speedMpS);
                 if (LocomotivePowerSupply.MaximumDynamicBrakePowerW > 0)
                 {
-                    float powerW = LocomotivePowerSupply.MaximumDynamicBrakePowerW * (1 - PowerReduction);
-                    if (forceN * AbsTractionSpeedMpS > powerW) forceN = powerW / AbsTractionSpeedMpS;
+                    float powerW = LocomotivePowerSupply.MaximumDynamicBrakePowerW;
+                    if (forceN * speedMpS > powerW)
+                        forceN = powerW / speedMpS;
                 }
             }
-            return forceN;
+            return Math.Max(forceN, 0);
         }
         protected virtual void UpdateDynamicBrakeForce(float elapsedClockSeconds)
         {

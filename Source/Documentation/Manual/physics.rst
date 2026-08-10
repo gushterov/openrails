@@ -3569,11 +3569,19 @@ notch of the train brake controller, where 0 means no dynamic brake and 1 means 
         )
     )
   )
-Dynamic braking is not effective at low speeds. Thus, in some locomotives,
-dynamic brake application demanded by the train brake controller is replaced by
-`engine` air braking at low speeds. This effect can be activated setting
-``Engine(ORTSDynamicBrakeReplacementWithEngineBrake`` to 1, provided that the locomotive
-speed is below ``Engine(ORTSDynamicBrakeReplacementWithEngineBrakeAtSpeed``.
+Dynamic braking is not effective at low speeds and may also be unavailable when the
+locomotive power supply is off. The missing dynamic-brake force can be replaced with
+the independent (engine) air brake by setting
+``Engine(ORTSDynamicBrakeReplacementWithEngineBrake`` to 1. Below the speed set by
+``Engine(ORTSDynamicBrakeReplacementWithEngineBrakeAtSpeed``, the engine brake is
+applied proportionally to replace force lost from the dynamic-brake force curve. If
+the power supply reports dynamic braking unavailable, the engine brake replaces the
+nominal dynamic-brake force at any speed. This works with demands from a separate
+dynamic-brake controller, a combined power/brake handle, or train-brake dynamic
+blending. Replacement pressure is limited to the maximum brake-cylinder pressure
+obtainable from a full manual engine-brake application, including the configured
+engine-brake relay-valve ratio, and cannot exceed the brake cylinder's own maximum.
+If the replacement speed is omitted, ``DynamicBrakesFadingSpeed`` is used.
 
 Native Open Rails Braking Parameters
 ------------------------------------
