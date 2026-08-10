@@ -3236,6 +3236,14 @@ public string GetCurveDirection()
         // This is multiplied by the CarVibratingLevel (which goes up to 3).
         const float VibrationIntroductionStrength = 0.03f;
 
+        // Continuous vertical motion is sampled from two track wavelengths. Its amplitude reaches
+        // VibrationContinuousVerticalAmplitudeM at the reference speed and vibration level 1.
+        const float VibrationContinuousVerticalAmplitudeM = 0.004f;
+        const float VibrationReferenceSpeedMpS = 200f / 3.6f;
+        const float VibrationMaximumFrequencySpeedMpS = 80f / 3.6f;
+        const float VibrationPrimaryWavelengthM = 18f;
+        const float VibrationSecondaryWavelengthM = 9f;
+
         // The tightest curve we care about has a radius of 100m. This is used as the basis for the most violent vibrations.
         const float VibrationMaximumCurvaturepM = 1f / 100;
 
@@ -3248,6 +3256,7 @@ public string GetCurveDirection()
         Vector3 VibrationRotationVelocityRadpS;
         Vector2 VibrationTranslationM;
         Vector2 VibrationTranslationVelocityMpS;
+        float VibrationContinuousDistanceM;
 
         int VibrationTrackNode;
         int VibrationTrackVectorSection;
@@ -3275,7 +3284,7 @@ public string GetCurveDirection()
                 //var elapsedTimeS = Math.Abs(speedMpS) > 0.001f ? distanceM / speedMpS : 0;
                 if (VibrationOffsetM.X == 0)
                 {
-                    // Initialize three different offsets (0 - 1 meters) so that the different components of the vibration motion don't align.
+                    // Initialize a distance offset and two phase offsets so that the different components of the vibration motion don't align.
                     VibrationOffsetM.X = (float)Simulator.Random.NextDouble();
                     VibrationOffsetM.Y = (float)Simulator.Random.NextDouble();
                     VibrationOffsetM.Z = (float)Simulator.Random.NextDouble();
@@ -3338,8 +3347,20 @@ public string GetCurveDirection()
                     VibrationTrackNode = traveler.TrackNodeIndex;
                 }
 
-                Matrix rotation = Matrix.CreateFromYawPitchRoll(VibrationRotationRad.Y, VibrationRotationRad.X, VibrationRotationRad.Z);
-                Matrix translation = Matrix.CreateTranslation(VibrationTranslationM.X, VibrationTranslationM.Y, 0);
+                // Keep a small amount of vertical motion present whenever the car is moving. The
+                // phase advances like distance travelled, but is capped so speeds above 80 km/h keep
+                // the same rhythm. The speed factor still makes the displacement proportional to speed.
+                // Two different wavelengths prevent the motion from looking like a single regular sine wave.
+                VibrationContinuousDistanceM += Math.Min(AbsSpeedMpS, VibrationMaximumFrequencySpeedMpS) * elapsedTimeS;
+                float speedFactor = AbsSpeedMpS / VibrationReferenceSpeedMpS;
+                float primaryPhase = MathHelper.TwoPi * (VibrationContinuousDistanceM / VibrationPrimaryWavelengthM + VibrationOffsetM.Y);
+                float secondaryPhase = MathHelper.TwoPi * (VibrationContinuousDistanceM / VibrationSecondaryWavelengthM + VibrationOffsetM.Z);
+                float continuousVerticalM = VibrationContinuousVerticalAmplitudeM * Simulator.Settings.CarVibratingLevel * speedFactor
+                    * (0.65f * (float)Math.Sin(primaryPhase) + 0.35f * (float)Math.Sin(secondaryPhase));
+                float continuousPitchRad = continuousVerticalM * 2 / CarLengthM;
+
+                Matrix rotation = Matrix.CreateFromYawPitchRoll(VibrationRotationRad.Y, VibrationRotationRad.X + continuousPitchRad, VibrationRotationRad.Z);
+                Matrix translation = Matrix.CreateTranslation(VibrationTranslationM.X, VibrationTranslationM.Y + continuousVerticalM, 0);
                 WorldPosition.XNAMatrix = rotation * translation * WorldPosition.XNAMatrix;
                 VibrationInverseMatrix = Matrix.Invert(rotation * translation);
             }
