@@ -6332,7 +6332,20 @@ namespace Orts.Simulation.RollingStocks
                     }
                 case CABViewControlTypes.DOORS_DISPLAY:
                     {
-                        data = Train.DoorState(DoorSide.Both) != DoorState.Closed ? 1 : 0;
+                        if (cvc.Feature == "FlashOnClose")
+                        {
+                            DoorState doorState = Train.DoorState(DoorSide.Both);
+                            if (doorState == DoorState.Closed)
+                                data = 0;
+                            else if (doorState == DoorState.Closing)
+                                data = Simulator.GameTime % 1.0 < 0.7 ? 1 : 0;
+                            else
+                                data = 1;
+                        }
+                        else
+                        {
+                            data = Train.DoorState(DoorSide.Both) != DoorState.Closed ? 1 : 0;
+                        }
                         break;
                     }
                 case CABViewControlTypes.SANDERS:

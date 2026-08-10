@@ -1507,6 +1507,7 @@ namespace Orts.Formats.Msts
                     if (Values.Count > 0)
                         MaxValue = Values.Max();
                 }),
+                new STFReader.TokenProcessor("feature", ()=>{ Feature = stf.ReadStringBlock("None"); }),
                 new STFReader.TokenProcessor("ortsdisplay", ()=>{ParseDisplay(stf); }),
                 new STFReader.TokenProcessor("ortsscreenpage", () => {ParseScreen(stf); }),
                 new STFReader.TokenProcessor("ortscabviewpoint", ()=>{ParseCabViewpoint(stf); }),

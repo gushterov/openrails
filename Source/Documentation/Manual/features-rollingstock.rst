@@ -1774,6 +1774,10 @@ ENG or WAG file::
     OpeningDelay ( 1s )
   )
 
+The cab-view ``DOORS_DISPLAY`` indication remains steady while doors are opening or open and
+flashes while they are closing. It turns off only after every door has completed its
+``ClosingDelay`` and reports closed.
+
 .. index:: ORTSDoorBrakeCylinderPressure
 
 Modern multiple units often apply a holding brake while the passenger doors are released. This can
