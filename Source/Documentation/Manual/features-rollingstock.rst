@@ -1778,6 +1778,17 @@ The cab-view ``DOORS_DISPLAY`` indication remains steady while doors are opening
 flashes while they are closing. It turns off only after every door has completed its
 ``ClosingDelay`` and reports closed.
 
+.. index:: ORTSDoorsOpeningBlockedWhenMoving
+
+Door opening can be prevented while the train is moving by adding the following boolean parameter
+to the locomotive's engine section::
+
+  ORTSDoorsOpeningBlockedWhenMoving ( 1 )
+
+When enabled, opening commands are rejected while train speed is above the simulator's stopped
+threshold (0.1 m/s). Door-closing commands are always accepted. Omitting the parameter, or setting
+it to zero, retains the default behavior and permits the doors to be opened while moving.
+
 .. index:: ORTSDoorBrakeCylinderPressure
 
 Modern multiple units often apply a holding brake while the passenger doors are released. This can

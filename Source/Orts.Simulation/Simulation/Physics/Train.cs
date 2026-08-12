@@ -16667,6 +16667,17 @@ namespace Orts.Simulation.Physics
         /// </summary>
         public void SetDoors(DoorSide side, bool open)
         {
+            if (open && LeadLocomotive is MSTSLocomotive lead
+                && lead.DoorsOpeningBlockedWhenMoving && Math.Abs(SpeedMpS) > Simulator.MaxStoppedMpS)
+            {
+                if (Simulator.PlayerLocomotive?.Train == this)
+                {
+                    Simulator.Confirmer?.Message(ConfirmLevel.Warning,
+                        Simulator.Catalog.GetString("Doors cannot be opened while the train is moving."));
+                }
+                return;
+            }
+
             foreach (TrainCar car in Cars)
             {
                 var mstsWagon = car as MSTSWagon;

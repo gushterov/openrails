@@ -404,6 +404,7 @@ namespace Orts.Simulation.RollingStocks
         public float EngineBrakeReleaseRatePSIpS = 12.5f;
         public float EngineBrakeApplyRatePSIpS = 12.5f;
         public float DoorBrakeCylinderPressurePSI { get; private set; }
+        public bool DoorsOpeningBlockedWhenMoving { get; private set; }
         public float BrakePipeTimeFactorS = 0.0015f;
         public float BrakePipeDischargeTimeFactor;
         public float BrakeServiceTimeFactorPSIpS;
@@ -1141,6 +1142,7 @@ namespace Orts.Simulation.RollingStocks
                 case "engine(ortsenginebrakereleaserate": EngineBrakeReleaseRatePSIpS = stf.ReadFloatBlock(STFReader.UNITS.PressureRateDefaultPSIpS, null); break;
                 case "engine(ortsenginebrakeapplicationrate": EngineBrakeApplyRatePSIpS = stf.ReadFloatBlock(STFReader.UNITS.PressureRateDefaultPSIpS, null); break;
                 case "engine(ortsdoorbrakecylinderpressure": DoorBrakeCylinderPressurePSI = Math.Max(0, ReadPressureBlockDefaultBarPSI(stf, "Engine(ORTSDoorBrakeCylinderPressure)")); break;
+                case "engine(ortsdoorsopeningblockedwhenmoving": DoorsOpeningBlockedWhenMoving = stf.ReadBoolBlock(false); break;
                 case "engine(ortsbrakepipetimefactor": BrakePipeTimeFactorS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(ortsbrakeservicetimefactor": BrakeServiceTimeFactorPSIpS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(ortsbrakeemergencytimefactor": BrakeEmergencyTimeFactorPSIpS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
@@ -1408,6 +1410,7 @@ namespace Orts.Simulation.RollingStocks
             EngineBrakeApplyRatePSIpS = locoCopy.EngineBrakeApplyRatePSIpS;
             EngineBrakeReleaseRatePSIpS = locoCopy.EngineBrakeReleaseRatePSIpS;
             DoorBrakeCylinderPressurePSI = locoCopy.DoorBrakeCylinderPressurePSI;
+            DoorsOpeningBlockedWhenMoving = locoCopy.DoorsOpeningBlockedWhenMoving;
             BrakePipeDischargeTimeFactor = locoCopy.BrakePipeDischargeTimeFactor;
             DriveWheelOnlyBrakes = locoCopy.DriveWheelOnlyBrakes;
             DynamicBrakeBlendingEnabled = locoCopy.DynamicBrakeBlendingEnabled;
