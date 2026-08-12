@@ -987,6 +987,28 @@ The pantographs of all locomotives in a consist are triggered by
 ( ``<P>`` and ``<Shift+P>`` by default ). The status of the pantographs
 is indicated by the *Pantographs* value in the HUD view.
 
+Pantograph cab controls are normally two-state switches whose displayed
+position follows the commanded pantograph state. They may also be defined as
+sprung three-position controls. The first position lowers the pantograph, the
+middle position is neutral, and the third position raises the pantograph. The
+control returns to the neutral position when released without changing the
+pantograph command. The control also moves to the corresponding end position
+while its pantograph keyboard command is held::
+
+    TriState (
+        Type ( PANTOGRAPH TRI_STATE )
+        Position ( 0 0 32 32 )
+        Graphic ( PantographSwitch.ace )
+        NumFrames ( 3 3 1 )
+        Style ( SPRUNG )
+        MouseControl ( 1 )
+        Orientation ( 1 )
+        DirIncrease ( 1 )
+    )
+
+The same form can be used with ``PANTOGRAPH2``, ``ORTS_PANTOGRAPH3`` and
+``ORTS_PANTOGRAPH4``.
+
 Since the simulator does not know whether the
 pantograph in the 3D model is up or down, you can set some additional
 parameters in order to add a delay between the time when the command to
@@ -1168,6 +1190,24 @@ The circuit breaker of all locomotives in a consist can be controlled by
 and *Control Circuit Breaker Closing Authorization* commands
 ( ``<O>``, ``<I>`` and ``<Shift+O>`` by default ). The status of the circuit breaker
 is indicated by the *Circuit breaker* value in the HUD view.
+
+A combined sprung circuit breaker control can be defined in a cab view. Its
+first position gives the opening order, its middle position is neutral, and
+its third position gives the closing order. It returns to neutral when
+released. The control also follows the opening and closing keyboard commands
+while their keys are held. With a two-stage circuit breaker, removing closing
+authorization also moves it temporarily to the opening position::
+
+    TriState (
+        Type ( ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND TRI_STATE )
+        Position ( 0 0 32 32 )
+        Graphic ( CircuitBreakerSwitch.ace )
+        NumFrames ( 3 3 1 )
+        Style ( SPRUNG )
+        MouseControl ( 1 )
+        Orientation ( 1 )
+        DirIncrease ( 1 )
+    )
 
 The circuit breaker is also opened if the :ref:`Train Control System <physics-train-control-system>` triggers an emergency braking.
 

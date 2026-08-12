@@ -306,6 +306,10 @@ namespace Orts.Simulation.RollingStocks
                     data = ElectricPowerSupply.CircuitBreaker.DriverOpeningOrder ? 1 : 0;
                     break;
 
+                case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND:
+                    data = 1;
+                    break;
+
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_AUTHORIZATION:
                     data = ElectricPowerSupply.CircuitBreaker.DriverClosingAuthorization ? 1 : 0;
                     break;

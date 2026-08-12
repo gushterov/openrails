@@ -2073,6 +2073,14 @@ namespace Orts.Viewer3D.RollingStock
         /// </summary>
         float IntermediateValue;
 
+        const float SprungControlLowerThreshold = 0.5f;
+        const float SprungControlNeutralPosition = 1;
+        const float SprungControlUpperThreshold = 1.5f;
+        float SprungPantographValue = SprungControlNeutralPosition;
+        int SprungPantographPosition = (int)SprungControlNeutralPosition;
+        float SprungCircuitBreakerValue = SprungControlNeutralPosition;
+        int SprungCircuitBreakerPosition = (int)SprungControlNeutralPosition;
+
         /// <summary>
         /// Function calculating response value for mouse events (movement, left-click), determined by configured style.
         /// </summary>
@@ -2178,6 +2186,10 @@ namespace Orts.Viewer3D.RollingStock
 
             if (!IsPowered && Control.ValueIfDisabled != null)
                 data = (float)Control.ValueIfDisabled;
+            else if (IsSprungPantographControl())
+                data = GetSprungPantographDrawPosition();
+            else if (IsSprungCircuitBreakerControl())
+                data = GetSprungCircuitBreakerDrawPosition();
             else
                 data = Locomotive.GetDataOf(Control);
 
@@ -2268,6 +2280,7 @@ namespace Orts.Viewer3D.RollingStock
                 case CABViewControlTypes.ORTS_POWER_LIMITATION_SELECTOR:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_ORDER:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_OPENING_ORDER:
+                case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_AUTHORIZATION:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_STATE:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_CLOSED:
@@ -2448,6 +2461,7 @@ namespace Orts.Viewer3D.RollingStock
                     case CABViewControlTypes.ORTS_POWER_LIMITATION_SELECTOR:
                     case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_ORDER:
                     case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_OPENING_ORDER:
+                    case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND:
                     case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_AUTHORIZATION:
                         Locomotive = controlCar.ControlActiveLocomotive as MSTSElectricLocomotive;
                         break;
@@ -2495,10 +2509,10 @@ namespace Orts.Viewer3D.RollingStock
                 case CABViewControlTypes.BELL: new BellCommand(Viewer.Log, ChangedValue(Locomotive.Bell ? 1 : 0) > 0); break;
                 case CABViewControlTypes.SANDERS:
                 case CABViewControlTypes.SANDING: new SanderCommand(Viewer.Log, ChangedValue(Locomotive.Sander ? 1 : 0) > 0); break;
-                case CABViewControlTypes.PANTOGRAPH: new PantographCommand(Viewer.Log, 1, ChangedValue(Locomotive.Pantographs[1].CommandUp ? 1 : 0) > 0); break;
-                case CABViewControlTypes.PANTOGRAPH2: new PantographCommand(Viewer.Log, 2, ChangedValue(Locomotive.Pantographs[2].CommandUp ? 1 : 0) > 0); break;
-                case CABViewControlTypes.ORTS_PANTOGRAPH3: new PantographCommand(Viewer.Log, 3, ChangedValue(Locomotive.Pantographs[3].CommandUp ? 1 : 0) > 0); break;
-                case CABViewControlTypes.ORTS_PANTOGRAPH4: new PantographCommand(Viewer.Log, 4, ChangedValue(Locomotive.Pantographs[4].CommandUp ? 1 : 0) > 0); break;
+                case CABViewControlTypes.PANTOGRAPH: HandlePantographControl(Locomotive, 1); break;
+                case CABViewControlTypes.PANTOGRAPH2: HandlePantographControl(Locomotive, 2); break;
+                case CABViewControlTypes.ORTS_PANTOGRAPH3: HandlePantographControl(Locomotive, 3); break;
+                case CABViewControlTypes.ORTS_PANTOGRAPH4: HandlePantographControl(Locomotive, 4); break;
                 case CABViewControlTypes.PANTOGRAPHS_4C:
                 case CABViewControlTypes.PANTOGRAPHS_4:
                     var pantos = ChangedValue(0);
@@ -2578,6 +2592,7 @@ namespace Orts.Viewer3D.RollingStock
                     new CircuitBreakerClosingOrderButtonCommand(Viewer.Log, ChangedValue(UserInput.IsMouseLeftButtonPressed ? 1 : 0) > 0);
                     break;
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_OPENING_ORDER: new CircuitBreakerOpeningOrderButtonCommand(Viewer.Log, ChangedValue(UserInput.IsMouseLeftButtonPressed ? 1 : 0) > 0); break;
+                case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND: HandleSprungCircuitBreakerControl(Locomotive as MSTSElectricLocomotive); break;
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_AUTHORIZATION: new CircuitBreakerClosingAuthorizationCommand(Viewer.Log, ChangedValue((Locomotive as MSTSElectricLocomotive).ElectricPowerSupply.CircuitBreaker.DriverClosingAuthorization ? 1 : 0) > 0); break;
                 case CABViewControlTypes.ORTS_TRACTION_CUT_OFF_RELAY_DRIVER_CLOSING_ORDER:
                     new TractionCutOffRelayClosingOrderCommand(Viewer.Log, ChangedValue((Locomotive as MSTSDieselLocomotive).DieselPowerSupply.TractionCutOffRelay.DriverClosingOrder ? 1 : 0) > 0);
@@ -2980,6 +2995,188 @@ namespace Orts.Viewer3D.RollingStock
                     break;
             }
 
+        }
+
+        bool IsSprungPantographControl()
+        {
+            if (ControlDiscrete.ControlStyle != CABViewControlStyles.SPRUNG ||
+                !(ControlDiscrete is CVCDiscrete discrete) || discrete.DiscreteState != DiscreteStates.TRI_STATE)
+                return false;
+
+            switch (ControlDiscrete.ControlType.Type)
+            {
+                case CABViewControlTypes.PANTOGRAPH:
+                case CABViewControlTypes.PANTOGRAPH2:
+                case CABViewControlTypes.ORTS_PANTOGRAPH3:
+                case CABViewControlTypes.ORTS_PANTOGRAPH4:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        int GetSprungPantographDrawPosition()
+        {
+            if (UserInput.IsMouseLeftButtonDown)
+                return SprungPantographPosition;
+
+            UserCommand command;
+            switch (ControlDiscrete.ControlType.Type)
+            {
+                case CABViewControlTypes.PANTOGRAPH:
+                    command = UserCommand.ControlPantograph1;
+                    break;
+                case CABViewControlTypes.PANTOGRAPH2:
+                    command = UserCommand.ControlPantograph2;
+                    break;
+                case CABViewControlTypes.ORTS_PANTOGRAPH3:
+                    command = UserCommand.ControlPantograph3;
+                    break;
+                case CABViewControlTypes.ORTS_PANTOGRAPH4:
+                    command = UserCommand.ControlPantograph4;
+                    break;
+                default:
+                    return SprungPantographPosition;
+            }
+
+            if (UserInput.IsDown(command) || UserInput.IsPressed(command))
+                return Locomotive.GetDataOf(Control) > 0 ? 2 : 0;
+
+            return SprungPantographPosition;
+        }
+
+        void HandlePantographControl(MSTSLocomotive locomotive, int pantographId)
+        {
+            if (!IsSprungPantographControl())
+            {
+                new PantographCommand(Viewer.Log, pantographId,
+                    ChangedValue(locomotive.Pantographs[pantographId].CommandUp ? 1 : 0) > 0);
+                return;
+            }
+
+            if (UserInput.IsMouseLeftButtonReleased)
+            {
+                ResetSprungPantographControl();
+                return;
+            }
+
+            if (UserInput.IsMouseLeftButtonPressed)
+                ResetSprungPantographControl();
+
+            SprungPantographValue = MathHelper.Clamp(ChangedValue(SprungPantographValue), 0, 2);
+            var requestedPosition = SprungPantographValue < SprungControlLowerThreshold ? 0 :
+                SprungPantographValue > SprungControlUpperThreshold ? 2 : 1;
+
+            if (requestedPosition == SprungPantographPosition)
+                return;
+
+            SprungPantographPosition = requestedPosition;
+            if (requestedPosition == (int)SprungControlNeutralPosition)
+                return;
+
+            var commandUp = requestedPosition == 2;
+            if (locomotive.Pantographs[pantographId].CommandUp != commandUp)
+                new PantographCommand(Viewer.Log, pantographId, commandUp);
+        }
+
+        void ResetSprungPantographControl()
+        {
+            SprungPantographValue = SprungControlNeutralPosition;
+            SprungPantographPosition = (int)SprungControlNeutralPosition;
+        }
+
+        bool IsSprungCircuitBreakerControl()
+        {
+            return ControlDiscrete.ControlType.Type == CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND &&
+                ControlDiscrete.ControlStyle == CABViewControlStyles.SPRUNG &&
+                ControlDiscrete is CVCDiscrete discrete && discrete.DiscreteState == DiscreteStates.TRI_STATE;
+        }
+
+        int GetSprungCircuitBreakerDrawPosition()
+        {
+            if (UserInput.IsMouseLeftButtonDown)
+                return SprungCircuitBreakerPosition;
+
+            if (UserInput.IsDown(UserCommand.ControlCircuitBreakerOpeningOrder) ||
+                UserInput.IsPressed(UserCommand.ControlCircuitBreakerOpeningOrder))
+                return 0;
+
+            if ((UserInput.IsDown(UserCommand.ControlCircuitBreakerClosingAuthorization) ||
+                UserInput.IsPressed(UserCommand.ControlCircuitBreakerClosingAuthorization)) &&
+                GetControlledElectricLocomotive()?.ElectricPowerSupply.CircuitBreaker.DriverClosingAuthorization == false)
+                return 0;
+
+            if (UserInput.IsDown(UserCommand.ControlCircuitBreakerClosingOrder) ||
+                UserInput.IsPressed(UserCommand.ControlCircuitBreakerClosingOrder))
+                return 2;
+
+            return SprungCircuitBreakerPosition;
+        }
+
+        MSTSElectricLocomotive GetControlledElectricLocomotive()
+        {
+            if (Locomotive is MSTSElectricLocomotive electricLocomotive)
+                return electricLocomotive;
+
+            return (Locomotive as MSTSControlTrailerCar)?.ControlActiveLocomotive as MSTSElectricLocomotive;
+        }
+
+        void HandleSprungCircuitBreakerControl(MSTSElectricLocomotive electricLocomotive)
+        {
+            if (!IsSprungCircuitBreakerControl() || electricLocomotive == null)
+                return;
+
+            if (UserInput.IsMouseLeftButtonReleased)
+            {
+                ReleaseSprungCircuitBreakerButton(SprungCircuitBreakerPosition);
+                ResetSprungCircuitBreakerControl();
+                return;
+            }
+
+            if (UserInput.IsMouseLeftButtonPressed)
+            {
+                ReleaseSprungCircuitBreakerButton(SprungCircuitBreakerPosition);
+                ResetSprungCircuitBreakerControl();
+            }
+
+            SprungCircuitBreakerValue = MathHelper.Clamp(ChangedValue(SprungCircuitBreakerValue), 0, 2);
+            var requestedPosition = SprungCircuitBreakerValue < SprungControlLowerThreshold ? 0 :
+                SprungCircuitBreakerValue > SprungControlUpperThreshold ? 2 : 1;
+
+            if (requestedPosition == SprungCircuitBreakerPosition)
+                return;
+
+            ReleaseSprungCircuitBreakerButton(SprungCircuitBreakerPosition);
+            SprungCircuitBreakerPosition = requestedPosition;
+
+            var circuitBreaker = electricLocomotive.ElectricPowerSupply.CircuitBreaker;
+            switch (requestedPosition)
+            {
+                case 0:
+                    if (circuitBreaker.DriverClosingOrder)
+                        new CircuitBreakerClosingOrderCommand(Viewer.Log, false);
+                    new CircuitBreakerOpeningOrderButtonCommand(Viewer.Log, true);
+                    break;
+                case 2:
+                    if (!circuitBreaker.DriverClosingOrder)
+                        new CircuitBreakerClosingOrderCommand(Viewer.Log, true);
+                    new CircuitBreakerClosingOrderButtonCommand(Viewer.Log, true);
+                    break;
+            }
+        }
+
+        void ReleaseSprungCircuitBreakerButton(int position)
+        {
+            if (position == 0)
+                new CircuitBreakerOpeningOrderButtonCommand(Viewer.Log, false);
+            else if (position == 2)
+                new CircuitBreakerClosingOrderButtonCommand(Viewer.Log, false);
+        }
+
+        void ResetSprungCircuitBreakerControl()
+        {
+            SprungCircuitBreakerValue = SprungControlNeutralPosition;
+            SprungCircuitBreakerPosition = (int)SprungControlNeutralPosition;
         }
 
         /// <summary>

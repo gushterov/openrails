@@ -283,6 +283,7 @@ namespace Orts.Formats.Msts
         ORTS_DP_BRAKE,
         ORTS_DP_MORE,
         ORTS_DP_LESS,
+        ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND,
 
         // Further CabViewControlTypes must be added above this line, to avoid their malfunction in 3DCabs
         EXTERNALWIPERS,
@@ -1081,6 +1082,8 @@ namespace Orts.Formats.Msts
     {
         public List<int> Positions = new List<int>();
 
+        public DiscreteStates DiscreteState { get; }
+
         private int _ValuesRead;
         private int NumPositions;
         private bool CanFill = true;
@@ -1095,6 +1098,7 @@ namespace Orts.Formats.Msts
 
         public CVCDiscrete(STFReader stf, string basepath, DiscreteStates discreteState)
         {
+            DiscreteState = discreteState;
 //            try
             {
                 stf.MustMatch("(");
@@ -1420,8 +1424,9 @@ namespace Orts.Formats.Msts
                 // MSTS ignores/overrides various settings by the following exceptional cases:
                 if (ControlType.Type == CABViewControlTypes.CP_HANDLE)
                     ControlStyle = CABViewControlStyles.NOT_SPRUNG;
-                if (ControlType.Type == CABViewControlTypes.PANTOGRAPH || ControlType.Type == CABViewControlTypes.PANTOGRAPH2 ||
-                    ControlType.Type == CABViewControlTypes.ORTS_PANTOGRAPH3 || ControlType.Type == CABViewControlTypes.ORTS_PANTOGRAPH4)
+                if ((ControlType.Type == CABViewControlTypes.PANTOGRAPH || ControlType.Type == CABViewControlTypes.PANTOGRAPH2 ||
+                    ControlType.Type == CABViewControlTypes.ORTS_PANTOGRAPH3 || ControlType.Type == CABViewControlTypes.ORTS_PANTOGRAPH4) &&
+                    (discreteState != DiscreteStates.TRI_STATE || ControlStyle != CABViewControlStyles.SPRUNG))
                     ControlStyle = CABViewControlStyles.ONOFF;
                 if (ControlType.Type == CABViewControlTypes.HORN || ControlType.Type == CABViewControlTypes.SANDERS || ControlType.Type == CABViewControlTypes.BELL 
                     || ControlType.Type == CABViewControlTypes.RESET || ControlType.Type == CABViewControlTypes.VACUUM_EXHAUSTER)

@@ -387,6 +387,7 @@ namespace Orts.Simulation.RollingStocks
                 case CABViewControlTypes.ORTS_POWER_LIMITATION_SELECTOR:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_ORDER:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_OPENING_ORDER:
+                case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_DRIVER_CLOSING_AUTHORIZATION:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_STATE:
                 case CABViewControlTypes.ORTS_CIRCUIT_BREAKER_CLOSED:
