@@ -148,7 +148,7 @@ A list of the available .eng file CC parameters follows here below.
    "ThrottleNeutralPosition", "The zero throttle position is neutral in auto mode, that is in such position the CC does not intervene", "Boolean", "FALSE"
    "MinimumSpeedForCCEffect", "Below this speed CC has no effect", "Float(speed)", "0"
    "StartInAutoMode", "Game starts with CC in Auto mode", "Boolean", "FALSE"
-   "KeepSelectedSpeedWhenManualModeSet", "When switching from auto to manual and back to auto using keyboard or cabview control, the previously selected speed is kept,if false the train speed when passing to manual to auto is used as selected speed", "Boolean", "FALSE"
+   "KeepSelectedSpeedWhenManualModeSet", "When switching from auto to manual and back to auto using keyboard or cabview control, the previously selected speed is kept. If false, the selected speed is reset to zero when switching to manual, and the current train speed is used when switching back to auto", "Boolean", "FALSE"
 
 
 The list of the available parameters for the Options() block may be

@@ -1060,8 +1060,8 @@ msgid "Interval :"
 msgstr "[ÌñƭèřƲáℓ : !!!]"
 
 #: ../../Menu/Options.Designer.cs:499
-msgid "60 mins"
-msgstr "[60 ₥ïñƨ !!!]"
+msgid "5 mins"
+msgstr "[5 ₥ïñƨ !!!]"
 
 #: ../../Menu/Options.Designer.cs:511
 msgid "30 mins"

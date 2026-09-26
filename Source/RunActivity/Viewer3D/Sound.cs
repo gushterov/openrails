@@ -1647,14 +1647,13 @@ namespace Orts.Viewer3D
         }
 
         /// <summary>
-        /// Deactivates a previously active sound
+        /// Mutes a stream without interrupting its playback timeline.
         /// </summary>
         public void Deactivate()
         {
             if (ALSoundSource != null)
             {
                 ALSoundSource.Active = false;
-                ALSoundSource.HardDeactivate();
             }
         }
 
@@ -2748,12 +2747,30 @@ namespace Orts.Viewer3D
                 case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Dec_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Inc_Past:
                     if (car is MSTSLocomotive locomotive)
-                        return locomotive.ThrottleController.DisplayValue * 100.0f;
+                        return locomotive.GetThrottleHandleValue(false) * 100.0f;
                     return 0;
                 case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Dec_Past:
                 case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Inc_Past:
                     if (car is MSTSLocomotive locomotiveWithDynamicBrake && locomotiveWithDynamicBrake.DynamicBrakeController != null)
+                    {
+                        // When a combined handle is used as a cruise-control selector, read its
+                        // braking side. The controller itself can remain at zero while the handle
+                        // selects cruise-control power, or be moved by cruise control rather than
+                        // by the driver.
+                        if (locomotiveWithDynamicBrake.CruiseControl?.SpeedRegMode == Simulation.RollingStocks.SubSystems.CruiseControl.SpeedRegulatorMode.Auto
+                            && locomotiveWithDynamicBrake.CruiseControl.UseThrottleInCombinedControl
+                            && (locomotiveWithDynamicBrake.CruiseControl.UseThrottleAsForceSelector
+                                || locomotiveWithDynamicBrake.CruiseControl.UseThrottleAsSpeedSelector)
+                            && locomotiveWithDynamicBrake.CombinedControlType == MSTSLocomotive.CombinedControl.ThrottleDynamic)
+                        {
+                            float splitPosition = locomotiveWithDynamicBrake.CombinedControlSplitPosition;
+                            float combinedHandleValue = locomotiveWithDynamicBrake.GetCombinedHandleValue(false);
+                            return splitPosition < 1 && combinedHandleValue > splitPosition
+                                ? (combinedHandleValue - splitPosition) / (1 - splitPosition) * 100.0f
+                                : 0;
+                        }
                         return locomotiveWithDynamicBrake.DynamicBrakeController.CurrentValue * 100.0f;
+                    }
                     return 0;
                 default:
                     return 0;

@@ -554,12 +554,15 @@ New variables introduced by OR:
 - ThrottleController trigger events (``ThrottleController_Inc_Past`` and
   ``ThrottleController_Dec_Past``) read the requested throttle handle position.
   For sub-notch interpolation, this follows the commanded notch target while
-  traction still ramps through sub-notches. Threshold values are in throttle
-  percent (0 to 100).
+  traction still ramps through sub-notches. When the throttle or power side of
+  a combined handle controls cruise control, this follows the selected force or
+  speed represented by the handle. Threshold values are in throttle percent
+  (0 to 100).
 - DynamicBrakeController trigger events
   (``DynamicBrakeController_Inc_Past`` and
-  ``DynamicBrakeController_Dec_Past``) read the live dynamic brake controller
-  position. Threshold values are in dynamic brake percent (0 to 100).
+  ``DynamicBrakeController_Dec_Past``) read the requested dynamic brake handle
+  position, including the brake side of a combined handle used to control
+  cruise control. Threshold values are in dynamic brake percent (0 to 100).
 
 Sound Loop Management
 ---------------------

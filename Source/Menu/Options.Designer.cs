@@ -39,7 +39,7 @@
             this.tabPageGeneral = new System.Windows.Forms.TabPage();
             this.pbAutoSave = new System.Windows.Forms.PictureBox();
             this.labelAutoSaveInterval = new System.Windows.Forms.Label();
-            this.ButtonAutoSave60 = new System.Windows.Forms.RadioButton();
+            this.ButtonAutoSave5 = new System.Windows.Forms.RadioButton();
             this.ButtonAutoSave30 = new System.Windows.Forms.RadioButton();
             this.ButtonAutoSave15 = new System.Windows.Forms.RadioButton();
             this.checkAutoSaveActive = new System.Windows.Forms.CheckBox();
@@ -432,7 +432,7 @@
             // 
             this.tabPageGeneral.Controls.Add(this.pbAutoSave);
             this.tabPageGeneral.Controls.Add(this.labelAutoSaveInterval);
-            this.tabPageGeneral.Controls.Add(this.ButtonAutoSave60);
+            this.tabPageGeneral.Controls.Add(this.ButtonAutoSave5);
             this.tabPageGeneral.Controls.Add(this.ButtonAutoSave30);
             this.tabPageGeneral.Controls.Add(this.ButtonAutoSave15);
             this.tabPageGeneral.Controls.Add(this.checkAutoSaveActive);
@@ -487,25 +487,25 @@
             this.labelAutoSaveInterval.TabIndex = 12;
             this.labelAutoSaveInterval.Text = "Interval :";
             // 
-            // ButtonAutoSave60
+            // ButtonAutoSave5
             // 
-            this.ButtonAutoSave60.AutoSize = true;
-            this.ButtonAutoSave60.Location = new System.Drawing.Point(159, 331);
-            this.ButtonAutoSave60.Name = "ButtonAutoSave60";
-            this.ButtonAutoSave60.Size = new System.Drawing.Size(61, 17);
-            this.ButtonAutoSave60.TabIndex = 15;
-            this.ButtonAutoSave60.TabStop = true;
-            this.ButtonAutoSave60.Text = "60 mins";
-            this.ButtonAutoSave60.UseVisualStyleBackColor = true;
-            this.ButtonAutoSave60.CheckedChanged += new System.EventHandler(this.buttonAutoSaveInterval_checkchanged);
+            this.ButtonAutoSave5.AutoSize = true;
+            this.ButtonAutoSave5.Location = new System.Drawing.Point(159, 297);
+            this.ButtonAutoSave5.Name = "ButtonAutoSave5";
+            this.ButtonAutoSave5.Size = new System.Drawing.Size(55, 17);
+            this.ButtonAutoSave5.TabIndex = 13;
+            this.ButtonAutoSave5.TabStop = true;
+            this.ButtonAutoSave5.Text = "5 mins";
+            this.ButtonAutoSave5.UseVisualStyleBackColor = true;
+            this.ButtonAutoSave5.CheckedChanged += new System.EventHandler(this.buttonAutoSaveInterval_checkchanged);
             // 
             // ButtonAutoSave30
             // 
             this.ButtonAutoSave30.AutoSize = true;
-            this.ButtonAutoSave30.Location = new System.Drawing.Point(159, 314);
+            this.ButtonAutoSave30.Location = new System.Drawing.Point(159, 331);
             this.ButtonAutoSave30.Name = "ButtonAutoSave30";
             this.ButtonAutoSave30.Size = new System.Drawing.Size(61, 17);
-            this.ButtonAutoSave30.TabIndex = 14;
+            this.ButtonAutoSave30.TabIndex = 15;
             this.ButtonAutoSave30.TabStop = true;
             this.ButtonAutoSave30.Text = "30 mins";
             this.ButtonAutoSave30.UseVisualStyleBackColor = true;
@@ -514,10 +514,10 @@
             // ButtonAutoSave15
             // 
             this.ButtonAutoSave15.AutoSize = true;
-            this.ButtonAutoSave15.Location = new System.Drawing.Point(159, 297);
+            this.ButtonAutoSave15.Location = new System.Drawing.Point(159, 314);
             this.ButtonAutoSave15.Name = "ButtonAutoSave15";
             this.ButtonAutoSave15.Size = new System.Drawing.Size(61, 17);
-            this.ButtonAutoSave15.TabIndex = 13;
+            this.ButtonAutoSave15.TabIndex = 14;
             this.ButtonAutoSave15.TabStop = true;
             this.ButtonAutoSave15.Text = "15 mins";
             this.ButtonAutoSave15.UseVisualStyleBackColor = true;
@@ -3255,7 +3255,7 @@
         private System.Windows.Forms.CheckBox checkEnableTCSScripts;
         private System.Windows.Forms.CheckBox checkAutoSaveActive;
         private System.Windows.Forms.Label labelAutoSaveInterval;
-        private System.Windows.Forms.RadioButton ButtonAutoSave60;
+        private System.Windows.Forms.RadioButton ButtonAutoSave5;
         private System.Windows.Forms.RadioButton ButtonAutoSave30;
         private System.Windows.Forms.RadioButton ButtonAutoSave15;
         private System.Windows.Forms.CheckBox checkCorrectQuestionableBrakingParams;

@@ -27,6 +27,7 @@
       <Name>Orts.Parsers.OR</Name>
     </ProjectReference>
     <ProjectReference Include="..\Orts.Simulation\Orts.Simulation.csproj" />
+    <ProjectReference Include="..\RunActivity\RunActivity.csproj" />
     <ProjectReference Include="..\Orts.Formats.Msts\Orts.Formats.Msts.csproj" />
     <ProjectReference Include="..\Orts.Parsers.Msts\Orts.Parsers.Msts.csproj" />
     <ProjectReference Include="..\Orts.Common\Orts.Common.csproj" />

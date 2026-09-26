@@ -139,8 +139,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         {
             if (!Locomotive.IsPlayerTrain) return;
 
-            if (haveCruiseControl)
-                if (Locomotive.CruiseControl.DynamicBrakePriority) return;
+            if (haveCruiseControl && Locomotive.CruiseControl.DynamicBrakePriority && controllerBinding != ControllerBinding.SelectedSpeed) return;
 
             ReloadPositions();
             if (Locomotive.AbsSpeedMpS > 0)

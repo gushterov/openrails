@@ -1019,8 +1019,8 @@ msgid "Interval :"
 msgstr "Intervalo :"
 
 #: ../../Menu/Options.Designer.cs:456
-msgid "60 mins"
-msgstr "60 min"
+msgid "5 mins"
+msgstr "5 min"
 
 #: ../../Menu/Options.Designer.cs:468
 msgid "30 mins"

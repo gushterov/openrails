@@ -161,7 +161,8 @@ namespace Orts.Viewer3D.Popups
             [Viewer.Catalog.GetString("Traction cut-off relay")] = Viewer.Catalog.GetString("TRAC"),
             [Viewer.Catalog.GetString("Train brake")] = Viewer.Catalog.GetString("BTRN"),
             [Viewer.Catalog.GetString("Water scoop")] = Viewer.Catalog.GetString("WSCO"),
-            [Viewer.Catalog.GetString("Wheel")] = Viewer.Catalog.GetString("WHEL")
+            [Viewer.Catalog.GetString("Wheel")] = Viewer.Catalog.GetString("WHEL"),
+            [Viewer.Catalog.GetString("Train length")] = Viewer.Catalog.GetString("TRLE")
         };
 
         private static readonly Dictionary<string, string> LastColToAbbreviated = new Dictionary<string, string>()

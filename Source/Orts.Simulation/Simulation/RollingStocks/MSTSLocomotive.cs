@@ -5905,10 +5905,10 @@ namespace Orts.Simulation.RollingStocks
                                     float maxthrottle = MaxThrottlePercent / 100;
                                     if (DynamicBrake) maxthrottle = 0;
                                     // For diesel locomotives, also take into account the throttle setting associated to the current engine RPM
-                                    if (IsPlayerTrain && this is MSTSDieselLocomotive diesel && !diesel.TractiveForcePowerLimited)
-                                    {
-                                        maxthrottle = Math.Min(maxthrottle, diesel.DieselEngines.ApparentThrottleSetting / 100.0f);
-                                    }
+                                    // if (IsPlayerTrain && this is MSTSDieselLocomotive diesel && !diesel.TractiveForcePowerLimited)
+                                    // {
+                                    //     maxthrottle = Math.Min(maxthrottle, diesel.DieselEngines.ApparentThrottleSetting / 100.0f);
+                                    // }
 
                                     if (t > maxthrottle) t = maxthrottle;
                                     t = MathHelper.Clamp(t, 0, 1);

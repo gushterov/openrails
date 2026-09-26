@@ -1033,8 +1033,8 @@ msgid "Interval :"
 msgstr "Каджые:"
 
 #: ../../Menu/Options.Designer.cs:441
-msgid "60 mins"
-msgstr "60 минут"
+msgid "5 mins"
+msgstr "5 минут"
 
 #: ../../Menu/Options.Designer.cs:453
 msgid "30 mins"

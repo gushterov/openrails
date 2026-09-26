@@ -167,7 +167,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         protected float SpeedDeltaToEnableFullTrainBrake = 10;
         public float MinimumSpeedForCCEffectMpS = 0;
         protected float speedRegulatorIntermediateValue = 0;
-        protected float StepSize = 20;
+        protected float StepSize = 40;
         protected float RelativeAccelerationMpSS => Locomotive.Direction == Direction.Reverse ? -Locomotive.AccelerationMpSS : Locomotive.AccelerationMpSS; // Acceleration relative to state of reverser
         public bool CCIsUsingTrainBrake = false; // Cruise control is using (also) train brake to brake
         protected float TrainBrakeMinPercentValue = 30f; // Minimum train brake settable percent Value
@@ -636,8 +636,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             if (SelectedSpeedMpS == prevSelectedSpeedMpS) TimeSinceLastSelectedSpeedChangeS += elapsedClockSeconds;
             prevSelectedSpeedMpS = SelectedSpeedMpS;
             TotalTime += elapsedClockSeconds;
-            if (SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto && !DynamicBrakePriority ||
-             EnableSelectedSpeedSelectionWhenManualModeSet)
+            if (SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto ||
+                EnableSelectedSpeedSelectionWhenManualModeSet)
             {
                 if (selectedSpeedIncreasing) SpeedRegulatorSelectedSpeedIncrease();
                 if (SelectedSpeedDecreasing) SpeedRegulatorSelectedSpeedDecrease();
@@ -714,6 +714,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                             if (!ModeSwitchAllowedWithThrottleNotAtZero)
                               Locomotive.ThrottleController.SetPercent(0);
                             if (SpeedRegulatorOptions.Contains("regulatormanual")) test = true;
+                            if (!KeepSelectedSpeedWhenManualModeSet)
+                            {
+                                SelectedSpeedMpS = 0;
+                                // Reset the display target immediately, preserving the cab display's smooth movement.
+                                CurrentSelectedSpeedMpS = 0;
+                            }
                             if (ZeroSelectedSpeedWhenPassingToThrottleMode || UseThrottleAsSpeedSelector) SelectedSpeedMpS = 0;
                             if (UseThrottleAsForceSelector) SelectedMaxAccelerationPercent = 0;
                             break;

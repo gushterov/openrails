@@ -96,6 +96,11 @@ namespace ORTS.Scripting.Api
         protected bool IsCabPowerSupplyOn() => PowerSupply.CabPowerSupplyOn;
 
         /// <summary>
+        /// True if this subsystem belongs to the locomotive currently controlled by the player.
+        /// </summary>
+        protected bool IsPlayerLocomotive() => Locomotive?.Simulator.PlayerLocomotive == Locomotive;
+
+        /// <summary>
         /// Delay before circuit breaker closing
         /// </summary>
         protected float ClosingDelayS() => Host.DelayS;

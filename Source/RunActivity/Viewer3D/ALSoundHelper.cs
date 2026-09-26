@@ -69,10 +69,6 @@ namespace Orts.Viewer3D
         private int _length;
 
         /// <summary>
-        /// Next buffer to queue when streaming
-        /// </summary>
-        public int NextBuffer;
-        /// <summary>
         /// Number of CUE points displayed by Sound Debug Form
         /// </summary>
         public int NumCuePoints;
@@ -196,18 +192,18 @@ namespace Orts.Viewer3D
         /// Queue only the next buffer as AL_STREAMING
         /// </summary>
         /// <param name="soundSourceID"></param>
-        public void Queue2(int soundSourceID)
+        public void Queue2(int soundSourceID, ref int nextBuffer)
         {
             if (!isValid)
                 return;
-            if (BufferIDs[NextBuffer] != 0)
-                OpenAL.alSourceQueueBuffers(soundSourceID, 1, ref BufferIDs[NextBuffer]);
+            if (BufferIDs[nextBuffer] != 0)
+                OpenAL.alSourceQueueBuffers(soundSourceID, 1, ref BufferIDs[nextBuffer]);
             if (BufferIDs.Length > 1)
             {
-                NextBuffer++;
-                NextBuffer %= BufferIDs.Length - 1;
-                if (NextBuffer == 0)
-                    NextBuffer++;
+                nextBuffer++;
+                nextBuffer %= BufferIDs.Length - 1;
+                if (nextBuffer == 0)
+                    nextBuffer++;
             }
         }
 
@@ -219,7 +215,6 @@ namespace Orts.Viewer3D
         {
             if (isValid && !isSingle && BufferIDs[BufferIDs.Length - 1] != 0)
                 OpenAL.alSourceQueueBuffers(soundSourceID, 1, ref BufferIDs[BufferIDs.Length - 1]);
-            NextBuffer = 0;
         }
 
         /// <summary>
@@ -275,6 +270,8 @@ namespace Orts.Viewer3D
     /// </summary>
     public struct SoundItem
     {
+        // Playback position belongs to the stream, not the cached WAV shared by other streams.
+        private int NextBuffer;
         /// <summary>
         /// Wave data to use. A Sound Piece may used by multiple Sound Items
         /// </summary>
@@ -405,7 +402,7 @@ namespace Orts.Viewer3D
         {
             Pitch = pitch;
 
-            if (PlayMode == PlayMode.Release && SoundPiece.NextBuffer < 2 || PlayMode == PlayMode.ReleaseWithJump)
+            if (PlayMode == PlayMode.Release && NextBuffer < 2 || PlayMode == PlayMode.ReleaseWithJump)
                 return false;
 
             int bufferID;
@@ -415,17 +412,17 @@ namespace Orts.Viewer3D
             {
                 OpenAL.alGetSourcei(soundSourceID, OpenAL.AL_BUFFERS_QUEUED, out buffersQueued);
                 if (buffersQueued == 0)
-                    SoundPiece.Queue2(soundSourceID);
+                    SoundPiece.Queue2(soundSourceID, ref NextBuffer);
                 OpenAL.alSourcePlay(soundSourceID);
             }
             else if (IsCheckpoint(soundSourceID, bufferID))
             {
                 OpenAL.alGetSourcei(soundSourceID, OpenAL.AL_BUFFERS_QUEUED, out buffersQueued);
                 if (buffersQueued < 2)
-                    SoundPiece.Queue2(soundSourceID);
+                    SoundPiece.Queue2(soundSourceID, ref NextBuffer);
             }
 
-            if (PlayMode == PlayMode.Release && SoundPiece.NextBuffer < 2)
+            if (PlayMode == PlayMode.Release && NextBuffer < 2)
                 return false;
 
             return true;
@@ -493,8 +490,8 @@ namespace Orts.Viewer3D
                         {
                             if (type != OpenAL.AL_STATIC)
                             {
-                                SoundPiece.NextBuffer = 0;
-                                SoundPiece.Queue2(soundSourceID);
+                                NextBuffer = 0;
+                                SoundPiece.Queue2(soundSourceID, ref NextBuffer);
                                 PlayState = PlayState.Playing;
                             }
                             else
@@ -521,6 +518,7 @@ namespace Orts.Viewer3D
             if (PlayMode == PlayMode.ReleaseWithJump || PlayMode == PlayMode.Release)
             {
                 SoundPiece.Queue3(soundSourceID);
+                NextBuffer = 0;
                 PlayState = PlayState.NOP;
             }
         }
@@ -587,13 +585,15 @@ namespace Orts.Viewer3D
         /// </summary>
         private int TryActivate()
         {
-            if (!MustActivate || SoundSourceID != -1 || !Active)
+            // In-range streams also play while muted so a camera change only changes gain.
+            if (!MustActivate || SoundSourceID != -1)
                 return 0;
 
             OpenAL.alGenSources(1, out SoundSourceID);
 
-            if (SoundSourceID == -1)
+            if (SoundSourceID <= 0)
             {
+                SoundSourceID = -1;
                 if (MustWarn)
                 {
                     Trace.TraceWarning("Sound stream activation failed at number {0}", ActiveCount);
@@ -674,6 +674,7 @@ namespace Orts.Viewer3D
         /// </summary>
         public void HardDeactivate()
         {
+            MustActivate = false;
             if (SoundSourceID != -1)
             {
                 if (Car != null)
@@ -772,6 +773,8 @@ namespace Orts.Viewer3D
                 {
                     case PlayState.Playing:
                         var justActivated = TryActivate();
+                        if (SoundSourceID == -1)
+                            return;
                         switch (SoundQueue[QueueTail % QUEUELENGHT].PlayMode)
                         {
                             // Determine next action if available
@@ -859,6 +862,8 @@ namespace Orts.Viewer3D
                             && SoundQueue[QueueTail % QUEUELENGHT].PlayMode != PlayMode.ReleaseWithJump)
                         {
                             var justActivated_ = TryActivate();
+                            if (SoundSourceID == -1)
+                                return;
                             int bufferID;
                             OpenAL.alGetSourcei(SoundSourceID, OpenAL.AL_BUFFER, out bufferID);
 
@@ -927,13 +932,14 @@ namespace Orts.Viewer3D
                 NeedsFrequentUpdate = false;
             }
 
-            if (WasPlaying && !isPlaying || !Active)
+            // A muted stream still has to finish its introduction, loops and release.
+            if (WasPlaying && !isPlaying)
             {
                 int state;
                 OpenAL.alGetSourcei(SoundSourceID, OpenAL.AL_SOURCE_STATE, out state);
                 if (state != OpenAL.AL_PLAYING)
                 {
-                    if (StoppedAt > Program.Simulator.ClockTime)
+                    if (StoppedAt > Program.Simulator.GameTime)
                         StoppedAt = Program.Simulator.GameTime;
                     else if (StoppedAt < Program.Simulator.GameTime - 0.2)
                     {
@@ -1087,10 +1093,10 @@ namespace Orts.Viewer3D
                     continue;
                 }
 
+                // Only ongoing loops may be restored after unloading a source. One-shots
+                // describe past events, regardless of WAV size or sample format.
                 if ((SoundQueue[h % QUEUELENGHT].PlayMode == PlayMode.Loop ||
-                    SoundQueue[h % QUEUELENGHT].PlayMode == PlayMode.LoopRelease ||
-                    (SoundQueue[h % QUEUELENGHT].PlayMode == PlayMode.OneShot && SoundQueue[h % QUEUELENGHT].SoundPiece.Length > 50000)
-                    ) &&
+                    SoundQueue[h % QUEUELENGHT].PlayMode == PlayMode.LoopRelease) &&
                     (SoundQueue[h % QUEUELENGHT].PlayState == PlayState.New ||
                     SoundQueue[h % QUEUELENGHT].PlayState == PlayState.Playing))
                     break;
