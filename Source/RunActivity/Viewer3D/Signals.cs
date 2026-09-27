@@ -357,7 +357,8 @@ namespace Orts.Viewer3D
                         isDay = Viewer.World.Sky.SolarDirection.Y > 0;
                     else
                         isDay = Viewer.World.MSTSSky.mstsskysolarDirection.Y > 0;
-                    bool isPoorVisibility = Viewer.Simulator.Weather.VisibilityM < 200;
+                    bool isPoorVisibility = PrecipitationViewer.GetVisibility(Viewer.Simulator.Weather,
+                        Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskyfogDistance : Viewer.Simulator.Weather.VisibilityM) < 200;
                     if (!SignalTypeData.DayLight && isDay && !isPoorVisibility)
                         continue;
 

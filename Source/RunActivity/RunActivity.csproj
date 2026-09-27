@@ -670,6 +670,19 @@
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
   </ItemGroup>
+  <!-- The renderer and its effect parameters must be deployed together. -->
+  <Target Name="CompilePrecipitationShader" BeforeTargets="CopyFilesToOutputDirectory"
+          Inputs="$(MSBuildProjectDirectory)\Content\PrecipitationShader.fx;$(MSBuildProjectDirectory)\..\..\.config\dotnet-tools.json"
+          Outputs="$(TargetDir)Content\PrecipitationShader.mgfx">
+    <PropertyGroup>
+      <PrecipitationDotNetHost Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</PrecipitationDotNetHost>
+      <PrecipitationDotNetHost Condition="'$(PrecipitationDotNetHost)' == ''">dotnet</PrecipitationDotNetHost>
+      <PrecipitationRestoreConfig Condition="'$(RestoreConfigFile)' != ''">--configfile &quot;$(RestoreConfigFile)&quot;</PrecipitationRestoreConfig>
+    </PropertyGroup>
+    <MakeDir Directories="$(TargetDir)Content" />
+    <Exec Command="&quot;$(PrecipitationDotNetHost)&quot; tool restore $(PrecipitationRestoreConfig)" />
+    <Exec Command="&quot;$(PrecipitationDotNetHost)&quot; tool run mgfxc &quot;$(MSBuildProjectDirectory)\Content\PrecipitationShader.fx&quot; &quot;$(TargetDir)Content\PrecipitationShader.mgfx&quot; /Profile:DirectX_11" />
+  </Target>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="PostBuildActions.bat" />
   </Target>

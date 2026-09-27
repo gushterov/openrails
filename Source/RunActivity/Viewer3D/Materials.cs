@@ -558,18 +558,20 @@ namespace Orts.Viewer3D
                 SceneryShader.SetHeadlightOff();
             }
             // End headlight illumination
+            var visibility = PrecipitationViewer.GetVisibility(Viewer.Simulator.Weather,
+                Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskyfogDistance : Viewer.Simulator.Weather.VisibilityM);
             if (Viewer.Settings.UseMSTSEnv == false)
             {
                 SceneryShader.Overcast = Viewer.Simulator.Weather.CloudCoverFactor;
-                SceneryShader.SetFog(Viewer.Simulator.Weather.VisibilityM, ref SharedMaterialManager.FogColor);
-                ParticleEmitterShader.SetFog(Viewer.Simulator.Weather.VisibilityM, ref SharedMaterialManager.FogColor);
+                SceneryShader.SetFog(visibility, ref SharedMaterialManager.FogColor);
+                ParticleEmitterShader.SetFog(visibility, ref SharedMaterialManager.FogColor);
                 SceneryShader.ViewerPos = Viewer.Camera.XnaLocation(Viewer.Camera.CameraWorldLocation);
             }
             else
             {
                 SceneryShader.Overcast = Viewer.World.MSTSSky.mstsskyovercastFactor;
-                SceneryShader.SetFog(Viewer.World.MSTSSky.mstsskyfogDistance, ref SharedMaterialManager.FogColor);
-                ParticleEmitterShader.SetFog(Viewer.Simulator.Weather.VisibilityM, ref SharedMaterialManager.FogColor);
+                SceneryShader.SetFog(visibility, ref SharedMaterialManager.FogColor);
+                ParticleEmitterShader.SetFog(visibility, ref SharedMaterialManager.FogColor);
                 SceneryShader.ViewerPos = Viewer.Camera.XnaLocation(Viewer.Camera.CameraWorldLocation);
             }
         }

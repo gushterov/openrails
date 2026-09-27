@@ -381,7 +381,7 @@ namespace Orts.Viewer3D
             SkyShader.Time = (float)Viewer.Simulator.ClockTime / 100000;
             SkyShader.MoonScale = SkyPrimitive.RadiusM / 20;
             SkyShader.Overcast = Viewer.Simulator.Weather.CloudCoverFactor;
-            SkyShader.SetFog(Viewer.Simulator.Weather.VisibilityM, ref SharedMaterialManager.FogColor);
+            SkyShader.SetFog(PrecipitationViewer.GetVisibility(Viewer.Simulator.Weather, Viewer.Simulator.Weather.VisibilityM), ref SharedMaterialManager.FogColor);
             SkyShader.CloudScalePosition = Viewer.World.WeatherControl.CloudScalePosition;
 
             for (var i = 0; i < 5; i++)

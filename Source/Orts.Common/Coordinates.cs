@@ -134,7 +134,7 @@ namespace ORTS.Common
         }
 
         /// <summary>
-        /// Ensure tile coordinates are within tile boundaries
+        /// Ensure local X and Z are in [-1024, 1024), preserving the world position.
         /// </summary>
         public void Normalize()
         {
@@ -242,16 +242,6 @@ namespace ORTS.Common
             while (Location.X < -1024) { Location.X += 2048; TileX--; }
             while (Location.Z >= 1024) { Location.Z -= 2048; TileZ++; }
             while (Location.Z < -1024) { Location.Z += 2048; TileZ--; }
-            int xTileDistance = (int)Math.Round((int)(Location.X / 1024) / 2.0, MidpointRounding.AwayFromZero);
-            int zTileDistance = (int)Math.Round((int)(Location.Z / 1024) / 2.0, MidpointRounding.AwayFromZero);
-            if (xTileDistance == 0 && zTileDistance == 0) return;
-            else
-            {
-                TileX += xTileDistance;
-                TileZ += zTileDistance;
-                Location.X = (float)(Location.X - (xTileDistance * TileSize));
-                Location.Z = (float)(Location.Z - (zTileDistance * TileSize));
-            }
         }
 
         /// <summary>
