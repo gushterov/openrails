@@ -1299,6 +1299,23 @@ namespace Orts.Common
     }
 
     [Serializable()]
+    public sealed class CloseDoorsCommand : Command
+    {
+        public static MSTSWagon Receiver { get; set; }
+
+        public CloseDoorsCommand(CommandLog log)
+            : base(log)
+        {
+            Redo();
+        }
+
+        public override void Redo()
+        {
+            Receiver.Train.SetDoors(DoorSide.Both, false);
+        }
+    }
+
+    [Serializable()]
     public sealed class ToggleMirrorsCommand : Command
     {
         public static MSTSWagon Receiver { get; set; }

@@ -1764,6 +1764,8 @@ Passenger doors
 .. index:: ORTSDoors
 
 Passenger doors are opened and closed (by default) using the ``<Q>`` and ``<Shift+Q>`` keys.
+Press ``<Alt+Q>`` to close all passenger doors on both sides of the train. Doors that
+are already closed remain closed.
 It is possible to add opening and closing delays, which can be useful to delay the indication of
 "Doors closed" until all doors are fully closed.
 The delays can be added inserting the following block in the wagon section of any

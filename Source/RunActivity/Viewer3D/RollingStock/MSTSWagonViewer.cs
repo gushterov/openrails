@@ -679,6 +679,7 @@ namespace Orts.Viewer3D.RollingStock
             if (MSTSWagon.Pantographs.List.Count > 3) UserInputCommands.Add(UserCommand.ControlPantograph4, new Action[] { Noop, () => new PantographCommand(Viewer.Log, 4, !MSTSWagon.Pantographs[4].CommandUp) });
             UserInputCommands.Add(UserCommand.ControlDoorLeft, new Action[] { Noop, () => new ToggleDoorsLeftCommand(Viewer.Log) });
             UserInputCommands.Add(UserCommand.ControlDoorRight, new Action[] { Noop, () => new ToggleDoorsRightCommand(Viewer.Log) });
+            UserInputCommands.Add(UserCommand.ControlDoorsClose, new Action[] { Noop, () => new CloseDoorsCommand(Viewer.Log) });
             UserInputCommands.Add(UserCommand.ControlMirror, new Action[] { Noop, () => new ToggleMirrorsCommand(Viewer.Log) });
             UserInputCommands.Add(UserCommand.ControlWindowLeft, new Action[] { Noop, () => new ToggleWindowLeftCommand(Viewer.Log) });
             UserInputCommands.Add(UserCommand.ControlWindowRight, new Action[] { Noop, () => new ToggleWindowRightCommand(Viewer.Log) });

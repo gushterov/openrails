@@ -1273,6 +1273,7 @@ Command                 Function
 ===================     =====================================
 ``<Q>``                 Door left open/close   
 ``<Shift+Q>``           Door right open/close
+``<Alt+Q>``             Close all doors
 ``<Shift+V>``           Mirror rotate clock/counterclockwise
 ``<Ctrl+Q>``            Window left open/close
 ``<Ctrl+Shift+Q>``      Window right open/close

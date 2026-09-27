@@ -180,6 +180,7 @@ namespace ORTS.Common.Input
         [GetString("Control Bell Toggle")] ControlBellToggle,
         [GetString("Control Door Left")] ControlDoorLeft,
         [GetString("Control Door Right")] ControlDoorRight,
+        [GetString("Control Close All Doors")] ControlDoorsClose,
         [GetString("Control Mirror")] ControlMirror,
         [GetString("Control Light")] ControlLight,
         [GetString("Control Pantograph 1")] ControlPantograph1,

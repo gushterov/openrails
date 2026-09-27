@@ -724,6 +724,7 @@ namespace Orts.Simulation
             HeadlightCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleDoorsLeftCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleDoorsRightCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
+            CloseDoorsCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleMirrorsCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleWindowLeftCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
             ToggleWindowRightCommand.Receiver = (MSTSLocomotive)PlayerLocomotive;
