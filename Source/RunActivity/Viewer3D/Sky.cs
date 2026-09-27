@@ -371,7 +371,7 @@ namespace Orts.Viewer3D
         public override void Render(GraphicsDevice graphicsDevice, IEnumerable<RenderItem> renderItems, ref Matrix XNAViewMatrix, ref Matrix XNAProjectionMatrix)
         {
             // Adjust Fog color for day-night conditions and overcast
-            FogDay2Night(Viewer.World.Sky.SolarDirection.Y, Viewer.Simulator.Weather.CloudCoverFactor);
+            FogDay2Night(Viewer.World.Sky.SolarDirection.Y, Viewer.Simulator.Weather.CloudCoverFactor, Viewer.Settings.NightAmbientLight);
 
             // TODO: Use a dirty flag to determine if it is necessary to set the texture again
             SkyShader.StarMapTexture = Viewer.World.Sky.Latitude > 0 ? StarTextureN : StarTextureS;
@@ -476,7 +476,7 @@ namespace Orts.Viewer3D
         /// </summary>
         /// <param name="sunHeight">The Y value of the sunlight vector.</param>
         /// <param name="overcast">The amount of overcast.</param>
-        static void FogDay2Night(float sunHeight, float overcast)
+        static void FogDay2Night(float sunHeight, float overcast, int nightAmbientLight)
         {
             Vector3 floatColor;
 
@@ -496,6 +496,7 @@ namespace Orts.Viewer3D
 
             // Adjust fog color for overcast
             floatColor *= 1 - (0.5f * overcast);
+            floatColor *= AmbientLighting.NightMultiplier(nightAmbientLight, sunHeight);
             SharedMaterialManager.FogColor.R = (byte)(floatColor.X * 255);
             SharedMaterialManager.FogColor.G = (byte)(floatColor.Y * 255);
             SharedMaterialManager.FogColor.B = (byte)(floatColor.Z * 255);

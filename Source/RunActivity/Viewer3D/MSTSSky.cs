@@ -572,7 +572,7 @@ namespace Orts.Viewer3D
             // Adjust Fog color for day-night conditions and overcast
             FogDay2Night(
                 Viewer.World.MSTSSky.mstsskysolarDirection.Y,
-                Viewer.World.MSTSSky.mstsskyovercastFactor);
+                Viewer.World.MSTSSky.mstsskyovercastFactor, Viewer.Settings.NightAmbientLight);
 
 
             //if (Viewer.Settings.DistantMountains) SharedMaterialManager.FogCoeff *= (3 * (5 - Viewer.Settings.DistantMountainsFogValue) + 0.5f);
@@ -689,7 +689,7 @@ namespace Orts.Viewer3D
         /// </summary>
         /// <param name="sunHeight">The Y value of the sunlight vector</param>
         /// <param name="overcast">The amount of overcast</param>
-        static void FogDay2Night(float sunHeight, float overcast)
+        static void FogDay2Night(float sunHeight, float overcast, int nightAmbientLight)
         {
             Vector3 floatColor;
 
@@ -705,6 +705,7 @@ namespace Orts.Viewer3D
 
             // Adjust fog color for overcast
             floatColor *= (1 - 0.5f * overcast);
+            floatColor *= AmbientLighting.NightMultiplier(nightAmbientLight, sunHeight);
             SharedMaterialManager.FogColor.R = (byte)(floatColor.X * 255);
             SharedMaterialManager.FogColor.G = (byte)(floatColor.Y * 255);
             SharedMaterialManager.FogColor.B = (byte)(floatColor.Z * 255);

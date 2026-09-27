@@ -101,6 +101,9 @@
             this.labelDayAmbientLight = new System.Windows.Forms.Label();
             this.checkModelInstancing = new System.Windows.Forms.CheckBox();
             this.trackDayAmbientLight = new System.Windows.Forms.TrackBar();
+            this.trackNightAmbientLight = new System.Windows.Forms.TrackBar();
+            this.labelAmbientNightBrightness = new System.Windows.Forms.Label();
+            this.labelNightAmbientLight = new System.Windows.Forms.Label();
             this.checkVerticalSync = new System.Windows.Forms.CheckBox();
             this.labelDistantMountainsViewingDistance = new System.Windows.Forms.Label();
             this.numericDistantMountainsViewingDistance = new System.Windows.Forms.NumericUpDown();
@@ -272,6 +275,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.trackLODBias)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackAntiAliasing)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackDayAmbientLight)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackNightAmbientLight)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericDistantMountainsViewingDistance)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericViewingDistance)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericViewingFOV)).BeginInit();
@@ -921,6 +925,9 @@
             this.tabPageVideo.Controls.Add(this.labelDayAmbientLight);
             this.tabPageVideo.Controls.Add(this.checkModelInstancing);
             this.tabPageVideo.Controls.Add(this.trackDayAmbientLight);
+            this.tabPageVideo.Controls.Add(this.trackNightAmbientLight);
+            this.tabPageVideo.Controls.Add(this.labelAmbientNightBrightness);
+            this.tabPageVideo.Controls.Add(this.labelNightAmbientLight);
             this.tabPageVideo.Controls.Add(this.checkVerticalSync);
             this.tabPageVideo.Controls.Add(this.labelDistantMountainsViewingDistance);
             this.tabPageVideo.Controls.Add(this.numericDistantMountainsViewingDistance);
@@ -1295,6 +1302,40 @@
             this.trackDayAmbientLight.MouseEnter += new System.EventHandler(this.HelpIcon_MouseEnter);
             this.trackDayAmbientLight.MouseLeave += new System.EventHandler(this.HelpIcon_MouseLeave);
             // 
+            // labelAmbientNightBrightness
+            //
+            this.labelAmbientNightBrightness.Location = new System.Drawing.Point(35, 350);
+            this.labelAmbientNightBrightness.Name = "labelAmbientNightBrightness";
+            this.labelAmbientNightBrightness.Size = new System.Drawing.Size(232, 16);
+            this.labelAmbientNightBrightness.TabIndex = 39;
+            this.labelAmbientNightBrightness.Text = "Ambient night brightness:";
+            //
+            // labelNightAmbientLight
+            //
+            this.labelNightAmbientLight.Location = new System.Drawing.Point(267, 350);
+            this.labelNightAmbientLight.Name = "labelNightAmbientLight";
+            this.labelNightAmbientLight.Size = new System.Drawing.Size(37, 16);
+            this.labelNightAmbientLight.TabIndex = 40;
+            this.labelNightAmbientLight.Text = "50%";
+            this.labelNightAmbientLight.TextAlign = System.Drawing.ContentAlignment.TopRight;
+            //
+            // trackNightAmbientLight
+            //
+            this.trackNightAmbientLight.AutoSize = false;
+            this.trackNightAmbientLight.BackColor = System.Drawing.SystemColors.Window;
+            this.trackNightAmbientLight.LargeChange = 10;
+            this.trackNightAmbientLight.Location = new System.Drawing.Point(35, 369);
+            this.trackNightAmbientLight.Margin = new System.Windows.Forms.Padding(6, 3, 6, 3);
+            this.trackNightAmbientLight.Maximum = 100;
+            this.trackNightAmbientLight.Name = "trackNightAmbientLight";
+            this.trackNightAmbientLight.Size = new System.Drawing.Size(269, 26);
+            this.trackNightAmbientLight.SmallChange = 5;
+            this.trackNightAmbientLight.TickFrequency = 10;
+            this.trackNightAmbientLight.TabIndex = 41;
+            this.trackNightAmbientLight.Value = 50;
+            this.toolTip1.SetToolTip(this.trackNightAmbientLight, "Default is 50%. 100% restores the original night brightness. Cab interiors and headlights keep their brightness.");
+            this.trackNightAmbientLight.ValueChanged += new System.EventHandler(this.trackNightAmbientLight_ValueChanged);
+            //
             // checkVerticalSync
             // 
             this.checkVerticalSync.Location = new System.Drawing.Point(336, 41);
@@ -3089,6 +3130,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.trackLODBias)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackAntiAliasing)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackDayAmbientLight)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackNightAmbientLight)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericDistantMountainsViewingDistance)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericViewingDistance)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericViewingFOV)).EndInit();
@@ -3246,6 +3288,9 @@
         private System.Windows.Forms.TrackBar trackAdhesionFactor;
         private System.Windows.Forms.CheckBox checkModelInstancing;
         private System.Windows.Forms.TrackBar trackDayAmbientLight;
+        private System.Windows.Forms.TrackBar trackNightAmbientLight;
+        private System.Windows.Forms.Label labelAmbientNightBrightness;
+        private System.Windows.Forms.Label labelNightAmbientLight;
         private System.Windows.Forms.Label labelAmbientDaylightBrightness;
         private System.Windows.Forms.CheckBox checkRetainers;
         private System.Windows.Forms.Label labelOtherUnits;

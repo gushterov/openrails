@@ -26,6 +26,20 @@ using Orts.Viewer3D.Processes;
 
 namespace Orts.Viewer3D
 {
+    public static class AmbientLighting
+    {
+        // 100% reproduces the original night lighting. Fade only around sunset/sunrise;
+        // cab interiors and daylight keep their original brightness.
+        public static float NightMultiplier(int brightnessPercent, float sunHeight, ShapeFlags flags = ShapeFlags.None)
+        {
+            if ((flags & ShapeFlags.Interior) != 0)
+                return 1;
+
+            var daylight = MathHelper.Clamp((sunHeight + 0.1f) / 0.2f, 0, 1);
+            return MathHelper.Lerp(MathHelper.Clamp(brightnessPercent / 100f, 0, 1), 1, daylight);
+        }
+    }
+
     public abstract class Shader : Effect
     {
         protected Shader(GraphicsDevice graphicsDevice, string filename)
@@ -83,7 +97,7 @@ namespace Orts.Viewer3D
             sideVector.SetValue(Vector3.Normalize(Vector3.Cross(_eyeVector, Vector3.Down)));
         }
 
-        public void SetMatrix(Matrix w, ref Matrix v, ref Matrix p)
+        public void SetMatrix(Matrix w, ref Matrix v, ref Matrix p, ShapeFlags flags = ShapeFlags.None)
         {
             world.SetValue(w);
             view.SetValue(v);
@@ -112,8 +126,9 @@ namespace Orts.Viewer3D
 
                 var nightEffect = MathHelper.Clamp((_sunDirection.Y - finishNightTrans) / (startNightTrans - finishNightTrans), 0, 1);
 
-                nightColorModifier.SetValue(MathHelper.Lerp(NightBrightness, FullBrightness, nightEffect));
-                halfNightColorModifier.SetValue(MathHelper.Lerp(HalfNightBrightness, FullBrightness, nightEffect));
+                var nightMultiplier = AmbientLighting.NightMultiplier(Program.Simulator.Settings.NightAmbientLight, _sunDirection.Y, flags);
+                nightColorModifier.SetValue(MathHelper.Lerp(NightBrightness, FullBrightness, nightEffect) * nightMultiplier);
+                halfNightColorModifier.SetValue(MathHelper.Lerp(HalfNightBrightness, FullBrightness, nightEffect) * nightMultiplier);
                 vegetationAmbientModifier.SetValue(MathHelper.Lerp(ShadowBrightness, FullBrightness, _zBias_Lighting.Y));
             }
         }
@@ -296,7 +311,8 @@ namespace Orts.Viewer3D
             {
                 lightVector.SetValue(new Vector4(value, 1f / value.Length()));
 
-                cloudColor.SetValue(Day2Night(0.2f, -0.2f, 0.15f, value.Y));
+                cloudColor.SetValue(Day2Night(0.2f, -0.2f, 0.15f, value.Y)
+                    * AmbientLighting.NightMultiplier(Program.Simulator.Settings.NightAmbientLight, value.Y));
                 var skyColor1 = Day2Night(0.25f, -0.25f, -0.5f, value.Y);
                 var skyColor2 = MathHelper.Clamp(skyColor1 + 0.55f, 0, 1);
                 var skyColor3 = 0.001f / (0.8f * Math.Abs(value.Y - 0.1f));

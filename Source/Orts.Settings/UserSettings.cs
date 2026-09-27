@@ -180,6 +180,8 @@ namespace ORTS.Settings
         public int WorldObjectDensity { get; set; }
         [Default(20)]
         public int DayAmbientLight { get; set; }
+        [Default(50)]
+        public int NightAmbientLight { get; set; }
         [Default(AntiAliasingMethod.MSAA2x)]
         public int AntiAliasing { get; set; }
 

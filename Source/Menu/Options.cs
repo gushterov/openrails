@@ -126,6 +126,7 @@ namespace Menu
                 trackAdhesionFactor.BackColor = BackColor;
                 trackAdhesionFactorChange.BackColor = BackColor;
                 trackDayAmbientLight.BackColor = BackColor;
+                trackNightAmbientLight.BackColor = BackColor;
                 trackLODBias.BackColor = BackColor;
             }
 
@@ -166,6 +167,8 @@ namespace Menu
             numericWorldObjectDensity.Value = Settings.WorldObjectDensity;
             trackDayAmbientLight.Value = Settings.DayAmbientLight;
             trackDayAmbientLight_ValueChanged(null, null);
+            trackNightAmbientLight.Value = Math.Max(0, Math.Min(100, Settings.NightAmbientLight));
+            trackNightAmbientLight_ValueChanged(null, null);
             trackAntiAliasing.Value = Settings.AntiAliasing;
             trackAntiAliasing_ValueChanged(null, null);
             checkDoubleWire.Checked = Settings.DoubleWire;
@@ -441,6 +444,7 @@ namespace Menu
             Settings.WorldObjectDensity = (int)numericWorldObjectDensity.Value;
 
             Settings.DayAmbientLight = (int)trackDayAmbientLight.Value;
+            Settings.NightAmbientLight = trackNightAmbientLight.Value;
             Settings.DoubleWire = checkDoubleWire.Checked;
             Settings.AntiAliasing = trackAntiAliasing.Value;
 
@@ -592,6 +596,11 @@ namespace Menu
         private void trackDayAmbientLight_ValueChanged(object sender, EventArgs e)
         {
             labelDayAmbientLight.Text = catalog.GetStringFmt("{0}%", trackDayAmbientLight.Value * 5);
+        }
+
+        private void trackNightAmbientLight_ValueChanged(object sender, EventArgs e)
+        {
+            labelNightAmbientLight.Text = catalog.GetStringFmt("{0}%", trackNightAmbientLight.Value);
         }
 
         private void trackAntiAliasing_ValueChanged(object sender, EventArgs e)
