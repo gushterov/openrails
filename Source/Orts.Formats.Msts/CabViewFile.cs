@@ -34,6 +34,8 @@ namespace Orts.Formats.Msts
         public List<string> TwoDViews = new List<string>();     // 2D CAB Views - by GeorgeS
         public List<string> NightViews = new List<string>();    // Night CAB Views - by GeorgeS
         public List<string> LightViews = new List<string>();    // Light CAB Views - by GeorgeS
+        // Optional glass-alpha masks, indexed exactly like TwoDViews. Null uses the cab image.
+        public List<string> WindowViews = new List<string>();
         public CabViewControls CabViewControls;                 // Controls in CAB - by GeorgeS
 
         public CabViewFile(string filePath, string basePath)
@@ -59,6 +61,15 @@ namespace Orts.Formats.Msts
                             TwoDViews.Add(Path.Combine(path, name));
                             NightViews.Add(Path.Combine(path, Path.Combine("NIGHT", name)));
                             LightViews.Add(Path.Combine(path, Path.Combine("CABLIGHT", name)));
+                            WindowViews.Add(null);
+                        }),
+                        new STFReader.TokenProcessor("cabviewwindowfile", ()=>{
+                            var fileName = stf.ReadStringBlock(null);
+                            if (WindowViews.Count == 0 || string.IsNullOrWhiteSpace(fileName)) return;
+                            var path = Path.Combine(basePath, fileName);
+                            var highResolutionPath = Path.Combine(Path.GetDirectoryName(path),
+                                Path.GetFileNameWithoutExtension(path) + "1024" + Path.GetExtension(path));
+                            WindowViews[WindowViews.Count - 1] = File.Exists(highResolutionPath) ? highResolutionPath : path;
                         }),
                         new STFReader.TokenProcessor("cabviewcontrols", ()=>{ CabViewControls = new CabViewControls(stf, basePath); }),
                         new STFReader.TokenProcessor("ortscabviewcontrols", ()=>{ 
@@ -1544,6 +1555,8 @@ namespace Orts.Formats.Msts
     {
         public List<double> MSStyles = new List<double>();
         public float CycleTimeS;
+        public float CycleDelayS; // Optional parked interval between complete wiper cycles.
+        public bool WiperFrameBlend = true;
 
         public CVCAnimatedDisplay(STFReader stf, string basepath)
         {
@@ -1557,6 +1570,11 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("units", ()=>{ ParseUnits(stf); }),
                 new STFReader.TokenProcessor("ortscycletime", ()=>{
                     CycleTimeS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); }),
+                new STFReader.TokenProcessor("ortscycledelay", ()=>{
+                    CycleDelayS = stf.ReadFloatBlock(STFReader.UNITS.Time, 0);
+                    if (CycleDelayS < 0 || float.IsNaN(CycleDelayS) || float.IsInfinity(CycleDelayS)) CycleDelayS = 0;
+                }),
+                new STFReader.TokenProcessor("ortswiperframeblend", ()=>{ WiperFrameBlend = stf.ReadBoolBlock(true); }),
                 new STFReader.TokenProcessor("states", ()=>{
                     stf.MustMatch("(");
                     FramesCount = stf.ReadInt(null);

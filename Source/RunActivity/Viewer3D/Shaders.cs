@@ -627,8 +627,8 @@ namespace Orts.Viewer3D
             lightOn.SetValue(isDashLight);
         }
 
-        public CabShader(GraphicsDevice graphicsDevice, Vector4 light1Position, Vector4 light2Position, Vector3 light1Color, Vector3 light2Color)
-            : base(graphicsDevice, "CabShader")
+        public CabShader(GraphicsDevice graphicsDevice, Vector4 light1Position, Vector4 light2Position, Vector3 light1Color, Vector3 light2Color, bool blendFrames = false)
+            : base(graphicsDevice, blendFrames ? "CabWiperShader" : "CabShader")
         {
             nightColorModifier = Parameters["NightColorModifier"];
             lightOn = Parameters["LightOn"];
@@ -644,6 +644,24 @@ namespace Orts.Viewer3D
             light2Pos.SetValue(light2Position);
             light1Col.SetValue(light1Color);
             light2Col.SetValue(light2Color);
+        }
+
+        public void CopyLightingFrom(CabShader source)
+        {
+            // Legacy cabs without an extended lighting shader use unshaded sprites.
+            nightColorModifier.SetValue(source?.nightColorModifier.GetValueSingle() ?? 1f);
+            lightOn.SetValue(source?.lightOn.GetValueBoolean() ?? false);
+            if (source == null) return;
+            light1Pos.SetValue(source.light1Pos.GetValueVector4());
+            light2Pos.SetValue(source.light2Pos.GetValueVector4());
+            light1Col.SetValue(source.light1Col.GetValueVector3());
+            light2Col.SetValue(source.light2Col.GetValueVector3());
+        }
+
+        public void SetFrameBlend(Texture2D nextFrame, float amount)
+        {
+            Parameters["NextFrameTexture"].SetValue(nextFrame);
+            Parameters["FrameBlend"].SetValue(amount);
         }
     }
 

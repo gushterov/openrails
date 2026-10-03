@@ -38,6 +38,17 @@ sampler ImageSampler = sampler_state
 	Texture = (ImageTexture);
 };
 
+#ifdef CAB_WIPER_BLEND
+texture NextFrameTexture;
+float FrameBlend;
+sampler NextFrameSampler : register(s1) = sampler_state
+{
+    Texture = (NextFrameTexture);
+    MinFilter = Linear; MagFilter = Linear; MipFilter = Linear;
+    AddressU = Clamp; AddressV = Clamp;
+};
+#endif
+
 ////////////////////    V E R T E X   I N P U T S    ///////////////////////////
 
 ////////////////////    V E R T E X   O U T P U T S    /////////////////////////
@@ -57,6 +68,15 @@ struct PIXEL_INPUT
 float4 PSCabShader(PIXEL_INPUT In) : COLOR0
 {
 	float4 origColor = tex2D(ImageSampler, In.TexCoords) * In.Color;
+#ifdef CAB_WIPER_BLEND
+    float4 nextColor = tex2D(NextFrameSampler, In.TexCoords) * In.Color;
+    // Interpolate premultiplied colours, then restore straight alpha for the
+    // cab's NonPremultiplied blend state. Shared opaque pixels stay opaque;
+    // transparent texels cannot introduce black fringes or double darkening.
+    float alpha = lerp(origColor.a, nextColor.a, FrameBlend);
+    float3 rgb = lerp(origColor.rgb * origColor.a, nextColor.rgb * nextColor.a, FrameBlend);
+    origColor = float4(rgb / max(alpha, 0.00001), alpha);
+#endif
 	float3 shadColor = origColor.rgb * NightColorModifier;
 
 	if (LightOn)
@@ -88,6 +108,10 @@ float4 PSCabShader(PIXEL_INPUT In) : COLOR0
 
 technique CabShader {
 	pass Pass_0 {
+#ifdef CAB_WIPER_BLEND
+        PixelShader = compile ps_4_0 PSCabShader();
+#else
 		PixelShader = compile ps_4_0_level_9_1 PSCabShader();
+#endif
 	}
 }

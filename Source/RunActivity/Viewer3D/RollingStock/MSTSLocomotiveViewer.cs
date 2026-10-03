@@ -1183,6 +1183,7 @@ namespace Orts.Viewer3D.RollingStock
         private Texture2D _CabTexture;
         private readonly Texture2D _LetterboxTexture;
         private CabShader _Shader;
+        private CabRain _Rain;
 
         private Point _PrevScreenSize;
 
@@ -1224,6 +1225,9 @@ namespace Orts.Viewer3D.RollingStock
 
             _Sprite2DCabView = (SpriteBatchMaterial)viewer.MaterialManager.Load("SpriteBatch", effect: _Shader);
 
+            if (viewer.GraphicsDevice.GraphicsProfile == GraphicsProfile.HiDef)
+                _Rain = new CabRain(viewer);
+
             #region Create Control renderers
             ControlMap = new Dictionary<(CabViewControlType, int), CabViewControlRenderer>();
             var count = new Dictionary<CabViewControlType, int>();
@@ -1237,6 +1241,7 @@ namespace Orts.Viewer3D.RollingStock
                     {
                         HasCabLightDirectory = CABTextureManager.LoadTextures(viewer, cabfile);
                     }
+                    _Rain?.Load(cabView.CVFFile);
 
                     if (cabView.CVFFile.CabViewControls == null)
                         continue;
@@ -1291,6 +1296,7 @@ namespace Orts.Viewer3D.RollingStock
                         if (anim != null)
                         {
                             CabViewAnimationsRenderer animr = new CabViewAnimationsRenderer(viewer, car, anim, _Shader);
+                            animr.WiperSweep = _Rain?.AddWiper(cabView.CVFFile, anim);
                             animr.SortIndex = controlSortIndex;
                             CabViewControlRenderersList[i].Add(animr);
                             if (!ControlMap.ContainsKey(key)) ControlMap.Add(key, animr);
@@ -1531,6 +1537,10 @@ namespace Orts.Viewer3D.RollingStock
                     cvcr.PrepareFrame(frame, elapsedTime);
                 }
             }
+            // Controls supply the exact movement performed this update, including the
+            // final return to park. SortIndex still draws rain below the visible blades.
+            _Rain?.PrepareFrame(frame, _Locomotive.CabViewList[i].CVFFile, _Location, _CabTexture,
+                elapsedTime.ClockSeconds, _Locomotive.Wiper);
         }
 
         public override void Draw(GraphicsDevice graphicsDevice)
@@ -1586,6 +1596,7 @@ namespace Orts.Viewer3D.RollingStock
         internal void Mark()
         {
             _Viewer.TextureManager.Mark(_CabTexture);
+            _Rain?.Mark();
 
             var i = (_Locomotive.UsingRearCab) ? 1 : 0;
             foreach (var cvcr in CabViewControlRenderersList[i])
@@ -3244,14 +3255,32 @@ namespace Orts.Viewer3D.RollingStock
     /// </summary>
     public class CabViewAnimationsRenderer : CabViewDiscreteRenderer
     {
+        internal CabWiperSweep WiperSweep;
         private float CumulativeTime;
         private readonly float CycleTimeS;
+        private readonly CabWiperCycle WiperCycle;
+        private readonly bool BlendWiperFrames;
+        private readonly CabShader OriginalCabShader;
+        private Texture2D NextWiperTexture;
+        private float WiperBlendAmount;
         private bool AnimationOn = false;
 
         public CabViewAnimationsRenderer(Viewer viewer, MSTSLocomotive locomotive, CVCAnimatedDisplay control, CabShader shader)
-            : base(viewer, locomotive, control, shader)
+            : base(viewer, locomotive, control, CreateWiperShader(viewer, control, shader))
         {
             CycleTimeS = control.CycleTimeS;
+            WiperCycle = new CabWiperCycle(control.CycleTimeS, control.CycleDelayS);
+            OriginalCabShader = shader;
+            BlendWiperFrames = !ReferenceEquals(Shader, shader);
+        }
+
+        static CabShader CreateWiperShader(Viewer viewer, CVCAnimatedDisplay control, CabShader shader)
+        {
+            if (control.ControlType.Type != CABViewControlTypes.ORTS_2DEXTERNALWIPERS
+                || !control.WiperFrameBlend || viewer.GraphicsDevice.GraphicsProfile != GraphicsProfile.HiDef) return shader;
+            // A dedicated effect/material prevents frame-blend parameters leaking into
+            // other instruments when their sprites are drawn in a deferred batch.
+            return new CabShader(viewer.GraphicsDevice, Vector4.Zero, Vector4.Zero, Vector3.Zero, Vector3.Zero, blendFrames: true);
         }
 
         public override void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
@@ -3268,22 +3297,18 @@ namespace Orts.Viewer3D.RollingStock
                 AnimationOn = true;
 
             int index = 0;
+            var blend = default(CabWiperFrameBlend);
             switch (ControlDiscrete.ControlType.Type)
             {
                 case CABViewControlTypes.ORTS_2DEXTERNALWIPERS:
-                    var halfCycleS = CycleTimeS / 2f;
-                    if (AnimationOn)
+                    WiperCycle.Update(elapsedTime.ClockSeconds, animate, TraceWiperMovement);
+                    if (BlendWiperFrames)
                     {
-                        CumulativeTime += elapsedTime.ClockSeconds;
-                        if (CumulativeTime > CycleTimeS && !animate)
-                            AnimationOn = false;
-                        CumulativeTime %= CycleTimeS;
-
-                        if (CumulativeTime < halfCycleS)
-                            index = PercentToIndex(CumulativeTime / halfCycleS);
-                        else
-                            index = PercentToIndex((CycleTimeS - CumulativeTime) / halfCycleS);
+                        blend = CabWiperFrameBlend.Select(WiperCycle.Position, ControlDiscrete.Values,
+                            ControlDiscrete.FramesCount, ControlDiscrete.Reversed);
+                        index = blend.First;
                     }
+                    else index = PercentToIndex(WiperCycle.Position);
                     break;
                 
                 case CABViewControlTypes.ORTS_2DEXTERNALLEFTWINDOW:
@@ -3342,6 +3367,33 @@ namespace Orts.Viewer3D.RollingStock
             }
 
             PrepareFrameForIndex(frame, elapsedTime, index);
+            if (BlendWiperFrames)
+            {
+                bool dark = Viewer.MaterialManager.sunDirection.Y <= -0.085f || Viewer.Camera.IsUnderground;
+                NextWiperTexture = CABTextureManager.GetTextureByIndexes(Control.ACEFile, blend.Second,
+                    dark, Locomotive.CabLightOn, out _, HasCabLightDirectory);
+                WiperBlendAmount = blend.Amount;
+                if (NextWiperTexture == SharedMaterialManager.MissingTexture)
+                {
+                    NextWiperTexture = Texture;
+                    WiperBlendAmount = 0;
+                }
+            }
+        }
+
+        public override void Draw(GraphicsDevice graphicsDevice)
+        {
+            if (BlendWiperFrames)
+            {
+                Shader.CopyLightingFrom(OriginalCabShader);
+                Shader.SetFrameBlend(NextWiperTexture ?? Texture, WiperBlendAmount);
+            }
+            base.Draw(graphicsDevice);
+        }
+
+        void TraceWiperMovement(float phase, float seconds)
+        {
+            WiperSweep?.Advance(phase, seconds, CycleTimeS, PercentToIndex);
         }
     }
 

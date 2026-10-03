@@ -16,6 +16,45 @@ OR supports with a high degree of compatibility all functions available in
 MSTS for 2D cabs, and provides some significant enhancements described in the 
 next paragraphs.
 
+Raindrops on cab windows
+-----------------------
+
+On graphics devices supporting the HiDef profile, rain and snow automatically add beads
+and slow running drops to the glass in front, rear and side 2D cab views. The
+transparent parts of the cab background identify the glass: black alpha allows
+rain, white alpha blocks it, and intermediate alpha gives partial coverage.
+Instruments are drawn over this layer. Snow uses the same droplets to represent
+water from melting flakes. Existing water dries gradually after precipitation
+stops or the train enters a tunnel.
+
+An optional ``CabViewWindowFile`` immediately after each ``CabViewFile`` can
+provide a separate ACE or DDS alpha mask. Use the same full-image layout as the
+cab background; RGB colours in the mask are ignored. Its transparent areas
+permit drops, intersected with the cab background's transparency. This can keep
+open windows or other transparent areas dry. For example::
+
+    CabViewFile ( front.ace )
+    CabViewWindowFile ( front-glass.ace )
+
+Empty, absent or missing window files use the cab background. Existing files
+which reference the cab background itself work without changes. A matching
+``1024`` filename variant is preferred when present, as for the cab background.
+The mask uses the entire image; the legacy ``CabViewWindow`` rectangle is not
+used to position it.
+
+For cabs with ``ORTS_2DEXTERNALWIPERS``, water is cleared along the animated
+wiper's path, including the return stroke. The daytime animation's opaque alpha
+pixels define the blade and arm; both therefore clear water. The renderer
+approximately fills between adjacent frame positions to avoid unwiped stripes.
+The cleared area stays clear briefly, then gathers new drops at a rate depending
+on precipitation intensity. Areas outside the sweep remain wet. Each wiper
+applies to its own ``ORTSCabViewpoint`` and uses the existing animation timing,
+including its return to the parked position.
+
+Cabs without a usable animated wiper alpha mask retain simplified front-pane
+clearing when the wipers are on. This effect applies to 2D cab images, not 3D
+cab windows.
+
 
 ETCS circular speed gauge
 -------------------------
@@ -843,6 +882,33 @@ Here is an example of a 2D wipers control block within the .cvf file::
 		)
 
 ORTSCycleTime is expressed in seconds.
+For ``ORTS_2DEXTERNALWIPERS``, an optional ``ORTSCycleDelay`` sets the time in
+seconds to wait at the parked position after each complete out-and-back cycle.
+It defaults to zero (continuous wiping); negative values are treated as zero.
+For example, add these lines inside the ``ORTSAnimatedDisplay`` block::
+
+    ORTSCycleTime ( 1.35 )
+    ORTSCycleDelay ( 2.0 )
+
+This gives a 1.35-second wipe followed by a 2-second pause. Switching on starts
+the first stroke immediately. Switching off finishes any stroke already in
+progress and cancels the wait. The rain/snow clearing effect follows the blade
+and does not continue wiping while it is parked. Both movement and waiting use
+simulation time, so pausing the simulation freezes them. The delay does not
+apply to other animated controls, such as cab windows.
+
+On HiDef graphics devices, wiper animation frames are blended by default to
+soften the steps between blade positions without adding artwork. The blend
+follows the existing ``SwitchVal`` positions, cycle time and parked delay. It
+is an image crossfade, so two faint blade outlines may be visible during a
+transition. To restore the original unblended animation, add this line inside
+the same ``ORTSAnimatedDisplay`` block::
+
+    ORTSWiperFrameBlend ( 0 )
+
+Set it to ``1`` or omit it to enable blending. Other animated controls are not
+affected.
+
 The .ace file must contain only the frames related to half cycle, that is 
 if e.g. the wiper moves from left to right and back, only the frames related 
 to the motion from left to right have to be included. For the reverse 
