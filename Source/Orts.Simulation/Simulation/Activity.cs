@@ -1533,8 +1533,12 @@ namespace Orts.Simulation
                     return triggered;
                 }
             }
-            var trainFrontPosition = new Traveller(train.nextRouteReady && train.TCRoute.activeSubpath > 0 && train.TCRoute.ReversalInfo[train.TCRoute.activeSubpath - 1].Valid ?
-                train.RearTDBTraveller : train.FrontTDBTraveller); // just after reversal the old train front position must be considered
+            // Player location events (including route sounds) follow the leading end,
+            // even when driving from a rear cab without reversing the stored formation.
+            // Keep the path-reversal convention for events assigned to AI services.
+            bool useRear = train.IsActualPlayerTrain ? train.LeadingEndIsRear :
+                train.nextRouteReady && train.TCRoute.activeSubpath > 0 && train.TCRoute.ReversalInfo[train.TCRoute.activeSubpath - 1].Valid;
+            var trainFrontPosition = new Traveller(useRear ? train.RearTDBTraveller : train.FrontTDBTraveller);
             var distance = trainFrontPosition.DistanceTo(e.TileX, e.TileZ, e.X, trainFrontPosition.Y, e.Z, e.RadiusM);
             if (distance == -1)
             {

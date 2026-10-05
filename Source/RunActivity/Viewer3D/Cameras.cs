@@ -976,7 +976,10 @@ namespace Orts.Viewer3D
         const float StartPositionXRadians = 0.399f;
         const float StartPositionYRadians = 0.387f;
 
-        protected readonly bool Front;
+        protected readonly bool OutsideFront;
+        // Camera 2/3 keep their roles while their physical consist ends follow the cab.
+        protected bool Front => OutsideFront ^ (Viewer.SelectedTrain?.IsPlayerCabReversed ?? false);
+        bool CabReversed;
         public enum AttachedTo { Front, Rear }
         const float ZoomFactor = 0.1f;
 
@@ -1015,12 +1018,13 @@ namespace Orts.Viewer3D
                 return LookedAtPosition.WorldLocation.Location.Y + TerrainAltitudeMargin < elevationAtTrain || cameraLocation.Location.Y + TerrainAltitudeMargin < elevationAtCamera;
             }
         }
-        public override string Name { get { return Front ? Viewer.Catalog.GetString("Outside Front") : Viewer.Catalog.GetString("Outside Rear"); } }
+        public override string Name { get { return OutsideFront ? Viewer.Catalog.GetString("Outside Front") : Viewer.Catalog.GetString("Outside Rear"); } }
 
         public TrackingCamera(Viewer viewer, AttachedTo attachedTo)
             : base(viewer)
         {
-            Front = attachedTo == AttachedTo.Front;
+            OutsideFront = attachedTo == AttachedTo.Front;
+            CabReversed = Viewer.SelectedTrain?.IsPlayerCabReversed ?? false;
             PositionYRadians = StartPositionYRadians + (Front ? 0 : MathHelper.Pi);
             RotationXRadians = PositionXRadians;
             RotationYRadians = PositionYRadians - MathHelper.Pi;
@@ -1048,6 +1052,7 @@ namespace Orts.Viewer3D
             BrowseForwards = inf.ReadBoolean();
             BrowseBackwards = inf.ReadBoolean();
             ZDistanceM = inf.ReadSingle();
+            CabReversed = Viewer.SelectedTrain?.IsPlayerCabReversed ?? false;
             if (attachedCar != null && attachedCar.Train == Viewer.SelectedTrain)
             {
                 var trainCars = GetCameraCars();
@@ -1072,6 +1077,7 @@ namespace Orts.Viewer3D
             base.Reset();
             PositionDistance = StartPositionDistance;
             PositionXRadians = StartPositionXRadians;
+            CabReversed = Viewer.SelectedTrain?.IsPlayerCabReversed ?? false;
             PositionYRadians = StartPositionYRadians + (Front ? 0 : MathHelper.Pi);
             RotationXRadians = PositionXRadians;
             RotationYRadians = PositionYRadians - MathHelper.Pi;
@@ -1079,12 +1085,13 @@ namespace Orts.Viewer3D
 
         protected override void OnActivate(bool sameCamera)
         {
+            UpdateCabOrientation();
             BrowseMode = BrowseForwards = BrowseBackwards = false;
             var trainCars = GetCameraCars();
             var TrainCarViewer = Viewer.TrainCarOperationsViewerWindow;
             var carPosition = !(TrainCarViewer.CarPosition < trainCars.Count()) ? TrainCarViewer.CarPosition - 1 : TrainCarViewer.CarPosition;
-            var isDownCameraOutsideFront = UserInput.IsDown(UserCommand.CameraOutsideFront);
-            var isDownCameraOutsideRear = UserInput.IsDown(UserCommand.CameraOutsideRear);
+            var isDownCameraOutsideFront = UserInput.IsDown(CabReversed ? UserCommand.CameraOutsideRear : UserCommand.CameraOutsideFront);
+            var isDownCameraOutsideRear = UserInput.IsDown(CabReversed ? UserCommand.CameraOutsideFront : UserCommand.CameraOutsideRear);
 
             if (Viewer.TrainCarOperationsWebpage == null) 
             {
@@ -1109,7 +1116,7 @@ namespace Orts.Viewer3D
                 Viewer.FirstLoop = false;
                 if (Front)
                 {
-                    SetCameraCar(trainCars[Viewer.CameraOutsideFrontPosition]);
+                    SetCameraCar(trainCars[Math.Min(Viewer.CameraOutsideFrontPosition, trainCars.Count - 1)]);
                     Viewer.CameraFrontUpdated = true;
                 }
                 else
@@ -1140,7 +1147,7 @@ namespace Orts.Viewer3D
                 {
                     if (!IsVisibleTrainCarViewerOrWebpage && isDownCameraOutsideFront)
                     {
-                        if (Viewer.CameraOutsideFrontPosition == 0) SetCameraCar(GetCameraCars().First());
+                        SetCameraCar(trainCars[Math.Min(Viewer.CameraOutsideFrontPosition, trainCars.Count - 1)]);
                         oldCarPosition = 0;
                     }
                     else if (IsVisibleTrainCarViewerOrWebpage && carPosition >= 0)
@@ -1164,7 +1171,8 @@ namespace Orts.Viewer3D
                 {
                     if (!IsVisibleTrainCarViewerOrWebpage && isDownCameraOutsideRear)
                     {
-                        if (Viewer.CameraOutsideRearPosition == 0) SetCameraCar(GetCameraCars().Last());
+                        SetCameraCar(trainCars[Viewer.CameraOutsideRearPosition == 0 ? trainCars.Count - 1 :
+                            Math.Min(Viewer.CameraOutsideRearPosition, trainCars.Count - 1)]);
                         oldCarPosition = 0;
                     }
                     else if (carPosition < trainCars.Count && IsVisibleTrainCarViewerOrWebpage && carPosition >= 0)
@@ -1184,6 +1192,23 @@ namespace Orts.Viewer3D
             }
             base.OnActivate(sameCamera);
             CameraOutsidePosition();
+        }
+
+        public void UpdateCabOrientation()
+        {
+            bool reversed = Viewer.SelectedTrain?.IsPlayerCabReversed ?? false;
+            if (CabReversed == reversed) return;
+
+            CabReversed = reversed;
+            PositionYRadians += MathHelper.Pi;
+            RotationYRadians += MathHelper.Pi;
+            BrowseMode = BrowseForwards = BrowseBackwards = false;
+            attachedCar = null;
+            oldCarPosition = -1;
+            if (Front)
+                Viewer.CameraOutsideFrontPosition = 0;
+            else
+                Viewer.CameraOutsideRearPosition = Viewer.SelectedTrain.Cars.Count - 1;
         }
 
         public void CameraOutsidePosition()
@@ -1456,7 +1481,13 @@ namespace Orts.Viewer3D
 
         public void SwapCameras()
         {
-            if (Front)
+            if (Viewer.SelectedTrain.IsActualPlayerTrain)
+            {
+                // A path reversal also flips the cab's relation to the stored consist.
+                // Keep camera 2 at the cab-facing end, including after formation reversal.
+                Activate();
+            }
+            else if (OutsideFront)
             {
                 SwapParams(this, Viewer.BackCamera);
                 Viewer.BackCamera.Activate();

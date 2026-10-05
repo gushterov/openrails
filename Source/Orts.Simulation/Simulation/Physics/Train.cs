@@ -309,6 +309,19 @@ namespace Orts.Simulation.Physics
                 return this == Simulator.PlayerLocomotive.Train;
             }
         }
+
+        /// <summary>
+        /// Whether the active player's cab faces the rear of the stored consist.
+        /// Cab changes do not reverse the physical formation or its signalling routes.
+        /// </summary>
+        public bool IsPlayerCabReversed => Simulator?.PlayerLocomotive?.Train == this &&
+            (Simulator.PlayerLocomotive.Flipped ^ Simulator.PlayerLocomotive.GetCabFlipped());
+
+        /// <summary>
+        /// The leading end in the direction of travel, or the active cab's direction at rest.
+        /// </summary>
+        public bool LeadingEndIsRear => Math.Abs(SpeedMpS) > 0.1f ? SpeedMpS < 0 :
+            (IsActualPlayerTrain ? IsPlayerCabReversed : MUDirection == Direction.Reverse);
         public bool IsPlayerDriven
         {
             get
@@ -15135,7 +15148,7 @@ namespace Orts.Simulation.Physics
         /// <summary>
         /// Create TrackInfoObject for information in TrackMonitor window
         /// </summary>
-        public TrainInfo GetTrainInfo()
+        public TrainInfo GetTrainInfo(bool cabRelative = false)
         {
             // This may occur just  after player train switching 
             if (IsActualPlayerTrain && PlayerTrainSignals == null)
@@ -15168,6 +15181,9 @@ namespace Orts.Simulation.Physics
 
             thisInfo.ObjectInfoForward.Sort();
             thisInfo.ObjectInfoBackward.Sort();
+
+            if (cabRelative)
+                thisInfo.UseCabOrientation();
 
             return (thisInfo);
         }
@@ -21512,6 +21528,24 @@ namespace Orts.Simulation.Physics
             {
                 ObjectInfoForward = new List<TrainObjectItem>();
                 ObjectInfoBackward = new List<TrainObjectItem>();
+            }
+
+            /// <summary>
+            /// Present track information with the active cab facing up the monitor.
+            /// Only this display snapshot changes; signalling retains consist coordinates.
+            /// </summary>
+            public void UseCabOrientation()
+            {
+                if (cabOrientation != 1) return;
+
+                // Out-of-control information is a status, not an object behind the train.
+                if (ControlMode != TRAIN_CONTROL.OUT_OF_CONTROL)
+                    (ObjectInfoForward, ObjectInfoBackward) = (ObjectInfoBackward, ObjectInfoForward);
+                if (direction >= 0) direction = 1 - direction;
+                speedMpS = -speedMpS;
+                projectedSpeedMpS = -projectedSpeedMpS;
+                cabOrientation = 0;
+                // The locomotive's gradient is already relative to its active cab.
             }
 
             public void Clear()

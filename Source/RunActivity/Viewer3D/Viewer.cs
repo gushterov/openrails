@@ -1596,6 +1596,8 @@ namespace Orts.Viewer3D
             if (!Simulator.PlayerLocomotive.Train.IsChangeCabAvailable()) return;
 
             Simulator.PlayerLocomotive = Simulator.PlayerLocomotive.Train.GetNextCab();
+            FrontCamera.UpdateCabOrientation();
+            BackCamera.UpdateCabOrientation();
             PlayerLocomotiveViewer = World.Trains.GetViewer(Simulator.PlayerLocomotive);
             if (PlayerLocomotiveViewer is MSTSLocomotiveViewer && (PlayerLocomotiveViewer as MSTSLocomotiveViewer)._hasCabRenderer)
                 AdjustCabHeight(DisplaySize.X, DisplaySize.Y);

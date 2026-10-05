@@ -112,6 +112,7 @@ namespace Orts.Viewer3D
         private float initDist = -1; // initial distance run when last ttype selected
         private int initTrackSection = -1; // track section when last ttype selected
         private MSTSWagon initCar = null; // initial leading car (to accommodate in case of change of direction)
+        private int initCarIncr; // also detect reversals when the consist has only one car
         private bool CarOnSwitch = false;
         private bool CarOnCurve = false;
 
@@ -209,22 +210,23 @@ namespace Orts.Viewer3D
 
                 if (CarNo == CarLeading)
                 {
-                    bool reSelect = stateChange;
+                    float distanceM = CarIncr > 0 ? Car.Train.DistanceTravelledM : Car.Train.DistanceTravelledM - Car.Train.Length;
+                    // Region distances are measured in the direction of travel, whereas
+                    // DistanceTravelledM is signed in the stored consist's direction.
+                    float travelledM = (distanceM - initDist) * CarIncr;
+                    int trackSection = Car.Train.PresentPosition[CarIncr > 0 ? 0 : 1].TCSectionIndex;
+                    bool reSelect = stateChange || initCarIncr != CarIncr;
                     if (!reSelect)
                     {
                         if (nextDist == -1 || initCar != Car.Train.Cars[CarLeading])
                         {
                             reSelect = true;
                         }
-                        else if ((CarLeading == 0 && Car.Train.PresentPosition[0].TCSectionIndex != initTrackSection) || (CarLeading != 0 && Car.Train.PresentPosition[1].TCSectionIndex != initTrackSection))
+                        else if (trackSection != initTrackSection)
                         {
                             reSelect = true;
                         }
-                        else if (CarLeading == 0 && (Car.Train.DistanceTravelledM - initDist > nextDist || initDist - Car.Train.DistanceTravelledM > prevDist))
-                        {
-                            reSelect = true;
-                        }
-                        else if (CarLeading != 0 && (Car.Train.DistanceTravelledM - Car.Train.Length - initDist > nextDist || initDist - Car.Train.DistanceTravelledM + Car.Train.Length > prevDist))
+                        else if (travelledM > nextDist || -travelledM > prevDist)
                         {
                             reSelect = true;
                         }
@@ -233,8 +235,9 @@ namespace Orts.Viewer3D
                     {
                         //_curTType = Viewer.WorldSounds.GetTType(_tdbObjs);
                         initCar = Car;
-                        initTrackSection = CarLeading == 0 ? Car.Train.PresentPosition[0].TCSectionIndex : Car.Train.PresentPosition[1].TCSectionIndex;
-                        initDist = CarLeading == 0 ? Car.Train.DistanceTravelledM : Car.Train.DistanceTravelledM - Car.Train.Length;
+                        initCarIncr = CarIncr;
+                        initTrackSection = trackSection;
+                        initDist = distanceM;
                         Car.TrackSoundType = Viewer.World.Sounds.GetTType(Car.Train, out prevDist, out nextDist);
                         if (Car.TrackSoundType != int.MaxValue)
                             if (Car.TrackSoundType < Viewer.TrackTypes.Count)

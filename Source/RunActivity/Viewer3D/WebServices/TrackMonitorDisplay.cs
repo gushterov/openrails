@@ -281,7 +281,7 @@ namespace Orts.Viewer3D.WebServices
             });
 
             // Always get train details to pass on to TrackMonitor.
-            Train.TrainInfo thisInfo = viewer.PlayerTrain.GetTrainInfo();
+            Train.TrainInfo thisInfo = viewer.PlayerTrain.GetTrainInfo(cabRelative: true);
             Color speedColor = SpeedColor(thisInfo.speedMpS, thisInfo.allowedSpeedMpS);
             Color trackColor = TrackColor(thisInfo.speedMpS, thisInfo.allowedSpeedMpS);
 

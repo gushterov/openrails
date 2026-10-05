@@ -129,7 +129,7 @@ namespace Orts.Viewer3D.Popups
             base.PrepareFrame(elapsedTime, updateFull);
 
             // Always get train details to pass on to TrackMonitor.
-            var thisInfo = Owner.Viewer.PlayerTrain.GetTrainInfo();
+            var thisInfo = Owner.Viewer.PlayerTrain.GetTrainInfo(cabRelative: true);
             Monitor.StoreInfo(thisInfo);
 
             // Update text fields on full update only.
