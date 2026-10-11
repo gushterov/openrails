@@ -1960,27 +1960,32 @@ namespace Orts.Viewer3D.RollingStock
                 }
                 else
                 {
-                    var topY = Control.PositionY;  // top of visible column. +ve Y is downwards
-                    if (Gauge.Direction != 0)  // column grows from bottom or from right
+                    destW = (int)(xratio * xpos);
+                    destH = (int)(yratio * ypos);
+                    if (Gauge.Rotation != 0)
                     {
-                        if (Gauge.Orientation != 0)
-                        {
-                            topY += Gauge.Height * (1 - percent);
-                            destX = (int)(xratio * (Control.PositionX + Gauge.Width - xpos + ypos * Math.Sin(DrawRotation)));
-                        }
-                        else
-                        {
-                            topY -= xpos * Math.Sin(DrawRotation);
-                            destX = (int)(xratio * (Control.PositionX + Gauge.Width - xpos));
-                        }
+                        // Rotate the filled length after scaling it to screen pixels.
+                        // Mixing xratio and yratio here moves the zero end as the bar fills.
+                        var position = new Vector2((float)(xratio * Control.PositionX), (float)(yratio * Control.PositionY));
+                        var fullSize = new Vector2((float)(xratio * Gauge.Width), (float)(yratio * Gauge.Height));
+                        var fillPosition = CabGaugeGeometry.GetFillPosition(position, fullSize, new Vector2(destW, destH),
+                            Gauge.Orientation != 0, Gauge.Direction != 0, Gauge.Rotation);
+                        destX = (int)fillPosition.X;
+                        destY = (int)fillPosition.Y;
                     }
                     else
                     {
-                        destX = (int)(xratio * Control.PositionX);
+                        var topY = Control.PositionY;  // top of visible column. +ve Y is downwards
+                        if (Gauge.Direction != 0)  // column grows from bottom or from right
+                        {
+                            if (Gauge.Orientation != 0)
+                                topY += Gauge.Height * (1 - percent);
+                            destX = (int)(xratio * (Control.PositionX + Gauge.Width - xpos));
+                        }
+                        else
+                            destX = (int)(xratio * Control.PositionX);
+                        destY = (int)(yratio * topY);
                     }
-                    destY = (int)(yratio * topY);
-                    destW = (int)(xratio * xpos);
-                    destH = (int)(yratio * ypos);
                 }
             }
             else // pointer gauge using texture
@@ -2184,7 +2189,8 @@ namespace Orts.Viewer3D.RollingStock
             {
                 Shader.SetTextureData(DestinationRectangle.Left, DestinationRectangle.Top, DestinationRectangle.Width, DestinationRectangle.Height);
             }
-            ControlView.SpriteBatch.Draw(Texture, DestinationRectangle, SourceRectangle, Color.White);
+            ControlView.SpriteBatch.Draw(Texture, DestinationRectangle, SourceRectangle, Color.White,
+                ControlDiscrete.Rotation, Vector2.Zero, SpriteEffects.None, 0);
         }
 
         /// <summary>
@@ -2421,15 +2427,17 @@ namespace Orts.Viewer3D.RollingStock
         float NormalizedMouseMovement()
         {
             var mouseWheelChange = (UserInput.IsDown(UserCommand.GameSwitchWithMouse) ? UserInput.MouseWheelChange : 0) / 10;
-            return (ControlDiscrete.Orientation > 0
-                ? (float)(UserInput.MouseMoveY + mouseWheelChange) / (float)Control.Height
-                : (float)(UserInput.MouseMoveX + mouseWheelChange) / (float)Control.Width)
-                * (ControlDiscrete.Direction > 0 ? -1 : 1);
+            // The same control renderer handles 3D cab input, where ORTSAngle does not apply.
+            var rotation = Viewer.Camera is CabCamera ? ControlDiscrete.Rotation : 0;
+            return CabControlGeometry.NormalizeMovement(new Vector2(UserInput.MouseMoveX, UserInput.MouseMoveY),
+                mouseWheelChange, new Vector2((float)Control.Width, (float)Control.Height),
+                ControlDiscrete.Orientation > 0, ControlDiscrete.Direction > 0, rotation);
         }
 
         public bool IsMouseWithin()
         {
-            return ControlDiscrete.MouseControl & DestinationRectangle.Contains(UserInput.MouseX, UserInput.MouseY);
+            return ControlDiscrete.MouseControl && CabControlGeometry.Contains(DestinationRectangle,
+                new Vector2(UserInput.MouseX, UserInput.MouseY), ControlDiscrete.Rotation);
         }
 
         public string GetControlName()
@@ -3241,7 +3249,7 @@ namespace Orts.Viewer3D.RollingStock
 
         public Rectangle DestinationRectangleGet()
         {
-            return DestinationRectangle;
+            return CabControlGeometry.GetBounds(DestinationRectangle, ControlDiscrete.Rotation);
         }
 
         public bool isMouseControl()

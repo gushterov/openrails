@@ -15303,6 +15303,9 @@ namespace Orts.Simulation.Physics
  
         /// <summary>
         /// Add reversal info to TrackMonitorInfo
+        ///
+        ///
+        /// 
         /// </summary>
         public virtual void AddTrainReversalInfo(TCReversalInfo thisReversal, ref TrainInfo thisInfo)
         {

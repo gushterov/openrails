@@ -1075,6 +1075,7 @@ namespace Orts.Formats.Msts
         public int FramesCount { get; set; }
         public int FramesX { get; set; }
         public int FramesY { get; set; }
+        public float Rotation { get; set; }
         public bool MouseControl;
         public int Orientation;
         public int Direction;
@@ -1125,6 +1126,7 @@ namespace Orts.Formats.Msts
                     new STFReader.TokenProcessor("hideifdisabled", ()=>{ ParseHideIfDisabled(stf); }),
                     new STFReader.TokenProcessor("valueifdisabled", ()=>{ ParseValueIfDisabled(stf); }),
                     new STFReader.TokenProcessor("mousecontrol", ()=>{ MouseControl = stf.ReadBoolBlock(false); }),
+                    new STFReader.TokenProcessor("ortsangle", ()=>{ Rotation = ParseRotation(stf); }),
                     new STFReader.TokenProcessor("orientation", ()=>{ Orientation = stf.ReadIntBlock(null); }),
                     new STFReader.TokenProcessor("dirincrease", ()=>{ Direction = stf.ReadIntBlock(null); }),
                     new STFReader.TokenProcessor("feature", ()=>{ Feature = stf.ReadStringBlock("None"); }),
@@ -1500,6 +1502,7 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("scalerange", ()=>{ ParseScaleRange(stf); }),
                 new STFReader.TokenProcessor("graphic", ()=>{ ParseGraphic(stf, basepath); }),
                 new STFReader.TokenProcessor("units", ()=>{ ParseUnits(stf); }),
+                new STFReader.TokenProcessor("ortsangle", ()=>{ Rotation = ParseRotation(stf); }),
                 new STFReader.TokenProcessor("disablediflowvoltagepowersupplyoff", ()=>{ ParseDisabledIfLowVoltagePowerSupplyOff(stf); }),
                 new STFReader.TokenProcessor("disabledifcabpowersupplyoff", ()=>{ ParseDisabledIfCabPowerSupplyOff(stf); }),
                 new STFReader.TokenProcessor("hideifdisabled", ()=>{ ParseHideIfDisabled(stf); }),
@@ -1568,6 +1571,7 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("scalerange", ()=>{ ParseScaleRange(stf); }),
                 new STFReader.TokenProcessor("graphic", ()=>{ ParseGraphic(stf, basepath); }),
                 new STFReader.TokenProcessor("units", ()=>{ ParseUnits(stf); }),
+                new STFReader.TokenProcessor("ortsangle", ()=>{ Rotation = ParseRotation(stf); }),
                 new STFReader.TokenProcessor("ortscycletime", ()=>{
                     CycleTimeS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); }),
                 new STFReader.TokenProcessor("ortscycledelay", ()=>{

@@ -80,7 +80,8 @@ namespace Orts.Viewer3D
         {
             if (control.ControlType.Type != CABViewControlTypes.ORTS_2DEXTERNALWIPERS
                 || control.CabViewpoint < 0 || control.CabViewpoint >= Panes[cab].Count) return null;
-            var sweep = CabWiperMask.Load(control);
+            var inverseAspect = Viewer.ComputeCabTextureInverseRatio(cab.TwoDViews[0]);
+            var sweep = CabWiperMask.Load(control, inverseAspect > 0 ? 1 / inverseAspect : 4f / 3);
             if (sweep == null) return null;
             var pane = Panes[cab][control.CabViewpoint];
             if (pane.WipeTexture == null)

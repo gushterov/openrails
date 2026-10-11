@@ -112,7 +112,7 @@ namespace Orts.Viewer3D
 
         // Loader thread only. Read the stable daytime alpha once, never read back the GPU
         // during driving. CABTextureManager supports Color and Dxt1 animation frames.
-        internal static CabWiperSweep Load(CVCAnimatedDisplay control)
+        internal static CabWiperSweep Load(CVCAnimatedDisplay control, float cabAspect)
         {
             if (control.CycleTimeS <= 0 || control.FramesCount < 2 || control.Width <= 0 || control.Height <= 0) return null;
             var masks = new List<bool[]>();
@@ -137,26 +137,43 @@ namespace Orts.Viewer3D
                 else return null;
                 // A solid rectangle is not a usable blade mask; retain simplified clearing.
                 if (alpha.All(a => a >= 32)) return null;
-                var mask = new bool[Width * Height];
-                double dx = Math.Min(control.Width, texture.Width) / texture.Width * Width / 640.0;
-                double dy = Math.Min(control.Height, texture.Height) / texture.Height * Height / 480.0;
-                double left = control.PositionX * 1.0001 * Width / 640.0;
-                double top = control.PositionY * 1.0001 * Height / 480.0;
-                for (int y = 0; y < texture.Height; y++)
-                    for (int x = 0; x < texture.Width; x++)
-                    {
-                        if (alpha[y * texture.Width + x] < 32) continue;
-                        // Conservative coverage keeps thin blades when reducing resolution.
-                        int x0 = Math.Max(0, (int)Math.Floor(left + x * dx));
-                        int x1 = Math.Min(Width, (int)Math.Ceiling(left + (x + 1) * dx));
-                        int y0 = Math.Max(0, (int)Math.Floor(top + y * dy));
-                        int y1 = Math.Min(Height, (int)Math.Ceiling(top + (y + 1) * dy));
-                        for (int py = y0; py < y1; py++)
-                            for (int px = x0; px < x1; px++) mask[py * Width + px] = hasBlade = true;
-                    }
+                var mask = CreateMask(control, alpha, texture.Width, texture.Height, cabAspect);
+                hasBlade |= mask.Any(pixel => pixel);
                 masks.Add(mask);
             }
             return hasBlade ? new CabWiperSweep(Width, Height, masks) : null;
+        }
+
+        internal static bool[] CreateMask(CVCAnimatedDisplay control, byte[] alpha, int textureWidth, int textureHeight, float cabAspect)
+        {
+            var mask = new bool[Width * Height];
+            double dx = Math.Min(control.Width, textureWidth) / textureWidth * Width / 640.0;
+            double dy = Math.Min(control.Height, textureHeight) / textureHeight * Height / 480.0;
+            double left = control.PositionX * 1.0001 * Width / 640.0;
+            double top = control.PositionY * 1.0001 * Height / 480.0;
+            // Rotation happens in screen pixels. Converting a wide cab to the 4:3
+            // rain mask requires different scale factors on the two axes.
+            double aspectScale = cabAspect * Height / Width;
+            double sin = Math.Sin(control.Rotation), cos = Math.Cos(control.Rotation);
+            double xx = dx * cos, xy = dx * aspectScale * sin;
+            double yx = -dy / aspectScale * sin, yy = dy * cos;
+            double minX = Math.Min(0, xx) + Math.Min(0, yx), maxX = Math.Max(0, xx) + Math.Max(0, yx);
+            double minY = Math.Min(0, xy) + Math.Min(0, yy), maxY = Math.Max(0, xy) + Math.Max(0, yy);
+            for (int y = 0; y < textureHeight; y++)
+                for (int x = 0; x < textureWidth; x++)
+                {
+                    if (alpha[y * textureWidth + x] < 32) continue;
+                    double px = left + x * xx + y * yx, py = top + x * xy + y * yy;
+                    // Conservative coverage keeps thin blades when reducing resolution.
+                    // Retain the original rounding exactly for unrotated cabs.
+                    int x0 = Math.Max(0, (int)Math.Floor(control.Rotation == 0 ? left + x * dx : px + minX));
+                    int x1 = Math.Min(Width, (int)Math.Ceiling(control.Rotation == 0 ? left + (x + 1) * dx : px + maxX));
+                    int y0 = Math.Max(0, (int)Math.Floor(control.Rotation == 0 ? top + y * dy : py + minY));
+                    int y1 = Math.Min(Height, (int)Math.Ceiling(control.Rotation == 0 ? top + (y + 1) * dy : py + maxY));
+                    for (int row = y0; row < y1; row++)
+                        for (int column = x0; column < x1; column++) mask[row * Width + column] = true;
+                }
+            return mask;
         }
 
         internal static byte[] DecodeDxt1Alpha(byte[] blocks, int width, int height)

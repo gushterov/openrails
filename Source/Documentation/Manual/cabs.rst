@@ -1201,8 +1201,8 @@ Note that you cannot use the MS Cabview editor on the .cvf file after having
 inserted these optional lines, because the editor will delete these added 
 lines when the file is saved.
 
-Rotation of Gauges and Digital controls
----------------------------------------
+Rotation of 2D cab controls
+--------------------------
 
 .. index::
    single: ORTSAngle
@@ -1231,6 +1231,19 @@ Here an example of a red max speed indication that has been rotated by 5 degrees
 Gauges may have Style POINTER or SOLID.
 
 Rotation may be applied, with the same syntax, also to DigitalClock cab controls.
+
+``ORTSAngle`` is also supported in ``Lever``, ``TwoState``, ``TriState``,
+``MultiState``, ``CombinedControl``, ``MultiStateDisplay`` and
+``ORTSAnimatedDisplay`` blocks. These texture-based controls rotate around the
+top-left position specified in ``Position``. All frames keep the same anchor,
+including blended animation frames. Rotation is applied after scaling to screen
+pixels, so the angle stays consistent on widescreen cabs.
+
+For interactive controls, the clickable area rotates with the texture. Mouse
+dragging follows the rotated local axis selected by ``Orientation``;
+``DirIncrease`` and mouse wheel direction retain their existing meaning.
+Omitting ``ORTSAngle`` leaves controls unrotated. This option affects 2D cabs;
+3D cab mouse movement retains its existing behavior.
 
 Display and animation of cabview controls in side views of 2D cabs
 ------------------------------------------------------------------
