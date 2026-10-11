@@ -1,4 +1,4 @@
-﻿// COPYRIGHT 2010, 2011, 2012, 2013 by the Open Rails project.
+// COPYRIGHT 2010, 2011, 2012, 2013 by the Open Rails project.
 // 
 // This file is part of Open Rails.
 // 
@@ -139,7 +139,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         {
             if (!Locomotive.IsPlayerTrain) return;
 
-            if (haveCruiseControl && Locomotive.CruiseControl.DynamicBrakePriority && controllerBinding != ControllerBinding.SelectedSpeed) return;
+            bool forceSelectingMPC = haveCruiseControl && controllerBinding == ControllerBinding.Throttle && Locomotive.CruiseControl.UseThrottleAsForceSelector;
+            if (haveCruiseControl && Locomotive.CruiseControl.DynamicBrakePriority && controllerBinding != ControllerBinding.SelectedSpeed && !forceSelectingMPC) return;
 
             ReloadPositions();
             if (Locomotive.AbsSpeedMpS > 0)
@@ -230,18 +231,13 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                             Locomotive.StopTrainBrakeDecrease();
                         }
                     }
-                    if (Locomotive.ThrottlePercent < 2 && controllerBinding == ControllerBinding.Throttle)
+                    if (Locomotive.ThrottlePercent > 0 && controllerBinding == ControllerBinding.Throttle)
                     {
-                        if (Locomotive.ThrottlePercent != 0)
-                            Locomotive.SetThrottlePercent(0);
-                    }
-                    if (Locomotive.ThrottlePercent > 1 && controllerBinding == ControllerBinding.Throttle)
-                    {
-                        Locomotive.SetThrottlePercent(Locomotive.ThrottlePercent - 1f);
-                    }
-                    if (Locomotive.ThrottlePercent > 100 && controllerBinding == ControllerBinding.Throttle)
-                    {
-                        Locomotive.ThrottlePercent = 100;
+                        // Reduce demand over time rather than by one percent per simulation update.
+                        float decreaseTimeSeconds = haveCruiseControl && Locomotive.CruiseControl.ThrottleFullRangeDecreaseTimeSeconds > 0
+                            ? Locomotive.CruiseControl.ThrottleFullRangeDecreaseTimeSeconds : MPCFullRangeIncreaseTimeS;
+                        float step = 100f / decreaseTimeSeconds * elapsedClockSeconds;
+                        Locomotive.SetThrottlePercent(Math.Max(0f, Math.Min(100f, Locomotive.ThrottlePercent) - step));
                     }
 
                 }
@@ -258,10 +254,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                             Locomotive.StopTrainBrakeDecrease();
                         }
                     }
-                    if (Locomotive.DynamicBrakePercent == -1) Locomotive.SetDynamicBrakePercent(0);
                     if (Locomotive.ThrottlePercent < 1 && Locomotive.DynamicBrakePercent < 100)
                     {
-                        Locomotive.SetDynamicBrakePercent(Locomotive.DynamicBrakePercent + DynamicBrakeIncreaseStepPerSecond * elapsedClockSeconds);
+                        // The off state (-1%) must not subtract from the first braking increment.
+                        Locomotive.SetDynamicBrakePercent(Math.Min(100f, Math.Max(0f, Locomotive.DynamicBrakePercent) + DynamicBrakeIncreaseStepPerSecond * elapsedClockSeconds));
                     }
                 }
                 if (controllerPosition == ControllerPosition.DynamicBrakeIncreaseFast)
@@ -277,10 +273,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                             Locomotive.StopTrainBrakeDecrease();
                         }
                     }
-                    if (Locomotive.DynamicBrakePercent == -1) Locomotive.SetDynamicBrakePercent(0);
                     if (Locomotive.ThrottlePercent < 1 && Locomotive.DynamicBrakePercent < 100)
                     {
-                        Locomotive.SetDynamicBrakePercent(Locomotive.DynamicBrakePercent + DynamicBrakeIncreaseStepPerSecond * elapsedClockSeconds);
+                        Locomotive.SetDynamicBrakePercent(Math.Min(100f, Math.Max(0f, Locomotive.DynamicBrakePercent) + DynamicBrakeIncreaseStepPerSecond * elapsedClockSeconds));
                     }
                 }
                 if (controllerPosition == ControllerPosition.DynamicBrakeDecrease)
@@ -389,7 +384,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     {
                         if (Locomotive.DynamicBrakePercent < 100)
                         {
-                            Locomotive.SetDynamicBrakePercent(Locomotive.DynamicBrakePercent + DynamicBrakeIncreaseStepPerSecond * elapsedClockSeconds);
+                            Locomotive.SetDynamicBrakePercent(Math.Min(100f, Math.Max(0f, Locomotive.DynamicBrakePercent) + DynamicBrakeIncreaseStepPerSecond * elapsedClockSeconds));
                         }
                         if (Locomotive.DynamicBrakePercent > 100)
                             Locomotive.SetDynamicBrakePercent(100);
@@ -407,7 +402,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     {
                         if (Locomotive.DynamicBrakePercent < 100)
                         {
-                            Locomotive.SetDynamicBrakePercent(Locomotive.DynamicBrakePercent + DynamicBrakeIncreaseStepPerSecond * 2 * elapsedClockSeconds);
+                            Locomotive.SetDynamicBrakePercent(Math.Min(100f, Math.Max(0f, Locomotive.DynamicBrakePercent) + DynamicBrakeIncreaseStepPerSecond * 2 * elapsedClockSeconds));
                         }
                         if (Locomotive.DynamicBrakePercent > 100)
                             Locomotive.SetDynamicBrakePercent(100);
@@ -426,6 +421,18 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             }
             else if (haveCruiseControl && ccAutoMode)
             {
+                // A separate speed selector must not change the traction selector mode.
+                // Its neutral position only stops changing the selected speed.
+                if (controllerBinding == ControllerBinding.SelectedSpeed)
+                {
+                    if (controllerPosition == ControllerPosition.SelectedSpeedIncrease)
+                        Locomotive.CruiseControl.SpeedRegulatorSelectedSpeedIncrease();
+                    else if (controllerPosition == ControllerPosition.SelectedSpeedDecrease)
+                        Locomotive.CruiseControl.SpeedRegulatorSelectedSpeedDecrease();
+                    else if (controllerPosition == ControllerPosition.SelectSpeedZero)
+                        Locomotive.CruiseControl.SetSpeed(0);
+                    return;
+                }
                 if (Locomotive.CruiseControl.CruiseControlLogic == CruiseControl.ControllerCruiseControlLogic.SpeedOnly)
                 {
                     if (controllerPosition == ControllerPosition.ThrottleIncrease)
@@ -468,15 +475,44 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 {
                     isBraking = false;
                     Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Start;
+                    if (forceSelectingMPC)
+                    {
+                        bool brakeReleased = ReleaseDynamicBrake(elapsedClockSeconds);
+                        Locomotive.CruiseControl.DynamicBrakePriority = !brakeReleased;
+                        Locomotive.CruiseControl.SpeedSelMode = brakeReleased ? CruiseControl.SpeedSelectorMode.Start : CruiseControl.SpeedSelectorMode.Neutral;
+                        if (brakeReleased)
+                            Locomotive.CruiseControl.SelectedMaxAccelerationPercent = Math.Min(100f,
+                                Locomotive.CruiseControl.SelectedMaxAccelerationPercent + ThrottleIncreaseStepPerSecond * elapsedClockSeconds);
+                    }
                     previousDriveModeWasAddPower = true;
                 }
                 if (controllerPosition == ControllerPosition.Neutral)
                 {
                     Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Neutral;
+                    if (forceSelectingMPC)
+                    {
+                        float decreaseTimeSeconds = Locomotive.CruiseControl.ThrottleFullRangeDecreaseTimeSeconds > 0
+                            ? Locomotive.CruiseControl.ThrottleFullRangeDecreaseTimeSeconds : MPCFullRangeIncreaseTimeS;
+                        Locomotive.CruiseControl.SelectedMaxAccelerationPercent = Math.Max(0f,
+                            Locomotive.CruiseControl.SelectedMaxAccelerationPercent - 100f / decreaseTimeSeconds * elapsedClockSeconds);
+                    }
                 }
                 if (controllerPosition == ControllerPosition.Drive)
                 {
                     bool applyPower = true;
+                    if (forceSelectingMPC)
+                    {
+                        applyPower = ReleaseDynamicBrake(elapsedClockSeconds);
+                        Locomotive.CruiseControl.DynamicBrakePriority = !applyPower;
+                        Locomotive.CruiseControl.SpeedSelMode = applyPower ? CruiseControl.SpeedSelectorMode.On : CruiseControl.SpeedSelectorMode.Neutral;
+                        if (CanControlTrainBrake)
+                        {
+                            if (Locomotive.TrainBrakeController.TrainBrakeControllerState != ORTS.Scripting.Api.ControllerState.Release)
+                                Locomotive.StartTrainBrakeDecrease(null);
+                            else
+                                Locomotive.StopTrainBrakeDecrease();
+                        }
+                    }
                     if (isBraking && needPowerUpAfterBrake)
                     {
                         if (Locomotive.DynamicBrakePercent < 2)
@@ -505,6 +541,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     isBraking = true;
                     previousDriveModeWasAddPower = false;
                     Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Neutral;
+                    if (forceSelectingMPC)
+                    {
+                        Locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;
+                        Locomotive.CruiseControl.DynamicBrakePriority = true;
+                        Locomotive.ThrottleController.SetPercent(0);
+                    }
                     if (CanControlTrainBrake)
                     {
                         if (Locomotive.TrainBrakeController.TrainBrakeControllerState == ORTS.Scripting.Api.ControllerState.Apply)
@@ -518,7 +560,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     }
                     if (Locomotive.ThrottlePercent < 1 && Locomotive.DynamicBrakePercent < 100)
                     {
-                        Locomotive.SetDynamicBrakePercent(Locomotive.DynamicBrakePercent + 1f);
+                        Locomotive.SetDynamicBrakePercent(Math.Min(100f, Math.Max(0f, Locomotive.DynamicBrakePercent) + DynamicBrakeIncreaseStepPerSecond * elapsedClockSeconds));
                     }
                 }
                 if (controllerPosition == ControllerPosition.DynamicBrakeIncreaseFast)
@@ -526,6 +568,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     isBraking = true;
                     previousDriveModeWasAddPower = false;
                     Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Neutral;
+                    if (forceSelectingMPC)
+                    {
+                        Locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;
+                        Locomotive.CruiseControl.DynamicBrakePriority = true;
+                        Locomotive.ThrottleController.SetPercent(0);
+                    }
                     if (CanControlTrainBrake)
                     {
                         if (Locomotive.TrainBrakeController.TrainBrakeControllerState == ORTS.Scripting.Api.ControllerState.Apply)
@@ -539,7 +587,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     }
                     if (Locomotive.ThrottlePercent < 1 && Locomotive.DynamicBrakePercent < 100)
                     {
-                        Locomotive.SetDynamicBrakePercent(Locomotive.DynamicBrakePercent + 2f);
+                        Locomotive.SetDynamicBrakePercent(Math.Min(100f, Math.Max(0f, Locomotive.DynamicBrakePercent) + 2f * DynamicBrakeIncreaseStepPerSecond * elapsedClockSeconds));
                     }
                 }
                 if (controllerPosition == ControllerPosition.TrainBrakeIncrease)
@@ -547,6 +595,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     isBraking = true;
                     previousDriveModeWasAddPower = false;
                     Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Neutral;
+                    if (forceSelectingMPC)
+                        Locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;
                     if (CanControlTrainBrake)
                     {
                         if (Locomotive.TrainBrakeController.TrainBrakeControllerState != ORTS.Scripting.Api.ControllerState.Apply)
@@ -581,6 +631,14 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     Locomotive.CruiseControl.SetSpeed(0);
                 }
             }
+        }
+
+        bool ReleaseDynamicBrake(float elapsedClockSeconds)
+        {
+            float brakePercent = Locomotive.DynamicBrakeController.CurrentValue * 100;
+            if (brakePercent > 0)
+                Locomotive.DynamicBrakeController.SetPercent(Math.Max(0f, brakePercent - DynamicBrakeDecreaseStepPerSecond * elapsedClockSeconds));
+            return Locomotive.DynamicBrakeController.CurrentValue <= 0;
         }
 
         private bool messageDisplayed = false;

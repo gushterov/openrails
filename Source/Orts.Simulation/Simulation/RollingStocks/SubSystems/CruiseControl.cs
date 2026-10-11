@@ -167,7 +167,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         protected float SpeedDeltaToEnableFullTrainBrake = 10;
         public float MinimumSpeedForCCEffectMpS = 0;
         protected float speedRegulatorIntermediateValue = 0;
-        protected float StepSize = 40;
+        protected float StepSize = 20;
         protected float RelativeAccelerationMpSS => Locomotive.Direction == Direction.Reverse ? -Locomotive.AccelerationMpSS : Locomotive.AccelerationMpSS; // Acceleration relative to state of reverser
         public bool CCIsUsingTrainBrake = false; // Cruise control is using (also) train brake to brake
         protected float TrainBrakeMinPercentValue = 30f; // Minimum train brake settable percent Value
