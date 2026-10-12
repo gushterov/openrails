@@ -592,7 +592,7 @@ namespace Orts.Viewer3D
 
             // Sky dome
             graphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
-            Matrix viewXNASkyProj = XNAViewMatrix * Camera.XNASkyProjection;
+            Matrix viewXNASkyProj = XNAViewMatrix * XNAProjectionMatrix;
 
             MSTSSkyShader.CurrentTechnique = MSTSSkyShader.Techniques["Sky"];
             Viewer.World.MSTSSky.MSTSSkyMesh.drawIndex = 1;
@@ -625,7 +625,7 @@ namespace Orts.Viewer3D
             {
                 foreach (var item in renderItems)
                 {
-                    Matrix wvp = item.XNAMatrix * XNAMoonMatrixView * Camera.XNASkyProjection;
+                    Matrix wvp = item.XNAMatrix * XNAMoonMatrixView * XNAProjectionMatrix;
                     MSTSSkyShader.SetMatrix(ref wvp);
                     ShaderPassesMoon.Current.Apply();
                     item.RenderPrimitive.Draw(graphicsDevice);

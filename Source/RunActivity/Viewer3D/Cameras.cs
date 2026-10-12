@@ -58,15 +58,15 @@ namespace Orts.Viewer3D
         protected Matrix xnaView;
         public Matrix XnaView { get { return xnaView; } }
 
-        Matrix xnaProjection;
+        protected Matrix xnaProjection;
         public Matrix XnaProjection { get { return xnaProjection; } }
-        public static Matrix XnaDistantMountainProjection;
-        Vector3 frustumRightProjected;
+        public Matrix XnaDistantMountainProjection { get; private set; }
+        protected Vector3 frustumRightProjected;
         Vector3 frustumLeft;
         Vector3 frustumRight;
 
-        // This sucks. It's really not camera-related at all.
-        public static Matrix XNASkyProjection;
+        protected Matrix xnaSkyProjection;
+        public virtual Matrix SkyProjection => xnaSkyProjection;
 
         // The following group of properties are used by other code to vary
         // behavior by camera; e.g. Style is used for activating sounds,
@@ -181,7 +181,7 @@ namespace Orts.Viewer3D
             if (Viewer.Settings.DistantMountains)
                 XnaDistantMountainProjection = Matrix.CreatePerspectiveFieldOfView(fovWidthRadians, aspectRatio, MathHelper.Clamp(Viewer.Settings.ViewingDistance - 500, 500, 1500), Viewer.Settings.DistantMountainsViewingDistance);
             xnaProjection = Matrix.CreatePerspectiveFieldOfView(fovWidthRadians, aspectRatio, NearPlane, Viewer.Settings.ViewingDistance);
-            XNASkyProjection = Matrix.CreatePerspectiveFieldOfView(fovWidthRadians, aspectRatio, NearPlane, farPlaneDistance);    // TODO remove? 
+            xnaSkyProjection = Matrix.CreatePerspectiveFieldOfView(fovWidthRadians, aspectRatio, NearPlane, farPlaneDistance);
             frustumRightProjected.X = (float)Math.Cos(fovWidthRadians / 2 * aspectRatio);  // Precompute the right edge of the view frustrum.
             frustumRightProjected.Z = (float)Math.Sin(fovWidthRadians / 2 * aspectRatio);
         }

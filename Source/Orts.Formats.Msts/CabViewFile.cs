@@ -239,6 +239,7 @@ namespace Orts.Formats.Msts
         ORTS_GENERIC_ITEM1,
         ORTS_GENERIC_ITEM2,
         ORTS_SCREEN_SELECT,
+        ORTS_CAMERA,
         ORTS_STATIC_DISPLAY,
         ORTS_EOT_BRAKE_PIPE,
         ORTS_EOT_STATE_DISPLAY,
@@ -427,6 +428,7 @@ namespace Orts.Formats.Msts
 
     public class CabViewControls : List<CabViewControl>
     {
+        public readonly List<CameraDisplayConfiguration> CameraDisplays = new List<CameraDisplayConfiguration>();
         public CabViewControls(STFReader stf, string basepath)
         {
             AddCabviewControls(stf, basepath);
@@ -438,6 +440,9 @@ namespace Orts.Formats.Msts
             int count = stf.ReadInt(null);
 
             stf.ParseBlock(new STFReader.TokenProcessor[] {
+                new STFReader.TokenProcessor("ortscamera", ()=>{ Add(new CVCCamera(stf, basepath)); }),
+                new STFReader.TokenProcessor("ortscameraselect", ()=>{ Add(new CVCCameraSelect(stf)); }),
+                new STFReader.TokenProcessor("ortscameradisplay", ()=>{ CameraDisplays.Add(new CameraDisplayConfiguration(stf)); }),
                 new STFReader.TokenProcessor("ortsanimateddisplay", ()=>{ Add(new CVCAnimatedDisplay(stf, basepath)); }),
                 new STFReader.TokenProcessor("dial", ()=>{ Add(new CVCDial(stf, basepath)); }),
                 new STFReader.TokenProcessor("gauge", ()=>{ Add(new CVCGauge(stf, basepath)); }),

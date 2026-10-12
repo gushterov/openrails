@@ -373,6 +373,14 @@ namespace Orts.Viewer3D
     public class RenderFrame
     {
         readonly Game Game;
+        internal readonly bool IsCameraFeed;
+        readonly List<CabCameraFeed> CameraFeedRequests = new List<CabCameraFeed>();
+        readonly Dictionary<CabCameraFeed, RenderFrame> CameraFeedFrames = new Dictionary<CabCameraFeed, RenderFrame>();
+        Matrix SkyProjection;
+        Matrix DistantMountainProjection;
+        Viewer FrameViewer;
+        int CameraTileX;
+        int CameraTileZ;
 
         // Shared shadow map data.
         static RenderTarget2D[] ShadowMap;
@@ -407,15 +415,18 @@ namespace Orts.Viewer3D
         Matrix XNACameraView;
         Matrix XNACameraProjection;
 
-        public RenderFrame(Game game)
+        public RenderFrame(Game game) : this(game, false) { }
+
+        internal RenderFrame(Game game, bool isCameraFeed)
         {
             Game = game;
+            IsCameraFeed = isCameraFeed;
             DummyBlendedMaterial = new EmptyMaterial(null);
 
             for (int i = 0; i < RenderItems.Length; i++)
 				RenderItems[i] = new Dictionary<Material, RenderItemCollection>();
 
-            if (Game.Settings.DynamicShadows)
+            if (!IsCameraFeed && Game.Settings.DynamicShadows)
             {
                 if (ShadowMap == null)
                 {
@@ -448,7 +459,7 @@ namespace Orts.Viewer3D
             XNACameraView = Matrix.Identity;
             XNACameraProjection = Matrix.CreateOrthographic(game.RenderProcess.DisplaySize.X, game.RenderProcess.DisplaySize.Y, 1, 100);
 
-            ScreenChanged();
+            if (!IsCameraFeed) ScreenChanged();
         }
 
         void ScreenChanged()
@@ -467,6 +478,10 @@ namespace Orts.Viewer3D
 
         public void Clear()
         {
+            // These child frames belong to this buffer, never to the concurrently drawn buffer.
+            foreach (var feed in CameraFeedFrames.Keys.Where(feed => FrameViewer != null && feed.Owner != FrameViewer.PlayerLocomotive).ToArray())
+                CameraFeedFrames.Remove(feed);
+            CameraFeedRequests.Clear();
             // Attempt to clean up unused materials over time (max 1 per RenderPrimitiveSequence).
             for (var i = 0; i < RenderItems.Length; i++)
             {
@@ -486,7 +501,7 @@ namespace Orts.Viewer3D
                     RenderItems[i][mat].Clear();
 
             // Clear out (reset) all of the shadow mapping RenderItem lists.
-            if (Game.Settings.DynamicShadows)
+            if (!IsCameraFeed && Game.Settings.DynamicShadows)
             {
                 for (var shadowMapIndex = 0; shadowMapIndex < RenderProcess.ShadowMapCount; shadowMapIndex++)
                 {
@@ -499,7 +514,8 @@ namespace Orts.Viewer3D
 
         public void PrepareFrame(Viewer viewer)
         {
-            if (RenderSurfaceMaterial == null)
+            FrameViewer = viewer;
+            if (!IsCameraFeed && RenderSurfaceMaterial == null)
                 RenderSurfaceMaterial = new SpriteBatchMaterial(viewer, BlendState.Opaque);
 
             if (viewer.Settings.UseMSTSEnv == false)
@@ -516,10 +532,64 @@ namespace Orts.Viewer3D
         public void SetCamera(Camera camera)
         {
             Camera = camera;
+            CameraTileX = camera.TileX;
+            CameraTileZ = camera.TileZ;
             XNACameraLocation = CameraLocation = Camera.Location;
             XNACameraLocation.Z *= -1;
             XNACameraView = Camera.XnaView;
             XNACameraProjection = Camera.XnaProjection;
+            SkyProjection = Camera.SkyProjection;
+            DistantMountainProjection = Camera.XnaDistantMountainProjection;
+        }
+
+        internal void RequestCameraFeed(CabCameraFeed feed)
+        {
+            if (!IsCameraFeed && !CameraFeedRequests.Contains(feed)) CameraFeedRequests.Add(feed);
+        }
+
+        internal void PrepareCameraFeeds(Viewer viewer)
+        {
+            foreach (var feed in CameraFeedRequests)
+            {
+                if (!CameraFeedFrames.TryGetValue(feed, out var frame))
+                    CameraFeedFrames.Add(feed, frame = new RenderFrame(Game, true));
+                frame.Clear();
+                using (viewer.UseCameraForFrame(feed.Camera))
+                {
+                    frame.PrepareFrame(viewer);
+                    feed.Camera.PrepareFrame(frame, ElapsedTime.Zero);
+                    // Simulation and animations already advanced in the driver's world pass.
+                    viewer.World.PrepareCameraFrame(frame);
+                    frame.Sort();
+                }
+            }
+        }
+
+        void DrawCameraFeeds(GraphicsDevice device)
+        {
+            if (CameraFeedRequests.Count == 0) return;
+            var targets = device.GetRenderTargets();
+            var viewport = device.Viewport;
+            var headlight = SceneryShader?.Parameters["HeadlightPosition"].GetValueVector4() ?? Vector4.Zero;
+            try
+            {
+                foreach (var feed in CameraFeedRequests)
+                {
+                    var frame = CameraFeedFrames[feed];
+                    device.SetRenderTarget(feed.GetRenderTarget(device));
+                    device.Clear(Color.Black);
+                    if (SceneryShader != null)
+                        SceneryShader.Parameters["HeadlightPosition"].SetValue(headlight + new Vector4(
+                            (CameraTileX - frame.CameraTileX) * 2048, 0, (frame.CameraTileZ - CameraTileZ) * 2048, 0));
+                    using (FrameViewer.UseCameraForFrame(frame.Camera)) frame.DrawSequences(device, false);
+                }
+            }
+            finally
+            {
+                device.SetRenderTargets(targets);
+                device.Viewport = viewport;
+                if (SceneryShader != null) SceneryShader.Parameters["HeadlightPosition"].SetValue(headlight);
+            }
         }
 
         static bool LockShadows;
@@ -594,7 +664,7 @@ namespace Orts.Viewer3D
                     AddPrimitive(material, primitive, group, ref xnaMatrix, flags);
             }
 
-            if (Game.Settings.DynamicShadows && (RenderProcess.ShadowMapCount > 0) && ((flags & ShapeFlags.ShadowCaster) != 0))
+            if (!IsCameraFeed && Game.Settings.DynamicShadows && (RenderProcess.ShadowMapCount > 0) && ((flags & ShapeFlags.ShadowCaster) != 0))
                 for (var shadowMapIndex = 0; shadowMapIndex < RenderProcess.ShadowMapCount; shadowMapIndex++)
                     if (IsInShadowMap(shadowMapIndex, mstsLocation, objectRadius, objectViewingDistance))
                         AddShadowPrimitive(shadowMapIndex, material, primitive, ref xnaMatrix, flags);
@@ -619,6 +689,9 @@ namespace Orts.Viewer3D
         [CallOnThread("Updater")]
         public void AddPrimitive(Material material, RenderPrimitive primitive, RenderPrimitiveGroup group, ref Matrix xnaMatrix, ShapeFlags flags, object itemData)
         {
+            if (IsCameraFeed && (group != RenderPrimitiveGroup.World && group != RenderPrimitiveGroup.Sky && group != RenderPrimitiveGroup.Lights)) return;
+            // Distant mountains use a separate projection/pass in the driver's view.
+            if (IsCameraFeed && material is TerrainSharedDistantMountain) return;
             var getBlending = material.GetBlending();
             var blending = getBlending && material is SceneryMaterial ? PrimitiveBlendedScenery : getBlending ? PrimitiveBlended : PrimitiveNotBlended;
 
@@ -729,6 +802,7 @@ namespace Orts.Viewer3D
             if (Game.Settings.DynamicShadows && (RenderProcess.ShadowMapCount > 0) && ShadowMapMaterial != null)
                 DrawShadows(graphicsDevice, logging);
 
+            DrawCameraFeeds(graphicsDevice);
             DrawSimple(graphicsDevice, logging);
 
             for (var i = 0; i < (int)RenderPrimitiveSequence.Sentinel; i++)
@@ -852,7 +926,9 @@ namespace Orts.Viewer3D
 
         void DrawSequences(GraphicsDevice graphicsDevice, bool logging)
         {
-            if (Game.Settings.DynamicShadows && (RenderProcess.ShadowMapCount > 0) && SceneryShader != null)
+            if (SceneryShader != null) SceneryShader.ViewerPos = XNACameraLocation;
+            if (IsCameraFeed && SceneryShader != null) SceneryShader.ClearShadowMap();
+            if (!IsCameraFeed && Game.Settings.DynamicShadows && (RenderProcess.ShadowMapCount > 0) && SceneryShader != null)
                 SceneryShader.SetShadowMap(ShadowMapLightViewProjShadowProj, ShadowMap, RenderProcess.ShadowMapLimit);
 
             var renderItems = RenderItemsSequence;
@@ -860,6 +936,7 @@ namespace Orts.Viewer3D
             for (var i = 0; i < (int)RenderPrimitiveSequence.Sentinel; i++)
             {
                 if (logging) Console.WriteLine("    {0} {{", (RenderPrimitiveSequence)i);
+                var projection = i == (int)RenderPrimitiveSequence.Sky ? SkyProjection : XNACameraProjection;
                 var sequence = RenderItems[i];
                 foreach (var sequenceMaterial in sequence)
                 {
@@ -876,7 +953,7 @@ namespace Orts.Viewer3D
                                 if (renderItems.Count > 0)
                                 {
                                     if (logging) Console.WriteLine("      {0,-5} * {1}", renderItems.Count, lastMaterial);
-                                    lastMaterial.Render(graphicsDevice, renderItems, ref XNACameraView, ref XNACameraProjection);
+                                    lastMaterial.Render(graphicsDevice, renderItems, ref XNACameraView, ref projection);
                                     renderItems.Clear();
                                 }
                                 if (lastMaterial != null)
@@ -893,7 +970,7 @@ namespace Orts.Viewer3D
                         if (renderItems.Count > 0)
                         {
                             if (logging) Console.WriteLine("      {0,-5} * {1}", renderItems.Count, lastMaterial);
-                            lastMaterial.Render(graphicsDevice, renderItems, ref XNACameraView, ref XNACameraProjection);
+                            lastMaterial.Render(graphicsDevice, renderItems, ref XNACameraView, ref projection);
                             renderItems.Clear();
                         }
                         if (lastMaterial != null)
@@ -905,13 +982,13 @@ namespace Orts.Viewer3D
                     }
                     else
                     {
-                        if (Game.Settings.DistantMountains && (sequenceMaterial.Key is TerrainSharedDistantMountain || sequenceMaterial.Key is SkyMaterial
+                        if (!IsCameraFeed && Game.Settings.DistantMountains && (sequenceMaterial.Key is TerrainSharedDistantMountain || sequenceMaterial.Key is SkyMaterial
                             || sequenceMaterial.Key is MSTSSkyMaterial))
                             continue;
                         // Opaque: single material, render in one go.
                         sequenceMaterial.Key.SetState(graphicsDevice, null);
                         if (logging) Console.WriteLine("      {0,-5} * {1}", sequenceMaterial.Value.Count, sequenceMaterial.Key);
-                        sequenceMaterial.Key.Render(graphicsDevice, sequenceMaterial.Value, ref XNACameraView, ref XNACameraProjection);
+                        sequenceMaterial.Key.Render(graphicsDevice, sequenceMaterial.Value, ref XNACameraView, ref projection);
                         sequenceMaterial.Key.ResetState(graphicsDevice);
 #if DEBUG_RENDER_STATE
                         DebugRenderState(graphicsDevice, sequenceMaterial.Key.ToString());
@@ -940,7 +1017,8 @@ namespace Orts.Viewer3D
                         // Opaque: single material, render in one go.
                         sequenceMaterial.Key.SetState(graphicsDevice, null);
                         if (logging) Console.WriteLine("      {0,-5} * {1}", sequenceMaterial.Value.Count, sequenceMaterial.Key);
-                        sequenceMaterial.Key.Render(graphicsDevice, sequenceMaterial.Value, ref XNACameraView, ref Camera.XnaDistantMountainProjection);
+                        var projection = sequenceMaterial.Key is TerrainSharedDistantMountain ? DistantMountainProjection : SkyProjection;
+                        sequenceMaterial.Key.Render(graphicsDevice, sequenceMaterial.Value, ref XNACameraView, ref projection);
                         sequenceMaterial.Key.ResetState(graphicsDevice);
 #if DEBUG_RENDER_STATE
                         DebugRenderState(graphicsDevice, sequenceMaterial.Key.ToString());

@@ -270,6 +270,8 @@ namespace Orts.Viewer3D
 #endif
 
             // Set the active light cone info for the material code.
+            // Auxiliary views collect their own glow geometry without replacing the driver's headlight coordinates.
+            if (frame.IsCameraFeed) return;
             if (HasLightCone && ActiveLightCone != null)
             {
                 int coneIndex = ActiveLightCone.Light.ShapeIndex;

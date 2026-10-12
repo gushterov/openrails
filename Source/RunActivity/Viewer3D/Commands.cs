@@ -108,7 +108,7 @@ namespace Orts.Viewer3D
                 var finalReceiver = Receiver.Camera  is ThreeDimCabCamera ?
                     (Receiver.PlayerLocomotiveViewer as MSTSLocomotiveViewer).ThreeDimentionCabRenderer :
                     (Receiver.PlayerLocomotiveViewer as MSTSLocomotiveViewer)._CabRenderer;
-                finalReceiver.ActiveScreen[display] = screen;
+                finalReceiver.SelectScreen(screen, display);
             }
         }
 

@@ -218,5 +218,16 @@ namespace Orts.Viewer3D
             Containers.PrepareFrame(frame, elapsedTime);
             RoadCars.PrepareFrame(frame, elapsedTime);
         }
+
+        internal void PrepareCameraFrame(RenderFrame frame)
+        {
+            if (Viewer.Settings.UseMSTSEnv) MSTSSky.PrepareFrame(frame, ElapsedTime.Zero);
+            else Sky.PrepareFrame(frame, ElapsedTime.Zero);
+            Terrain.PrepareFrame(frame, ElapsedTime.Zero);
+            Scenery.PrepareFrame(frame, ElapsedTime.Zero);
+            Trains.PrepareFrame(frame, ElapsedTime.Zero);
+            Containers.PrepareFrame(frame, ElapsedTime.Zero);
+            RoadCars.PrepareFrame(frame, ElapsedTime.Zero);
+        }
     }
 }

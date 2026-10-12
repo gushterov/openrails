@@ -389,7 +389,7 @@ namespace Orts.Viewer3D
                 graphicsDevice.SamplerStates[i] = SamplerState.LinearWrap;
             }
 
-            var xnaSkyView = XNAViewMatrix * Camera.XNASkyProjection;
+            var xnaSkyView = XNAViewMatrix * XNAProjectionMatrix;
             var xnaMoonMatrix = Matrix.CreateTranslation(Viewer.World.Sky.LunarDirection * SkyPrimitive.RadiusM);
             var xnaMoonView = xnaMoonMatrix * xnaSkyView;
             SkyShader.SetViewMatrix(ref XNAViewMatrix);

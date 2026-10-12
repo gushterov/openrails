@@ -125,7 +125,31 @@ namespace Orts.Viewer3D
         public SpeedpostDatFile SpeedpostDatFile;
         public bool MilepostUnitsMetric { get; private set; }
         // Cameras
-        public Camera Camera { get; set; } // Current camera
+        Camera DriverCamera;
+        [ThreadStatic] static Viewer FrameCameraViewer;
+        [ThreadStatic] static Camera FrameCamera;
+        // A scene pass can use its own camera without changing sound, loading, or player state on other threads.
+        public Camera Camera { get => FrameCameraViewer == this ? FrameCamera : DriverCamera; set => DriverCamera = value; }
+
+        internal IDisposable UseCameraForFrame(Camera camera) => new FrameCameraScope(this, camera);
+
+        sealed class FrameCameraScope : IDisposable
+        {
+            readonly Viewer PreviousViewer;
+            readonly Camera PreviousCamera;
+            public FrameCameraScope(Viewer viewer, Camera camera)
+            {
+                PreviousViewer = FrameCameraViewer;
+                PreviousCamera = FrameCamera;
+                FrameCameraViewer = viewer;
+                FrameCamera = camera;
+            }
+            public void Dispose()
+            {
+                FrameCameraViewer = PreviousViewer;
+                FrameCamera = PreviousCamera;
+            }
+        }
         public Camera AbovegroundCamera { get; private set; } // Previous camera for when automatically switching to cab.
         /// <summary>
         /// Camera #1, 2D cab. Swaps with <see cref="ThreeDimCabCamera"/> with Alt+1.
@@ -920,6 +944,7 @@ namespace Orts.Viewer3D
             Camera.PrepareFrame(frame, elapsedTime);
             frame.PrepareFrame(elapsedTime);
             World.PrepareFrame(frame, elapsedTime);
+            frame.PrepareCameraFeeds(this);
             InfoDisplay.PrepareFrame(frame, elapsedTime);
             // TODO: This is not correct. The ActivityWindow's PrepareFrame is already called by the WindowManager!
             if (Simulator.ActivityRun != null) ActivityWindow.PrepareFrame(elapsedTime, true);

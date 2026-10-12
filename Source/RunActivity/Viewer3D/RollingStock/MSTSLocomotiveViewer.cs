@@ -358,6 +358,11 @@ namespace Orts.Viewer3D.RollingStock
         /// </summary>
         public override void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
         {
+            if (!frame.IsCameraFeed)
+            {
+                _CabRenderer?.UpdateCameraDisplays();
+                if (ThreeDimentionCabRenderer != _CabRenderer) ThreeDimentionCabRenderer?.UpdateCameraDisplays();
+            }
             if (Viewer.Camera.AttachedCar == this.MSTSWagon && Viewer.Camera.Style == Camera.Styles.ThreeDimCab)
             {
                 if (ThreeDimentionCabViewer != null)
@@ -1196,6 +1201,7 @@ namespace Orts.Viewer3D.RollingStock
         private bool HasCabLightDirectory = false;
         public Dictionary<(CabViewControlType, int), CabViewControlRenderer> ControlMap;
         public string[] ActiveScreen = { "default", "default", "default", "default", "default", "default", "default", "default" };
+        readonly Dictionary<int, List<CabCameraDisplayState>> CameraDisplayStates = new Dictionary<int, List<CabCameraDisplayState>>();
 
         [CallOnThread("Loader")]
         public CabRenderer(Viewer viewer, MSTSLocomotive car)
@@ -1246,6 +1252,8 @@ namespace Orts.Viewer3D.RollingStock
                     if (cabView.CVFFile.CabViewControls == null)
                         continue;
 
+                    ConfigureCameraDisplays(i, cabView.CVFFile);
+
                     var controlSortIndex = 1;  // Controls are drawn atop the cabview and in order they appear in the CVF file.
                                                // This allows the segments of moving-scale meters to be hidden by covers (e.g. TGV-A)
                     CabViewControlRenderersList.Add(new List<CabViewControlRenderer>());
@@ -1254,6 +1262,22 @@ namespace Orts.Viewer3D.RollingStock
                         controlSortIndex++;
                         if (!count.ContainsKey(cvc.ControlType)) count[cvc.ControlType] = 0;
                         var key = (cvc.ControlType, count[cvc.ControlType]);
+                        if (cvc is CVCCameraSelect cameraSelect)
+                        {
+                            var renderer = new CabCameraSelectRenderer(viewer, car, cameraSelect) { SortIndex = controlSortIndex };
+                            CabViewControlRenderersList[i].Add(renderer);
+                            if (!ControlMap.ContainsKey(key)) ControlMap.Add(key, renderer);
+                            count[cvc.ControlType]++;
+                            continue;
+                        }
+                        if (cvc is CVCCamera camera)
+                        {
+                            var renderer = new CabCameraRenderer(viewer, car, camera, this, i) { SortIndex = controlSortIndex };
+                            CabViewControlRenderersList[i].Add(renderer);
+                            if (!ControlMap.ContainsKey(key)) ControlMap.Add(key, renderer);
+                            count[cvc.ControlType]++;
+                            continue;
+                        }
                         CVCDial dial = cvc as CVCDial;
                         if (dial != null)
                         {
@@ -1373,6 +1397,8 @@ namespace Orts.Viewer3D.RollingStock
             _Viewer = viewer;
             _Locomotive = car;
 
+            ConfigureCameraDisplays(0, CVFFile);
+
 
             #region Create Control renderers
             ControlMap = new Dictionary<(CabViewControlType, int), CabViewControlRenderer>();
@@ -1387,6 +1413,22 @@ namespace Orts.Viewer3D.RollingStock
                 controlSortIndex++;
                 if (!count.ContainsKey(cvc.ControlType)) count[cvc.ControlType] = 0;
                 var key = (cvc.ControlType, count[cvc.ControlType]);
+                if (cvc is CVCCameraSelect cameraSelect)
+                {
+                    var renderer = new CabCameraSelectRenderer(viewer, car, cameraSelect) { SortIndex = controlSortIndex };
+                    CabViewControlRenderersList[i].Add(renderer);
+                    if (!ControlMap.ContainsKey(key)) ControlMap.Add(key, renderer);
+                    count[cvc.ControlType]++;
+                    continue;
+                }
+                if (cvc is CVCCamera camera)
+                {
+                    var renderer = new CabCameraRenderer(viewer, car, camera, this, i) { SortIndex = controlSortIndex };
+                    CabViewControlRenderersList[i].Add(renderer);
+                    if (!ControlMap.ContainsKey(key)) ControlMap.Add(key, renderer);
+                    count[cvc.ControlType]++;
+                    continue;
+                }
                 CVCDial dial = cvc as CVCDial;
                 if (dial != null)
                 {
@@ -1484,6 +1526,46 @@ namespace Orts.Viewer3D.RollingStock
             }
             #endregion
         }
+        internal bool IsCameraCabActive(int cab) => CabViewControlRenderersList.Count == 1 || cab == (_Locomotive.UsingRearCab ? 1 : 0);
+
+        void ConfigureCameraDisplays(int cab, CabViewFile file)
+        {
+            var states = new List<CabCameraDisplayState>();
+            foreach (var configuration in file.CabViewControls.CameraDisplays)
+            {
+                if (configuration.Display < 0 || configuration.Display >= ActiveScreen.Length ||
+                    states.Any(state => state.Configuration.Display == configuration.Display))
+                {
+                    Trace.TraceWarning("Ignored invalid or duplicate ORTSCameraDisplay for display {0}.", configuration.Display);
+                    continue;
+                }
+                states.Add(new CabCameraDisplayState(configuration));
+            }
+            CameraDisplayStates[cab] = states;
+        }
+
+        public void SelectScreen(string screen, int display)
+        {
+            if (display < 0 || display >= ActiveScreen.Length) return;
+            ActiveScreen[display] = screen;
+            // Notify even when the driver reselects the currently automatic camera page.
+            foreach (var states in CameraDisplayStates.Values)
+                foreach (var state in states)
+                    if (state.Configuration.Display == display) state.NotifyManualSelection();
+        }
+
+        public void UpdateCameraDisplays()
+        {
+            int cab = _Locomotive.UsingRearCab && CameraDisplayStates.ContainsKey(1) ? 1 : 0;
+            if (!CameraDisplayStates.TryGetValue(cab, out var states) || _Locomotive.Train == null) return;
+            bool doorsOpen = _Locomotive.Train.DoorState(DoorSide.Both) >= DoorState.Opening;
+            foreach (var state in states)
+            {
+                int display = state.Configuration.Display;
+                ActiveScreen[display] = state.Update(ActiveScreen[display], doorsOpen, _Locomotive.SpeedMpS);
+            }
+        }
+
         public void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
         {
             if (!_Locomotive.ShowCab)
@@ -3856,6 +3938,29 @@ namespace Orts.Viewer3D.RollingStock
             }
 
             // Find the animated textures, like screens
+            // Camera items sharing a Graphic are composited onto the same 3D screen.
+            foreach (var group in locoViewer.ThreeDimentionCabRenderer.ControlMap
+                .Where(pair => pair.Value is CabCameraRenderer && !string.IsNullOrEmpty(pair.Value.Control.ACEFile))
+                .GroupBy(pair => pair.Value.Control.ACEFile, StringComparer.OrdinalIgnoreCase))
+            {
+                string cameraTextureName = Path.GetFileName(group.Key).ToLowerInvariant();
+                var primitives = TrainCarShape.SharedShape.LodControls.SelectMany(lod => lod.DistanceLevels)
+                    .SelectMany(level => level.SubObjects).SelectMany(sub => sub.ShapePrimitives)
+                    .Where(primitive => primitive.Material.Key != null && primitive.Material.Key.IndexOf(cameraTextureName, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
+                if (primitives.Count == 0)
+                {
+                    Trace.TraceWarning("ORTSCamera: no 3D cab screen uses texture {0}.", cameraTextureName);
+                    continue;
+                }
+                var material = Viewer.MaterialManager.Load("Screen", TrainCarShape.SharedShape.ReferencePath + group.Key,
+                    primitives[0].HierarchyIndex) as ScreenMaterial;
+                material.SetCameraRenderers(group.Select(pair => (CabCameraRenderer)pair.Value).ToList());
+                foreach (var primitive in primitives) primitive.SetMaterial(material);
+                foreach (var pair in group)
+                    ScreenDisplays3D.Add(pair.Key, new ThreeDimCabScreen(Viewer, material.HierarchyIndex, TrainCarShape, pair.Value));
+            }
+
             if (locoViewer.ThreeDimentionCabRenderer.ControlMap.Values.FirstOrDefault(c => c is DriverMachineInterfaceRenderer) is DriverMachineInterfaceRenderer cvcr
                 && cvcr.Control?.ACEFile is var textureName && textureName != null)
             {

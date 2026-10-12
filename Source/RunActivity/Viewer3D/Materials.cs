@@ -1195,6 +1195,8 @@ namespace Orts.Viewer3D
     public class ScreenMaterial : SceneryMaterial
     {
         RollingStock.CabViewControlRenderer ScreenRenderer;
+        List<RollingStock.CabCameraRenderer> CameraRenderers;
+        Texture2D IdleTexture;
         public readonly int HierarchyIndex;
 
         public ScreenMaterial(Viewer viewer, string key, int hierarchyIndex)
@@ -1210,8 +1212,52 @@ namespace Orts.Viewer3D
                 (int)ScreenRenderer.Control.Width, (int)ScreenRenderer.Control.Height, false, SurfaceFormat.Color, DepthFormat.None, 8, RenderTargetUsage.DiscardContents);
         }
 
+        public void SetCameraRenderers(List<RollingStock.CabCameraRenderer> renderers)
+        {
+            CameraRenderers = renderers;
+            IdleTexture = Texture;
+            var corners = renderers.SelectMany(renderer => renderer.Corners).ToArray();
+            int left = (int)Math.Floor(corners.Min(point => point.X));
+            int top = (int)Math.Floor(corners.Min(point => point.Y));
+            int width = Math.Clamp((int)Math.Ceiling(corners.Max(point => point.X)) - left, 1, 4096);
+            int height = Math.Clamp((int)Math.Ceiling(corners.Max(point => point.Y)) - top, 1, 4096);
+            Texture = new RenderTarget2D(Viewer.GraphicsDevice, width, height, false, SurfaceFormat.Color,
+                DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
+            foreach (var renderer in renderers) renderer.SetTexture3D(new Point(left, top));
+        }
+
         public override void Render(GraphicsDevice graphicsDevice, IEnumerable<RenderItem> renderItems, ref Matrix XNAViewMatrix, ref Matrix XNAProjectionMatrix)
         {
+            if (CameraRenderers != null)
+            {
+                if (CameraRenderers.Any(renderer => renderer.IsPageVisible && renderer.Control.IsVisible))
+                {
+                    var targets = graphicsDevice.GetRenderTargets();
+                    var viewport = graphicsDevice.Viewport;
+                    try
+                    {
+                        graphicsDevice.SetRenderTarget(Texture as RenderTarget2D);
+                        graphicsDevice.Clear(Color.Black);
+                        foreach (var renderer in CameraRenderers.OrderBy(renderer => renderer.SortIndex)) renderer.DrawImage(graphicsDevice);
+                    }
+                    finally
+                    {
+                        graphicsDevice.SetRenderTargets(targets);
+                        graphicsDevice.Viewport = viewport;
+                    }
+                    // The quad renderer has its own effect and render states.
+                    base.SetState(graphicsDevice, null);
+                }
+                else
+                {
+                    var image = Texture;
+                    Texture = IdleTexture;
+                    Viewer.MaterialManager.SceneryShader.ImageTexture = IdleTexture;
+                    try { base.Render(graphicsDevice, renderItems, ref XNAViewMatrix, ref XNAProjectionMatrix); }
+                    finally { Texture = image; }
+                    return;
+                }
+            }
             if (ScreenRenderer != null)
             {
                 var originalRenderTargets = graphicsDevice.GetRenderTargets();
