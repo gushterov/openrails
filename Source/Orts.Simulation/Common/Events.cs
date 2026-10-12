@@ -298,6 +298,8 @@ namespace Orts.Common
 
         MPCChangePosition,
 
+        WiperCycleStart,
+
     }
 
     public static class Events
@@ -573,6 +575,8 @@ namespace Orts.Common
                         case 261: return Event.WindowOpening;
                         case 262: return Event.WindowsClosed;
                         case 263: return Event.WindowsOpen;
+
+                        case 264: return Event.WiperCycleStart;
 
                         case 270: return Event.RequestStopAnnounce;
 

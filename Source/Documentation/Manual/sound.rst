@@ -116,6 +116,10 @@ Trigger       Function
     67        Pantograph2Down (requires MSTS Bin option)
 =========     ===============================================
 
+Triggers 6 and 7 report the wiper switch being turned on and off; they do not
+repeat with the blade animation. For sound synchronized to each 2D wiper cycle,
+use trigger 264 described below.
+
 MSTS .sms files for crossings (``crossing.sms``), control error and permission 
 announcements (``ingame.sms``) together with their triggers, and for fuel tower are managed by OR.
 
@@ -137,6 +141,36 @@ OR-Specific Discrete Triggers
 OR manages the following set of new discrete triggers that were not present 
 under MSTS. If MSTS (or MSTSbin) executes an .sms where such discrete 
 triggers are used, it simply ignores the related statements.
+
+.. rubric:: Wiper animation sound
+
+Trigger 264 (``WiperCycleStart``) fires when an ``ORTS_2DEXTERNALWIPERS``
+animation starts a complete out-and-back cycle, including the first cycle
+after switching on and each cycle after an ``ORTSCycleDelay``. It does not
+fire at the direction reversal, during the parked delay, while paused, or
+while finishing a cycle after switching off.
+
+Add the following inside the ``Triggers`` block of a dedicated stream in the
+cab .sms file, and update that block's trigger count::
+
+    Discrete_Trigger ( 264
+        PlayOneShot ( 1
+            File ( "wiper-cycle.wav" 1 )
+            SelectionMethod ( SequentialSelection )
+        )
+    )
+
+Use a recording of one complete out-and-back wipe with ``PlayOneShot``.
+The recording may be shorter than ``ORTSCycleTime``; the next playback starts
+from the animation event instead of looping on the recording's own clock.
+Keep it short enough to finish before the next cycle to avoid queued sounds.
+Remove any blade-sound loop started by trigger 6 from this stream; triggers
+6 and 7 can still be used in a separate stream for switch or motor sounds.
+
+This trigger follows the displayed 2D cab animation. If a viewpoint has
+multiple wiper controls, the first visible one supplies the event. Hidden
+2D controls and 3D wipers do not supply it. After a long frame, missed cycles
+are coalesced into at most one event, and an already-finished wipe is skipped.
 
 In addition, OpenRails extends triggers 23 and 24 (electric locomotive power 
 on/power off), that were introduced by MSTSbin, to diesel engines. Keys 

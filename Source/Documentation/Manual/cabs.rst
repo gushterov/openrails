@@ -897,6 +897,10 @@ and does not continue wiping while it is parked. Both movement and waiting use
 simulation time, so pausing the simulation freezes them. The delay does not
 apply to other animated controls, such as cab windows.
 
+For a sound at the start of each complete out-and-back cycle, use discrete
+sound trigger 264 (``WiperCycleStart``) with ``PlayOneShot`` in the cab .sms
+file; see :ref:`sound-discrete`. Triggers 6 and 7 only follow the wiper switch.
+
 On HiDef graphics devices, wiper animation frames are blended by default to
 soften the steps between blade positions without adding artwork. The blend
 follows the existing ``SwitchVal`` positions, cycle time and parked delay. It

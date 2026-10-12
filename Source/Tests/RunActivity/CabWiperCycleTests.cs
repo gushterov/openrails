@@ -1,5 +1,6 @@
 // COPYRIGHT 2026 by the Open Rails project. GNU GPL version 3 or later.
 using System;
+using Orts.Common;
 using Orts.Viewer3D;
 using Xunit;
 
@@ -7,6 +8,97 @@ namespace Tests.RunActivity
 {
     public class CabWiperCycleTests
     {
+        [Theory]
+        [InlineData(6, Event.WiperOn)]
+        [InlineData(7, Event.WiperOff)]
+        [InlineData(264, Event.WiperCycleStart)]
+        public void WiperSoundTriggersMapToSeparateEvents(int trigger, Event expected)
+        {
+            Assert.Equal(expected, Events.From(Events.Source.MSTSCar, trigger));
+            Assert.Equal((Event)0, Events.From(Events.Source.MSTSCrossing, 264));
+        }
+
+        [Fact]
+        public void SoundStartsOncePerCycleAndNotAtReversalOrDuringDelay()
+        {
+            var cycle = new CabWiperCycle(1, 2);
+            int starts = 0;
+            void Update(float seconds) => cycle.Update(seconds, true, cycleStarted: () => starts++);
+            Update(0.25f);
+            Assert.Equal(1, starts);
+            Update(0.25f); // Direction reversal.
+            Update(0.5f); // Return to park.
+            Update(1.75f); // Parked delay.
+            Assert.Equal(1, starts);
+            Update(0.25f); // Exactly the start of the next cycle.
+            Assert.Equal(2, starts);
+            Assert.Equal(0, cycle.Position);
+            Update(0);
+            Update(0.25f);
+            Assert.Equal(2, starts);
+        }
+
+        [Fact]
+        public void ContinuousWipingKeepsSoundOnTheAnimationClock()
+        {
+            var cycle = new CabWiperCycle(1, 0);
+            int starts = 0;
+            for (int i = 0; i < 400; i++)
+                cycle.Update(0.25f, true, cycleStarted: () => starts++);
+            Assert.Equal(101, starts); // Initial start plus the boundary at each whole second.
+            Assert.Equal(0, cycle.Position);
+        }
+
+        [Fact]
+        public void PauseAndInvalidUpdatesDoNotStartSound()
+        {
+            var cycle = new CabWiperCycle(1, 2);
+            int starts = 0;
+            foreach (float seconds in new[] { 0f, -1f, float.NaN, float.PositiveInfinity })
+                cycle.Update(seconds, true, cycleStarted: () => starts++);
+            Assert.Equal(0, starts);
+            cycle.Update(0.25f, true, cycleStarted: () => starts++);
+            Assert.Equal(1, starts);
+            cycle.Update(0, true, cycleStarted: () => starts++);
+            Assert.Equal(1, starts);
+            var disabledCycle = new CabWiperCycle(0, 0);
+            disabledCycle.Update(1, true, cycleStarted: () => starts++);
+            Assert.Equal(1, starts);
+        }
+
+        [Fact]
+        public void SwitchingOffDoesNotStartAnotherSoundWhileParking()
+        {
+            var cycle = new CabWiperCycle(1, 2);
+            int starts = 0;
+            cycle.Update(0.25f, true, cycleStarted: () => starts++);
+            cycle.Update(0.25f, false, cycleStarted: () => starts++);
+            cycle.Update(10, false, cycleStarted: () => starts++);
+            Assert.Equal(1, starts);
+            Assert.Equal(0, cycle.Position);
+            cycle.Update(0.25f, true, cycleStarted: () => starts++);
+            Assert.Equal(2, starts);
+            cycle.Update(1, true, cycleStarted: () => starts++);
+            cycle.Update(0, false, cycleStarted: () => starts++);
+            cycle.Update(0.25f, true, cycleStarted: () => starts++);
+            Assert.Equal(3, starts);
+        }
+
+        [Fact]
+        public void LongFrameCoalescesMissedSoundsAndSkipsFinishedWipes()
+        {
+            var cycle = new CabWiperCycle(1, 2);
+            int starts = 0;
+            cycle.Update(30.25f, true, cycleStarted: () => starts++);
+            Assert.Equal(1, starts);
+            Assert.Equal(0.5f, cycle.Position);
+            cycle.Update(31, true, cycleStarted: () => starts++);
+            Assert.Equal(1, starts); // Ends in the parked delay.
+            Assert.True(cycle.IsWaiting);
+            cycle.Update(1.75f, true, cycleStarted: () => starts++);
+            Assert.Equal(2, starts);
+        }
+
         [Fact]
         public void StartsImmediatelyAndWaitsOnlyAfterTheReturnStroke()
         {

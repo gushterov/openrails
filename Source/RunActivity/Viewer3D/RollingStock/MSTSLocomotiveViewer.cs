@@ -1600,6 +1600,19 @@ namespace Orts.Viewer3D.RollingStock
             frame.AddPrimitive(_Sprite2DCabView, this, RenderPrimitiveGroup.Cab, ref _Scale);
             //frame.AddPrimitive(Materials.SpriteBatchMaterial, this, RenderPrimitiveGroup.Cab, ref _Scale);
 
+            bool wiperSoundSourceSelected = false;
+            void PrepareControlFrame(CabViewControlRenderer control)
+            {
+                if (control is CabViewAnimationsRenderer animation
+                    && control.Control.ControlType.Type == CABViewControlTypes.ORTS_2DEXTERNALWIPERS)
+                {
+                    // Multiple blades in one cab view must not play the same sound twice.
+                    animation.EmitWiperSound = !wiperSoundSourceSelected;
+                    wiperSoundSourceSelected = true;
+                }
+                control.PrepareFrame(frame, elapsedTime);
+            }
+
             foreach (var cvcr in CabViewControlRenderersList[i])
             {
                 if (cvcr.Control.CabViewpoint == _Location)
@@ -1610,13 +1623,13 @@ namespace Orts.Viewer3D.RollingStock
                         {
                             if (ActiveScreen[cvcr.Control.Display] == screen)
                             {
-                                cvcr.PrepareFrame(frame, elapsedTime);
+                                PrepareControlFrame(cvcr);
                                 break;
                             }
                         }
                         continue;
                     }
-                    cvcr.PrepareFrame(frame, elapsedTime);
+                    PrepareControlFrame(cvcr);
                 }
             }
             // Controls supply the exact movement performed this update, including the
@@ -3346,6 +3359,7 @@ namespace Orts.Viewer3D.RollingStock
     public class CabViewAnimationsRenderer : CabViewDiscreteRenderer
     {
         internal CabWiperSweep WiperSweep;
+        internal bool EmitWiperSound;
         private float CumulativeTime;
         private readonly float CycleTimeS;
         private readonly CabWiperCycle WiperCycle;
@@ -3391,7 +3405,7 @@ namespace Orts.Viewer3D.RollingStock
             switch (ControlDiscrete.ControlType.Type)
             {
                 case CABViewControlTypes.ORTS_2DEXTERNALWIPERS:
-                    WiperCycle.Update(elapsedTime.ClockSeconds, animate, TraceWiperMovement);
+                    WiperCycle.Update(elapsedTime.ClockSeconds, animate, TraceWiperMovement, SignalWiperCycleStart);
                     if (BlendWiperFrames)
                     {
                         blend = CabWiperFrameBlend.Select(WiperCycle.Position, ControlDiscrete.Values,
@@ -3484,6 +3498,11 @@ namespace Orts.Viewer3D.RollingStock
         void TraceWiperMovement(float phase, float seconds)
         {
             WiperSweep?.Advance(phase, seconds, CycleTimeS, PercentToIndex);
+        }
+
+        void SignalWiperCycleStart()
+        {
+            if (EmitWiperSound) Locomotive.SignalEvent(Event.WiperCycleStart);
         }
     }
 

@@ -23,10 +23,14 @@ namespace Orts.Viewer3D
 
         // Report only real blade movement to the rain layer. A long frame can cross
         // several strokes and waits; one complete sweep represents repeated full strokes.
-        public void Update(float seconds, bool enabled, Action<float, float> moved = null)
+        // cycleStarted follows the animation clock, not the duration of a sound sample.
+        // Coalesce missed starts after a long frame and do not play an already-finished wipe.
+        public void Update(float seconds, bool enabled, Action<float, float> moved = null, Action cycleStarted = null)
         {
             if (Cycle <= 0 || !float.IsFinite(seconds)) return;
             double elapsed = Math.Max(0, seconds);
+            if (enabled && elapsed == 0) return;
+            bool starting = !Active;
             if (!Active)
             {
                 if (!enabled) return;
@@ -59,6 +63,7 @@ namespace Orts.Viewer3D
             {
                 if (Phase < Cycle) Move(Phase, Math.Min(elapsed, Cycle - Phase));
                 Phase = end;
+                if (starting && Phase < Cycle) cycleStarted?.Invoke();
                 return;
             }
 
@@ -66,6 +71,7 @@ namespace Orts.Viewer3D
             if (Math.Floor(end / period) > 1) Move(0, Cycle);
             Phase = end % period;
             Move(0, Math.Min(Phase, Cycle));
+            if (Phase < Cycle) cycleStarted?.Invoke();
         }
     }
 }
