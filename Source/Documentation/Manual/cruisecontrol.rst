@@ -114,7 +114,7 @@ A list of the available .eng file CC parameters follows here below.
    "DisableCruiseControlOnThrottleAndZeroForce", "If train is moving and throttle is increased and CC is still in auto and selected force is zero, this will revert the mode to manual", "Boolean", "FALSE"
    "DynamicBrakeCommandHasPriorityOverCruiseControl", "When cruise control is in Auto, manually activating the dynamic brake has priority", "Boolean", "TRUE"
    "HasIndependentThrottleDynamicBrakeLever", "The cabview is equipped with a combined Throttle-Dynamic brake lever independent from the CC controls", "Boolean", "FALSE"
-   "DoComputeNumberOfAxles", "Number of train axles automatically computed at game start", "Boolean", "FALSE"
+   "DoComputeNumberOfAxles", "Automatically initializes the player train's axle count and actual consist length at game start. Length is rounded up to whole meters and used for the restricted speed zone countdown. Restored games retain their saved values", "Boolean", "FALSE"
    "AntiWheelSpinEquipped", "Self explaining. Note: if there are multiple locos in the consist, the loco with most speed diff takes the decision to activate", "Boolean", "FALSE"
    "AntiWheelSpinSpeedDiffThreshold", "The speed difference (MpS) between wheel speed and train speed that activates the anti spin system and reduces power", "Boolean", "FALSE"
    "ParkingBrakeEngageSpeed", "The speed when automatic parking brake will be engaged if present", "Float (speed)", "0"
@@ -304,7 +304,7 @@ entered in the .cvf files.
    "ORTS_NUMBER_OF_AXES_DISPLAY_HUNDREDS", "See above", "", 
    "ORTS_TRAIN_LENGTH_METERS", "Displays the train length", "meters", 
    "ORTS_REMAINING_TRAIN_LENGTH_SPEED _RESTRICTED", "When the restricted speed zone flag is activated, displays the remaining train lenght that hasn't yet arrived at the end of the restricted speed zone. Else shows 0", "meters", 
-   "ORTS_REMAINING_TRAIN_LENGTH_PERCENT", "When the restricted speed zone flag is activated, displays the remaining train lenght percent that hasn't yet arrived at the end of the restricted speed zone. Else shows 0", "", 
+   "ORTS_REMAINING_TRAIN_LENGTH_PERCENT", "When the restricted speed zone flag is activated, displays the remaining train length as a percentage from 100 to 0 as the train clears the zone. Else shows 0. Can be used in a Gauge with ScaleRange ( 0 100 )", "",
    "ORTS_ACCELERATION_IN_TIME", "Value of AccelerationBits; some cabs can show 'Arrows' pointing up or down according to speed change", "", 
  
 

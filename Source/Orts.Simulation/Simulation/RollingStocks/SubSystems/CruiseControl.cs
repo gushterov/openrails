@@ -158,6 +158,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         public bool HasProportionalSpeedSelector = false;
         public bool SpeedSelectorIsDiscrete = false;
         public bool DoComputeNumberOfAxles = false;
+        private bool trainDataInitialized;
         public bool DisableManualSwitchToAutoWhenSetSpeedNotAtTop = false;
         public bool EnableSelectedSpeedSelectionWhenManualModeSet = false;
         public bool ModeSwitchAllowedWithThrottleNotAtZero = false;
@@ -431,13 +432,17 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
         private void ComputeNumberOfAxles()
         {
-            if (DoComputeNumberOfAxles && (TrainCar)Locomotive == Simulator.PlayerLocomotive)
+            if (DoComputeNumberOfAxles && !trainDataInitialized && (TrainCar)Locomotive == Simulator.PlayerLocomotive
+                && Locomotive.Train.Cars.Contains(Locomotive))
             {
                 SelectedNumberOfAxles = 0;
                 foreach (TrainCar tc in Locomotive.Train.Cars)
                 {
                     SelectedNumberOfAxles += tc.WheelAxles.Sum(w => w.Fake ? 0 : 1);
                 }
+                trainLength = Locomotive.Train.Length;
+                TrainLengthMeters = (int)Math.Ceiling(trainLength);
+                trainDataInitialized = true;
             }
         }
 
@@ -453,6 +458,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 TrainBrakePercent = 0;
                 return;
             }
+
+            // During loading Initialize runs before the complete consist and player locomotive are available.
+            if (!trainDataInitialized) ComputeNumberOfAxles();
 
             UpdateSelectedSpeed(elapsedClockSeconds);
 
@@ -627,6 +635,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             SpeedSelMode = (SpeedSelectorMode)inf.ReadInt32();
             TrainBrakePercent = inf.ReadSingle();
             TrainLengthMeters = inf.ReadInt32();
+            trainDataInitialized = true; // Preserve the driver's saved train data rather than recomputing it.
             CCIsUsingTrainBrake = inf.ReadBoolean();
         }
 
@@ -1552,9 +1561,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                     data = RestrictedRegionOdometer.Started ? RestrictedRegionOdometer.RemainingValue : 0;
                     break;
                 case CABViewControlTypes.ORTS_REMAINING_TRAIN_LENGTH_PERCENT:
-                    if (SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto && TrainLengthMeters == 0)
+                    if (RestrictedRegionOdometer.Started && TrainLengthMeters > 0)
                     {
-                        data = RestrictedRegionOdometer.Started ? RestrictedRegionOdometer.RemainingValue / TrainLengthMeters : 0;
+                        data = MathHelper.Clamp(100f * RestrictedRegionOdometer.RemainingValue / TrainLengthMeters, 0f, 100f);
                     }
                     break;
                 case CABViewControlTypes.ORTS_MOTIVE_FORCE:
