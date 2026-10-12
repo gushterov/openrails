@@ -634,6 +634,11 @@ namespace Orts.Common
     {
         public static MSTSLocomotive Receiver { get; set; }
 
+        internal bool HasSameAdjustment(TrainBrakeCommand other)
+        {
+            return Time == other.Time && ToState == other.ToState && Target == other.Target;
+        }
+
         public TrainBrakeCommand(CommandLog log, bool toState, float? target, double startTime)
             : base(log, toState, target, startTime)
         {

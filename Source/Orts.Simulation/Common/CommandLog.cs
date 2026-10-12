@@ -157,12 +157,38 @@ namespace Orts.Common
                 stream = new FileStream( filePath, FileMode.Open );
                 BinaryFormatter formatter = new BinaryFormatter();
                 CommandList = (List<ICommand>)formatter.Deserialize( stream );
+                RemoveDuplicateTrainBrakeCommands();
             } catch( IOException ) {
                 // Do nothing but warn, ignoring errors.
                 Trace.TraceWarning( "LoadLog error reading command log " + filePath );
             } finally {
                 if( stream != null ) { stream.Close(); }
             }
+        }
+
+        void RemoveDuplicateTrainBrakeCommands()
+        {
+            int retained = 0;
+            for (int read = 0; read < CommandList.Count; read++)
+            {
+                var command = CommandList[read];
+                // Older MPC code recorded the same completed adjustment every update.
+                // Keep commands separated by any other action, even at the same time,
+                // since the intervening action may change the meaning of the brake command.
+                if (command is TrainBrakeCommand brake && retained > 0 &&
+                    CommandList[retained - 1] is TrainBrakeCommand previous && brake.HasSameAdjustment(previous))
+                    continue;
+
+                if (retained != read) CommandList[retained] = command;
+                retained++;
+            }
+
+            int removed = CommandList.Count - retained;
+            if (removed == 0) return;
+            CommandList.RemoveRange(retained, removed);
+            // BinaryFormatter also writes the backing array, so release its unused slots.
+            CommandList.TrimExcess();
+            Trace.TraceInformation("Removed {0} duplicate train brake commands from replay log.", removed);
         }
 
         public static void ReportReplayCommands( List<ICommand> list ) {

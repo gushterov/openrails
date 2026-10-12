@@ -4959,12 +4959,18 @@ namespace Orts.Simulation.RollingStocks
         #endregion
 
         #region TrainBrakeController
+        // The MPC can stop an already idle controller every update. Only a started
+        // adjustment needs a replay command; controller stop events still run normally.
+        bool TrainBrakeIncreaseStarted;
+        bool TrainBrakeDecreaseStarted;
+
         public void StartTrainBrakeIncrease(float? target)
         {
             if (CombinedControlType == CombinedControl.ThrottleAir)
                 ThrottleController.SetValue(0);
 
             TrainBrakeController.StartIncrease(target);
+            TrainBrakeIncreaseStarted = true;
             TrainBrakeController.CommandStartTime = Simulator.ClockTime;
             if (CruiseControl != null && (CruiseControl.TrainBrakeCommandHasPriorityOverCruiseControl || CruiseControl.TrainBrakeCommandHasPriorityOverAcceleratingCruiseControl))
             {
@@ -4977,12 +4983,15 @@ namespace Orts.Simulation.RollingStocks
         public void StopTrainBrakeIncrease()
         {
             TrainBrakeController.StopIncrease();
+            if (!TrainBrakeIncreaseStarted) return;
+            TrainBrakeIncreaseStarted = false;
             new TrainBrakeCommand(Simulator.Log, true, TrainBrakeController.CurrentValue, TrainBrakeController.CommandStartTime);
         }
 
         public void StartTrainBrakeDecrease(float? target, bool toZero = false)
         {
             TrainBrakeController.StartDecrease(target, toZero);
+            TrainBrakeDecreaseStarted = true;
             TrainBrakeController.CommandStartTime = Simulator.ClockTime;
             Simulator.Confirmer.Confirm(CabControl.TrainBrake, CabSetting.Decrease, GetTrainBrakeStatus());
             SignalEvent(Event.TrainBrakeChange);
@@ -4991,6 +5000,8 @@ namespace Orts.Simulation.RollingStocks
         public void StopTrainBrakeDecrease()
         {
             TrainBrakeController.StopDecrease();
+            if (!TrainBrakeDecreaseStarted) return;
+            TrainBrakeDecreaseStarted = false;
             new TrainBrakeCommand(Simulator.Log, false, TrainBrakeController.CurrentValue, TrainBrakeController.CommandStartTime);
         }
 
