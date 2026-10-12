@@ -316,5 +316,116 @@ namespace Tests.Orts.Simulation
             if (shouldApplyPower) Assert.True(locomotive.CruiseControl.CCThrottleOrDynBrakePercent > 0);
             else Assert.Equal(0f, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
         }
+
+        static (MultiPositionController controller, MSTSLocomotive locomotive) CreateRunningRegulator()
+        {
+            var (controller, locomotive) = CreateController(ControllerPosition.Neutral, -1, true);
+            locomotive.Train.Cars = new List<TrainCar> { locomotive };
+            locomotive.Train.LeadLocomotiveIndex = 0;
+            locomotive.MultiPositionControllers = new List<MultiPositionController> { controller };
+            locomotive.MaxForceN = 70000;
+            locomotive.MaxCurrentA = 1400;
+            locomotive.BrakeSystem = Uninitialized<AirSinglePipe>();
+            locomotive.BrakeSystem.BrakeLine1PressurePSI = 90;
+            locomotive.TrainBrakeController = new ScriptedBrakeController(locomotive) { MaxPressurePSI = 90 };
+            locomotive.TrainBrakeController.Notches.Add(new MSTSNotch(0, false, (int)ORTS.Scripting.Api.ControllerState.Release));
+            typeof(ScriptedBrakeController).GetField("Script", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(locomotive.TrainBrakeController, new MSTSBrakeController());
+            locomotive.CruiseControl = new CruiseControl(locomotive)
+            {
+                SpeedRegMode = CruiseControl.SpeedRegulatorMode.Auto,
+                SpeedRegulatorMaxForcePercentUnits = true,
+                UseThrottleAsForceSelector = true,
+                SelectedMaxAccelerationPercent = 80,
+                SelectedSpeedMpS = 10,
+                ThrottleFullRangeDecreaseTimeSeconds = 6,
+                CCThrottleOrDynBrakePercent = 60,
+                PowerReductionValue = 100,
+            };
+            locomotive.LocalThrottlePercent = 60;
+            return (controller, locomotive);
+        }
+
+        static void SelectPosition(MultiPositionController controller, ControllerPosition position)
+        {
+            controller.PositionsList[0] = new MultiPositionController.Position(position.ToString(), "Default", "");
+            controller.Initialize();
+            controller.controllerPosition = position;
+        }
+
+        static void UpdateRegulatorAndMPC(MultiPositionController controller, MSTSLocomotive locomotive, float elapsedSeconds)
+        {
+            // Publish the preceding regulator output, then update CC and MPC in locomotive order.
+            locomotive.LocalThrottlePercent = locomotive.CruiseControl.ThrottlePercent ?? locomotive.LocalThrottlePercent;
+            float manualBrake = locomotive.DynamicBrakeController.SavedValue > 0
+                ? locomotive.DynamicBrakeController.SavedValue * 100 : -1;
+            locomotive.LocalDynamicBrakePercent = Math.Max(manualBrake, locomotive.CruiseControl.DynamicBrakePercent ?? -1);
+            locomotive.CruiseControl.Update(elapsedSeconds);
+            controller.Update(elapsedSeconds);
+        }
+
+        [Theory]
+        [InlineData(ControllerPosition.DynamicBrakeIncrease, 30)]
+        [InlineData(ControllerPosition.DynamicBrakeIncrease, 120)]
+        [InlineData(ControllerPosition.DynamicBrakeIncreaseFast, 30)]
+        [InlineData(ControllerPosition.DynamicBrakeIncreaseFast, 120)]
+        public void AutomaticBEHoldsResidualTractionUntilItIsReducedInNeutral(ControllerPosition brakePosition, int updatesPerSecond)
+        {
+            var (controller, locomotive) = CreateRunningRegulator();
+            float elapsedSeconds = 1f / updatesPerSecond;
+            for (int frame = 0; frame < updatesPerSecond; frame++)
+                UpdateRegulatorAndMPC(controller, locomotive, elapsedSeconds);
+            Assert.InRange(locomotive.CruiseControl.CCThrottleOrDynBrakePercent, 43.32f, 43.35f);
+            float remainingThrottle = locomotive.CruiseControl.CCThrottleOrDynBrakePercent;
+            float remainingForceLimit = locomotive.CruiseControl.SelectedMaxAccelerationPercent;
+
+            SelectPosition(controller, brakePosition);
+            for (int frame = 0; frame < updatesPerSecond * 2; frame++)
+            {
+                UpdateRegulatorAndMPC(controller, locomotive, elapsedSeconds);
+                Assert.Equal(remainingThrottle, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
+                Assert.Equal(remainingForceLimit, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
+                Assert.Equal(0f, locomotive.DynamicBrakeController.CurrentValue);
+                Assert.False(locomotive.CruiseControl.DynamicBrakePriority);
+            }
+
+            SelectPosition(controller, ControllerPosition.Neutral);
+            for (int frame = 0; frame < updatesPerSecond * 3; frame++)
+                UpdateRegulatorAndMPC(controller, locomotive, elapsedSeconds);
+            Assert.Equal(0f, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
+            SelectPosition(controller, brakePosition);
+            for (int frame = 0; frame < 3; frame++)
+                UpdateRegulatorAndMPC(controller, locomotive, elapsedSeconds);
+            Assert.True(locomotive.DynamicBrakeController.CurrentValue > 0);
+            Assert.Equal(0f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
+            Assert.True(locomotive.CruiseControl.DynamicBrakePriority);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void AutomaticBEStillAllowsBrakePipeAndTCSToCutTraction(bool tcsEmergency)
+        {
+            var (controller, locomotive) = CreateRunningRegulator();
+            SelectPosition(controller, ControllerPosition.DynamicBrakeIncrease);
+            if (tcsEmergency)
+                typeof(ScriptedBrakeController).GetField("tcsEmergencyBraking", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(locomotive.TrainBrakeController, true);
+            else locomotive.BrakeSystem.BrakeLine1PressurePSI = 80;
+            UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            Assert.Equal(0f, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
+        }
+
+        [Fact]
+        public void AutomaticBEHoldDoesNotApplyToOtherCruiseControllers()
+        {
+            var (controller, locomotive) = CreateRunningRegulator();
+            locomotive.CruiseControl.UseThrottleAsForceSelector = false;
+            SelectPosition(controller, ControllerPosition.DynamicBrakeIncrease);
+            UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            Assert.InRange(locomotive.CruiseControl.CCThrottleOrDynBrakePercent, 59.4f, 59.5f);
+        }
     }
 }

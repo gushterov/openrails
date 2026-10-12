@@ -1237,7 +1237,14 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             }
             else if (SpeedSelMode == SpeedSelectorMode.Neutral || SpeedSelMode < SpeedSelectorMode.Start && !SpeedRegulatorOptions.Contains("startfromzero") && AbsWheelSpeedMpS < SafeSpeedForAutomaticOperationMpS)
             {
-                if (deltaSpeedMpS >= 0)
+                // BE holds remaining traction like the manual MPC; V is used to reduce it.
+                bool mpcHoldsTraction = UseThrottleAsForceSelector && CCThrottleOrDynBrakePercent >= 1 &&
+                    Locomotive.MultiPositionControllers?.Any(mpc => mpc.controllerBinding == ControllerBinding.Throttle &&
+                        (mpc.controllerPosition == ControllerPosition.DynamicBrakeIncrease ||
+                         mpc.controllerPosition == ControllerPosition.DynamicBrakeIncreaseFast)) == true;
+                if (mpcHoldsTraction)
+                    TrainBrakePercent = 0;
+                else if (deltaSpeedMpS >= 0)
                 {
                     // Progressively stop accelerating/braking: reach 0
                     if (CCThrottleOrDynBrakePercent < 0) IncreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, 0);
