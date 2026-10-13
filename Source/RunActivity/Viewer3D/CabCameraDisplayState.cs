@@ -4,11 +4,12 @@ using Orts.Formats.Msts;
 
 namespace Orts.Viewer3D
 {
-    /// <summary>Door activation is an edge, so slowing down cannot re-open the page.</summary>
+    /// <summary>Automatic triggers fire once per door opening or entry into the low-speed range.</summary>
     public sealed class CabCameraDisplayState
     {
         public readonly CameraDisplayConfiguration Configuration;
         bool DoorsWereOpen;
+        bool WasAtOrAboveActivationSpeed;
         bool AutomaticallyActive;
         string PreviousPage = "default";
 
@@ -20,18 +21,24 @@ namespace Orts.Viewer3D
         {
             bool opening = doorsOpen && !DoorsWereOpen;
             DoorsWereOpen = doorsOpen;
-            if (!Configuration.ActivateOnDoors) return currentPage;
+            float speed = Math.Abs(speedMpS);
+            bool belowActivationSpeed = Configuration.ActivateBelowSpeedMpS > 0 && speed < Configuration.ActivateBelowSpeedMpS;
+            // Require an observed crossing from above; starting below the threshold is not a trigger.
+            bool enteringLowSpeed = belowActivationSpeed && WasAtOrAboveActivationSpeed;
+            WasAtOrAboveActivationSpeed = Configuration.ActivateBelowSpeedMpS > 0 && speed >= Configuration.ActivateBelowSpeedMpS;
+            if (!Configuration.ActivateOnDoors && Configuration.ActivateBelowSpeedMpS <= 0) return currentPage;
 
             // A driver's page selection takes precedence over a pending automatic return.
             if (AutomaticallyActive && currentPage != Configuration.CameraPage) AutomaticallyActive = false;
             if (!AutomaticallyActive && currentPage != Configuration.CameraPage) PreviousPage = currentPage;
-            // Hide only the view opened by a door event; a driver's camera selection overrides the cutoff.
-            if (AutomaticallyActive && Math.Abs(speedMpS) >= Configuration.HideAboveSpeedMpS)
+            // A driver's camera selection overrides the automatic cutoff.
+            if (AutomaticallyActive && speed >= Configuration.HideAboveSpeedMpS)
             {
                 AutomaticallyActive = false;
                 return Configuration.ReturnPage.Length > 0 ? Configuration.ReturnPage : PreviousPage;
             }
-            if (opening && !AutomaticallyActive && currentPage != Configuration.CameraPage && Math.Abs(speedMpS) < Configuration.HideAboveSpeedMpS)
+            bool activate = (Configuration.ActivateOnDoors && opening) || enteringLowSpeed;
+            if (activate && !AutomaticallyActive && currentPage != Configuration.CameraPage && speed < Configuration.HideAboveSpeedMpS)
             {
                 if (currentPage != Configuration.CameraPage) PreviousPage = currentPage;
                 AutomaticallyActive = true;

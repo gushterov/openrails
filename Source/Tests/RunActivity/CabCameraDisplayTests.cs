@@ -123,5 +123,92 @@ namespace Tests.RunActivity
             Assert.Equal("status", left.Update("cameras", false, 2));
             Assert.Equal("traction", right.Update("cameras", false, 2));
         }
+
+        static CabCameraDisplayState LowSpeed(bool activateOnDoors = false) => new CabCameraDisplayState(
+            new CameraDisplayConfiguration { ActivateBelowSpeedMpS = 15 / 3.6f,
+                HideAboveSpeedMpS = 45 / 3.6f, ActivateOnDoors = activateOnDoors });
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(-1)]
+        public void SlowingBelowThresholdActivatesAndCutoffRestoresPage(float direction)
+        {
+            var state = LowSpeed();
+            Assert.Equal("status", state.Update("status", false, direction * 20 / 3.6f));
+            Assert.Equal("status", state.Update("status", false, direction * 15 / 3.6f));
+            Assert.Equal("cameras", state.Update("status", false, direction * 14 / 3.6f));
+            Assert.Equal("cameras", state.Update("cameras", false, direction * 30 / 3.6f));
+            Assert.Equal("status", state.Update("cameras", false, direction * 45 / 3.6f));
+            Assert.Equal("cameras", state.Update("status", false, direction * 14 / 3.6f));
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(10)]
+        [InlineData(-10)]
+        [InlineData(14)]
+        [InlineData(-14)]
+        public void StartingBelowThresholdAndAcceleratingDoesNotActivate(float startingSpeedKph)
+        {
+            var state = LowSpeed();
+            Assert.Equal("status", state.Update("status", false, startingSpeedKph / 3.6f));
+            Assert.Equal("status", state.Update("status", false, 0));
+            Assert.Equal("status", state.Update("status", false, 10 / 3.6f));
+            Assert.Equal("status", state.Update("status", false, 14 / 3.6f));
+            Assert.Equal("status", state.Update("status", false, 15 / 3.6f));
+            Assert.Equal("cameras", state.Update("status", false, 14 / 3.6f));
+        }
+
+        [Fact]
+        public void DoorOpeningAtRestStillActivatesWithSpeedTriggerConfigured()
+        {
+            var state = LowSpeed(true);
+            Assert.Equal("status", state.Update("status", false, 0));
+            Assert.Equal("cameras", state.Update("status", true, 0));
+        }
+
+        [Fact]
+        public void ManualExitAtLowSpeedStaysUntilNextThresholdCrossing()
+        {
+            var state = LowSpeed();
+            Assert.Equal("status", state.Update("status", false, 15 / 3.6f));
+            Assert.Equal("cameras", state.Update("status", false, 0));
+            state.NotifyManualSelection();
+            Assert.Equal("status", state.Update("status", false, 0));
+            Assert.Equal("status", state.Update("status", false, 14 / 3.6f));
+            Assert.Equal("status", state.Update("status", false, 15 / 3.6f));
+            Assert.Equal("cameras", state.Update("status", false, 14 / 3.6f));
+        }
+
+        [Fact]
+        public void ManualCameraRemainsAboveCutoffAfterSpeedTrigger()
+        {
+            var state = LowSpeed();
+            Assert.Equal("status", state.Update("status", false, 15 / 3.6f));
+            Assert.Equal("cameras", state.Update("status", false, 0));
+            state.NotifyManualSelection();
+            Assert.Equal("cameras", state.Update("cameras", false, 20));
+            Assert.Equal("cameras", state.Update("cameras", false, 0));
+            Assert.Equal("cameras", state.Update("cameras", false, 20));
+        }
+
+        [Fact]
+        public void DoorsCanActivateAboveLowSpeedThresholdButBelowCutoff()
+        {
+            var state = LowSpeed(true);
+            Assert.Equal("status", state.Update("status", false, 20 / 3.6f));
+            Assert.Equal("cameras", state.Update("status", true, 20 / 3.6f));
+            Assert.Equal("status", state.Update("cameras", true, 45 / 3.6f));
+            Assert.Equal("cameras", state.Update("status", true, 14 / 3.6f));
+        }
+
+        [Fact]
+        public void SpeedTriggerDoesNotActivateAboveAutomaticCutoff()
+        {
+            var state = new CabCameraDisplayState(new CameraDisplayConfiguration {
+                ActivateBelowSpeedMpS = 5, HideAboveSpeedMpS = 2 });
+            Assert.Equal("status", state.Update("status", false, 5));
+            Assert.Equal("status", state.Update("status", false, 3));
+        }
     }
 }

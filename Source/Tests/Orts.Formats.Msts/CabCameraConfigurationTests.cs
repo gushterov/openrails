@@ -96,5 +96,23 @@ namespace Tests.Orts.Formats.Msts
             Assert.Equal(1, camera.FramesPerSecond);
             Assert.Equal(120, camera.FieldOfView);
         }
+
+        [Theory]
+        [InlineData("15km/h", 15 / 3.6f)]
+        [InlineData("3", 3)]
+        [InlineData("0", 0)]
+        [InlineData("-1", 0)]
+        public void SpeedActivationThresholdUsesSpeedUnits(string value, float expected)
+        {
+            var controls = Parse($"ORTSCameraDisplay ( ActivateBelowSpeed ( {value} ) )");
+            Assert.Equal(expected, Assert.Single(controls.CameraDisplays).ActivateBelowSpeedMpS, 4);
+        }
+
+        [Fact]
+        public void SpeedActivationIsDisabledByDefault()
+        {
+            var controls = Parse("ORTSCameraDisplay ( ActivateOnDoors ( 1 ) )");
+            Assert.Equal(0, Assert.Single(controls.CameraDisplays).ActivateBelowSpeedMpS);
+        }
     }
 }

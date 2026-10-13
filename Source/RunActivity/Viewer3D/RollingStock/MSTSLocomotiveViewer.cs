@@ -2037,20 +2037,34 @@ namespace Orts.Viewer3D.RollingStock
                     if (Gauge.Orientation == 0)
                     {
                         destX = (int)(xratio * (Control.PositionX)) + (int)(xratio * (zeropos < xpos ? zeropos : xpos));
-//                        destY = (int)(yratio * Control.PositionY);
-                        destY = (int)(yratio * (Control.PositionY) - (int)(yratio * (Gauge.Direction == 0 && zeropos > xpos ? (zeropos - xpos) * Math.Sin(DrawRotation) : 0)));
+                        destY = (int)(yratio * Control.PositionY);
                         destW = ((int)(xratio * xpos) - (int)(xratio * zeropos)) * (xpos >= zeropos ? 1 : -1);
                         destH = (int)(yratio * ypos);
                     }
                     else
                     {
-                        destX = (int)(xratio * Control.PositionX) +(int)(xratio * (Gauge.Direction == 0 && ypos > zeropos ? (ypos - zeropos) * Math.Sin(DrawRotation) : 0));
+                        destX = (int)(xratio * Control.PositionX);
                         if (Gauge.Direction != 1 && !IsFire)
                             destY = (int)(yratio * (Control.PositionY + zeropos)) + (ypos > zeropos ? (int)(yratio * (zeropos - ypos)) : 0);
                         else
                             destY = (int)(yratio * (Control.PositionY + (zeropos < ypos ? zeropos : ypos)));
                         destW = (int)(xratio * xpos);
                         destH = ((int)(yratio * (ypos - zeropos))) * (ypos > zeropos ? 1 : -1);
+                    }
+                    if (Gauge.Rotation != 0)
+                    {
+                        // Signed ranges fill on either side of a fixed zero point.
+                        // Use the actual screen-pixel length for the rotated offset.
+                        var vertical = Gauge.Orientation != 0;
+                        var zeroPosition = new Vector2((float)(xratio * Control.PositionX), (float)(yratio * Control.PositionY))
+                            + (vertical ? new Vector2(0, yratio * zeropos) : new Vector2(xratio * zeropos, 0));
+                        var reverse = vertical
+                            ? (Gauge.Direction != 1 && !IsFire ? ypos > zeropos : ypos < zeropos)
+                            : xpos < zeropos;
+                        var fillPosition = CabGaugeGeometry.GetFillPositionFromZero(zeroPosition, new Vector2(destW, destH),
+                            vertical, reverse, Gauge.Rotation);
+                        destX = (int)fillPosition.X;
+                        destY = (int)fillPosition.Y;
                     }
                 }
                 else

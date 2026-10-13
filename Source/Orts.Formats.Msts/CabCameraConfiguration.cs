@@ -117,6 +117,8 @@ namespace Orts.Formats.Msts
         public int Display;
         public string CameraPage = "cameras";
         public bool ActivateOnDoors;
+        // Zero disables automatic activation when entering the low-speed range.
+        public float ActivateBelowSpeedMpS;
         public float HideAboveSpeedMpS = 5 / 3.6f;
         // Empty means restore the page selected before automatic activation.
         public string ReturnPage = "";
@@ -130,10 +132,12 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("ortsdisplay", () => Display = stf.ReadIntBlock(0)),
                 new STFReader.TokenProcessor("camerapage", () => CameraPage = stf.ReadStringBlock("cameras").ToLowerInvariant()),
                 new STFReader.TokenProcessor("activateondoors", () => ActivateOnDoors = stf.ReadBoolBlock(false)),
+                new STFReader.TokenProcessor("activatebelowspeed", () => ActivateBelowSpeedMpS = stf.ReadFloatBlock(STFReader.UNITS.Speed, 0)),
                 new STFReader.TokenProcessor("hideabovespeed", () => HideAboveSpeedMpS = stf.ReadFloatBlock(STFReader.UNITS.Speed, 5 / 3.6f)),
                 new STFReader.TokenProcessor("returnpage", () => ReturnPage = stf.ReadStringBlock("").ToLowerInvariant()),
             });
             if (!float.IsFinite(HideAboveSpeedMpS) || HideAboveSpeedMpS <= 0) HideAboveSpeedMpS = 5 / 3.6f;
+            if (!float.IsFinite(ActivateBelowSpeedMpS) || ActivateBelowSpeedMpS < 0) ActivateBelowSpeedMpS = 0;
         }
     }
 }

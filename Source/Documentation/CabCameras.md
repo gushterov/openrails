@@ -76,6 +76,30 @@ selection cancels the automatic return, including reselecting the current camera
 page. Manually selected camera pages can be opened and remain visible above the
 cutoff. Opening doors while already on a manual camera page preserves that manual
 selection. `ReturnPage ( default )` can select a fixed automatic return page instead.
+
+Optional `ActivateBelowSpeed ( 15km/h )` also selects the camera page when slowing
+from at least 15 km/h to below it. Starting at rest or below the threshold does
+not activate cameras; the train must first reach the threshold. This works without
+`ActivateOnDoors` and uses absolute speed, including reverse movement. Omitting
+the option or setting it to zero disables this trigger, preserving door-only
+behavior. Use `HideAboveSpeed` at or above the activation threshold: it remains
+the cutoff for all automatically opened views. For example:
+
+```text
+ORTSCameraDisplay (
+    ORTSDisplay ( 3 ) CameraPage ( cameras )
+    ActivateOnDoors ( 1 ) ActivateBelowSpeed ( 15km/h )
+    HideAboveSpeed ( 45km/h )
+)
+```
+
+This opens cameras when slowing through 15 km/h or on a door-opening event, then keeps them open
+until reaching 45 km/h. If the driver selects another page below 15 km/h, it stays
+selected until speed reaches at least 15 km/h and drops below it again, or another
+door-opening event occurs. A manually selected camera page still overrides the
+automatic cutoff. Set both speed options to 15 km/h to close an automatically
+opened view upon reaching that speed.
+
 Speed values without units are metres/second. There
 are eight display IDs, 0 through 7. A duplicate or invalid display policy is
 ignored with a log warning.
