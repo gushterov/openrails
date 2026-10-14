@@ -1854,7 +1854,7 @@ namespace Orts.Viewer3D
                 AdjustCabHeight(DisplaySize.X, DisplaySize.Y);
             }
 
-            MaterialManager.UpdateShaders();
+            MaterialManager.UpdateShaders(frame);
         }
 
         internal void EndRender(RenderFrame frame)

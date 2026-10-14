@@ -3520,6 +3520,7 @@ namespace Orts.MultiPlayer
 #region MSGWeather
     public class MSGWeather : Message
     {
+        public WeatherSnapshot? Atmosphere;
         public int weather;
         public float overcast;
         public float pricipitation;
@@ -3533,6 +3534,20 @@ namespace Orts.MultiPlayer
             overcast = float.Parse(tmp[1], CultureInfo.InvariantCulture);
             pricipitation = float.Parse(tmp[2], CultureInfo.InvariantCulture);
             fog = float.Parse(tmp[3], CultureInfo.InvariantCulture);
+            // Older clients read only the first four fields; older servers omit this optional extension.
+            if (tmp.Length >= 11)
+            {
+                var state = new Weather { VisibilityM = fog, CloudCoverFactor = overcast, PrecipitationIntensityPPSPM2 = pricipitation };
+                state.PrecipitationLiquidity = float.Parse(tmp[4], CultureInfo.InvariantCulture);
+                state.TemperatureC = float.Parse(tmp[5], CultureInfo.InvariantCulture);
+                state.FogBaseHeightM = float.Parse(tmp[6], CultureInfo.InvariantCulture);
+                state.FogHeightScaleM = float.Parse(tmp[7], CultureInfo.InvariantCulture);
+                state.WindAverageDirectionRad = float.Parse(tmp[8], CultureInfo.InvariantCulture);
+                state.WindAverageSpeedMpS = float.Parse(tmp[9], CultureInfo.InvariantCulture);
+                state.WindInstantaneousSpeedMpS = float.Parse(tmp[10], CultureInfo.InvariantCulture);
+                state.WindInstantaneousDirection = state.WindAverageDirection;
+                Atmosphere = state.Capture();
+            }
         }
 
         public MSGWeather(int w, float o, float p, float f)
@@ -3544,15 +3559,30 @@ namespace Orts.MultiPlayer
             if (f >= 0) fog = f;
         }
 
+        public MSGWeather(int type, WeatherSnapshot state)
+            : this(type, state.CloudCoverFactor, state.PrecipitationIntensityPPSPM2, state.VisibilityM)
+        {
+            Atmosphere = state;
+        }
+
         public override string ToString()
         {
             var tmp = "WEATHER " + weather + " " + overcast.ToString(CultureInfo.InvariantCulture) + " " + pricipitation.ToString(CultureInfo.InvariantCulture) + " " + fog.ToString(CultureInfo.InvariantCulture);
+            if (Atmosphere.HasValue)
+            {
+                var state = Atmosphere.Value;
+                var direction = (float)Math.Atan2(state.WindAverageDirection.X, -state.WindAverageDirection.Y);
+                foreach (var value in new[] { state.PrecipitationLiquidity, state.TemperatureC, state.FogBaseHeightM,
+                    state.FogHeightScaleM, direction, state.WindAverageSpeedMpS, state.WindInstantaneousSpeedMpS })
+                    tmp += " " + value.ToString(CultureInfo.InvariantCulture);
+            }
             return " " + tmp.Length + ": " + tmp;
         }
 
         public override void HandleMsg()
         {
             if (MPManager.IsServer()) return;
+            MPManager.Instance().AtmosphereWeather = Atmosphere;
             if (weather >= 0)
             {
                 MPManager.Instance().weather = weather;

@@ -23,6 +23,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using ORTS.Common;
 using Orts.Viewer3D.Processes;
+using Orts.Simulation;
 
 namespace Orts.Viewer3D
 {
@@ -83,6 +84,10 @@ namespace Orts.Viewer3D
         readonly EffectParameter overlayTexture;
         readonly EffectParameter referenceAlpha;
         readonly EffectParameter overlayScale;
+        readonly EffectParameter atmosphereFog;
+        readonly EffectParameter atmosphericLightColor;
+        float AtmosphericAmbientScale = 1;
+        Vector3 AtmosphericTint = Vector3.One;
 
         Vector3 _eyeVector;
         Vector4 _zBias_Lighting;
@@ -102,10 +107,12 @@ namespace Orts.Viewer3D
             world.SetValue(w);
             view.SetValue(v);
             projection.SetValue(p);
+            atmosphericLightColor.SetValue((flags & ShapeFlags.Interior) != 0 ? Vector3.One : AtmosphericTint);
 
             int vIn = Program.Simulator.Settings.DayAmbientLight;
             
-            float FullBrightness = (float)vIn / 20.0f ;
+            float FullBrightness = (float)vIn / 20.0f;
+            if ((flags & ShapeFlags.Interior) == 0) FullBrightness *= AtmosphericAmbientScale;
             //const float HalfShadowBrightness = 0.75;
             const float HalfNightBrightness = 0.6f;
             const float ShadowBrightness = 0.5f;
@@ -194,6 +201,16 @@ namespace Orts.Viewer3D
 
         public Vector3 ViewerPos { set { viewerPos.SetValue(value); } }
 
+        public void SetAtmosphere(AtmosphereState state, float cameraHeight)
+        {
+            AtmosphericAmbientScale = state?.AmbientScale ?? 1;
+            atmosphereFog.SetValue(state == null ? Vector4.Zero : new Vector4(state.Weather.FogBaseHeightM,
+                state.Weather.FogHeightScaleM, cameraHeight, 1));
+            AtmosphericTint = state == null ? Vector3.One : Vector3.Lerp(Vector3.One, state.SunColor,
+                state.Daylight * (1 - state.Weather.CloudCoverFactor) * 0.4f);
+            atmosphericLightColor.SetValue(AtmosphericTint);
+        }
+
         public bool ImageTextureIsNight { set { _imageTextureIsNight = value; imageTextureIsNight.SetValue(value ? 1f : 0f); } }
 
         public Texture2D ImageTexture { set { imageTexture.SetValue(value); } }
@@ -238,6 +255,8 @@ namespace Orts.Viewer3D
             overlayTexture = Parameters["OverlayTexture"];
             referenceAlpha = Parameters["ReferenceAlpha"];
             overlayScale = Parameters["OverlayScale"];
+            atmosphereFog = Parameters["AtmosphereFog"];
+            atmosphericLightColor = Parameters["AtmosphericLightColor"];
         }
     }
 
@@ -303,6 +322,26 @@ namespace Orts.Viewer3D
         readonly EffectParameter moonMapTexture;
         readonly EffectParameter moonMaskTexture;
         readonly EffectParameter cloudMapTexture;
+        readonly EffectParameter proceduralSky;
+        readonly EffectParameter skyZenith;
+        readonly EffectParameter skyHorizon;
+        readonly EffectParameter sunTint;
+        readonly EffectParameter cloudLight;
+        readonly EffectParameter cloudShade;
+        readonly EffectParameter weatherAtmosphere;
+
+        public void SetAtmosphere(AtmosphereState state)
+        {
+            proceduralSky.SetValue(state == null ? 0f : 1f);
+            if (state == null) return;
+            skyZenith.SetValue(state.ZenithColor);
+            skyHorizon.SetValue(state.HorizonColor);
+            sunTint.SetValue(state.SunColor);
+            cloudLight.SetValue(state.CloudLightColor);
+            cloudShade.SetValue(state.CloudShadeColor);
+            weatherAtmosphere.SetValue(new Vector4(state.Weather.CloudCoverFactor, state.Daylight,
+                state.VisibilityM, 1 - MathHelper.Clamp(state.Weather.CloudCoverFactor, 0, 1)));
+        }
 
 
         public Vector3 LightVector
@@ -315,7 +354,7 @@ namespace Orts.Viewer3D
                     * AmbientLighting.NightMultiplier(Program.Simulator.Settings.NightAmbientLight, value.Y));
                 var skyColor1 = Day2Night(0.25f, -0.25f, -0.5f, value.Y);
                 var skyColor2 = MathHelper.Clamp(skyColor1 + 0.55f, 0, 1);
-                var skyColor3 = 0.001f / (0.8f * Math.Abs(value.Y - 0.1f));
+                var skyColor3 = 0.001f / Math.Max(0.0008f, 0.8f * Math.Abs(value.Y - 0.1f));
                 skyColor.SetValue(new Vector3(skyColor1, skyColor2, skyColor3)); 
 
                 // Fade moon during daylight
@@ -414,6 +453,13 @@ namespace Orts.Viewer3D
             moonMapTexture = Parameters["MoonMapTexture"];
             moonMaskTexture = Parameters["MoonMaskTexture"];
             cloudMapTexture = Parameters["CloudMapTexture"];
+            proceduralSky = Parameters["ProceduralSky"];
+            skyZenith = Parameters["SkyZenith"];
+            skyHorizon = Parameters["SkyHorizon"];
+            sunTint = Parameters["SunTint"];
+            cloudLight = Parameters["CloudLight"];
+            cloudShade = Parameters["CloudShade"];
+            weatherAtmosphere = Parameters["WeatherAtmosphere"];
         }
         
 
@@ -451,6 +497,13 @@ namespace Orts.Viewer3D
         EffectParameter texture;
         EffectParameter lightVector;
         EffectParameter fog;
+        EffectParameter atmosphereFog;
+
+        public void SetAtmosphere(AtmosphereState state, float cameraHeight)
+        {
+            atmosphereFog.SetValue(state == null ? Vector4.Zero : new Vector4(state.Weather.FogBaseHeightM,
+                state.Weather.FogHeightScaleM, cameraHeight, 1));
+        }
 
         public float CurrentTime
         {
@@ -488,6 +541,7 @@ namespace Orts.Viewer3D
             texture = Parameters["particle_Tex"];
             lightVector = Parameters["LightVector"];
             fog = Parameters["Fog"];
+            atmosphereFog = Parameters["AtmosphereFog"];
         }
 
         public void SetMatrix(Matrix world, ref Matrix view, ref Matrix projection)
@@ -498,7 +552,7 @@ namespace Orts.Viewer3D
 
         public void SetFog(float depth, ref Color color)
         {
-            fog.SetValue(new Vector4(color.R / 255f, color.G / 255f, color.B / 255f, MathHelper.Clamp(300f / depth, 0, 1)));
+            fog.SetValue(new Vector4(color.R / 255f, color.G / 255f, color.B / 255f, 1 / Math.Max(1, depth)));
         }
     }
 

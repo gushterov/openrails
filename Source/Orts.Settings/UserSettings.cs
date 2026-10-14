@@ -42,6 +42,9 @@ namespace ORTS.Settings
 
         readonly Dictionary<string, object> CustomDefaultValues = new Dictionary<string, object>();
 
+        [Default(0)]
+        public int WeatherPreset { get; set; }
+
         #region Menu_Selection enum
         public enum Menu_SelectionIndex
         {

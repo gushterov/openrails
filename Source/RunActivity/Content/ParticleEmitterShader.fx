@@ -37,6 +37,8 @@ static float2 texCoords[4] = { float2(0, 0), float2(0.25f, 0), float2(0.25f, 0.2
 static float3 offsets[4] = { float3(-0.5f, 0.5f, 0), float3(0.5f, 0.5f, 0), float3(0.5f, -0.5f, 0), float3(-0.5f, -0.5f, 0) };
 
 float4 Fog;
+float4 AtmosphereFog;
+#include "AtmosphereFog.fxh"
 
 // Textures
 texture particle_Tex;
@@ -70,12 +72,14 @@ struct VERTEX_OUTPUT
 	float4 Position	: POSITION;
 	float2 TexCoord : TEXCOORD0;
 	float4 Color_Age : TEXCOORD1;
+    float3 RelativePosition : TEXCOORD2;
 };
 
 struct PIXEL_INPUT
 {
 	float2 TexCoord : TEXCOORD0;
 	float4 Color_Age : TEXCOORD1;
+    float3 RelativePosition : TEXCOORD2;
 };
 
 ////////////////////    V E R T E X   S H A D E R S    /////////////////////////
@@ -121,6 +125,7 @@ VERTEX_OUTPUT VSParticles(in VERTEX_INPUT In)
 	In.StartPosition_StartTime.xyz += up * vertOffset.y;
 	
 	Out.Position = mul(float4(In.StartPosition_StartTime.xyz, 1), worldViewProjection);
+    Out.RelativePosition = In.StartPosition_StartTime.xyz - invView[3].xyz;
 	
 	Out.TexCoord = texCoords[vertIdx];
 	float texAtlasPosition = In.TileXY_Vertex_ID.w;
@@ -151,7 +156,7 @@ void _PSApplyDay2Night(inout float3 Color)
 	// This is the return value used to darken scenery
 	float adjustment;
 	
-	Color.rgb = lerp(Color.rgb, Fog.rgb, Fog.a);
+    if (!AtmosphereFog.w) Color.rgb = lerp(Color.rgb, Fog.rgb, saturate(Fog.a * 300));
 	
 	if (LightVector.y < finishNightTrans)
 		adjustment = minDarknessCoeff;
@@ -163,7 +168,7 @@ void _PSApplyDay2Night(inout float3 Color)
 	Color.rgb *= adjustment;
 }
 
-float4 PSParticles(in VERTEX_OUTPUT In) : COLOR0
+float4 PSParticles(uniform bool Enhanced, in VERTEX_OUTPUT In) : COLOR0
 {
 	clip(In.Color_Age.a);
 	
@@ -171,17 +176,33 @@ float4 PSParticles(in VERTEX_OUTPUT In) : COLOR0
 	float4 tex = tex2D(ParticleSamp, In.TexCoord);
 	tex.rgb *= In.Color_Age.rgb;
 	_PSApplyDay2Night(tex.rgb);
+    if (Enhanced && AtmosphereFog.w)
+    {
+        float density = FogDensityAlongRay(AtmosphereFog.z, AtmosphereFog.z + In.RelativePosition.y,
+            AtmosphereFog.x, AtmosphereFog.y);
+        float fogAmount = 1 - exp(-3 * length(In.RelativePosition) * Fog.a * density);
+        tex.rgb = lerp(tex.rgb, Fog.rgb, saturate(fogAmount));
+    }
 	tex.a *= alpha;
 	return tex;
 }
 
 ////////////////////    T E C H N I Q U E S    /////////////////////////////////
+float4 PSParticlesLegacy(VERTEX_OUTPUT In) : COLOR0 { return PSParticles(false, In); }
+float4 PSParticlesAtmosphere(VERTEX_OUTPUT In) : COLOR0 { return PSParticles(true, In); }
 
 technique ParticleEmitterTechnique
 {
 	pass Pass_0
 	{
 		VertexShader = compile vs_4_0_level_9_1 VSParticles();
-		PixelShader = compile ps_4_0_level_9_1 PSParticles();
+		PixelShader = compile ps_4_0_level_9_1 PSParticlesLegacy();
 	}
+}
+
+technique ParticleEmitterAtmosphere {
+    pass Pass_0 {
+        VertexShader = compile vs_4_0 VSParticles();
+        PixelShader = compile ps_4_0 PSParticlesAtmosphere();
+    }
 }

@@ -619,7 +619,7 @@ namespace Menu
             this.comboBoxStartWeather.FormattingEnabled = true;
             this.comboBoxStartWeather.Location = new System.Drawing.Point(61, 286);
             this.comboBoxStartWeather.Name = "comboBoxStartWeather";
-            this.comboBoxStartWeather.Size = new System.Drawing.Size(73, 21);
+            this.comboBoxStartWeather.Size = new System.Drawing.Size(223, 21);
             this.comboBoxStartWeather.TabIndex = 15;
             this.comboBoxStartWeather.SelectedIndexChanged += new System.EventHandler(this.comboBoxStartWeather_SelectedIndexChanged);
             // 
@@ -786,7 +786,7 @@ namespace Menu
             this.comboBoxTimetableWeather.FormattingEnabled = true;
             this.comboBoxTimetableWeather.Location = new System.Drawing.Point(91, 176);
             this.comboBoxTimetableWeather.Name = "comboBoxTimetableWeather";
-            this.comboBoxTimetableWeather.Size = new System.Drawing.Size(73, 21);
+            this.comboBoxTimetableWeather.Size = new System.Drawing.Size(193, 21);
             this.comboBoxTimetableWeather.TabIndex = 12;
             this.comboBoxTimetableWeather.SelectedIndexChanged += new System.EventHandler(this.comboBoxTimetableWeather_SelectedIndexChanged);
             // 

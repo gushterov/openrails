@@ -45,6 +45,9 @@ float    HeadlightRcpDistance;  // reciprocal length = reciprocal distance to li
 float4   HeadlightColor;        // rgba = color
 float2   Overcast;      // Lower saturation & brightness when overcast. x = FullBrightness, y = HalfBrightness
 float3   ViewerPos;     // Viewer's world coordinates.
+float4   AtmosphereFog; // base height, height scale, camera height, enabled
+float3   AtmosphericLightColor = float3(1, 1, 1);
+#include "AtmosphereFog.fxh"
 float    ImageTextureIsNight;
 float    NightColorModifier;
 float    HalfNightColorModifier;
@@ -443,9 +446,18 @@ void _PSApplyHeadlights(inout float3 Color, in float3 OriginalColor, in VERTEX_O
 }
 
 // Applies distance fog to the pixel.
-void _PSApplyFog(inout float3 Color, in VERTEX_OUTPUT In)
+void _PSApplyFog(inout float3 Color, in VERTEX_OUTPUT In, uniform bool Enhanced)
 {
-	Color = lerp(Color, Fog.rgb, In.LightDir_Fog.w);
+    if (Enhanced && AtmosphereFog.w)
+    {
+        float density = FogDensityAlongRay(AtmosphereFog.z, AtmosphereFog.z + In.RelPosition.y,
+            AtmosphereFog.x, AtmosphereFog.y);
+        // Visibility is the distance at which only 5% contrast remains.
+        float fogAmount = 1 - exp(-3 * length(In.RelPosition.xyz) * Fog.a * density);
+        if (!ImageTextureIsNight) Color *= AtmosphericLightColor;
+        Color = lerp(Color, Fog.rgb, saturate(fogAmount));
+    }
+    else Color = lerp(Color, Fog.rgb, In.LightDir_Fog.w);
 }
 
 void _PSSceneryFade(inout float4 Color, in VERTEX_OUTPUT In)
@@ -480,7 +492,7 @@ float4 PSImage(uniform bool ShaderModel3, uniform bool ClampTexCoords, in VERTEX
 	// Headlights effect use original Color.
 	_PSApplyHeadlights(litColor, Color.rgb, In);
 	// And fogging is last.
-	_PSApplyFog(litColor, In);
+	_PSApplyFog(litColor, In, ShaderModel3);
 	if (ShaderModel3) _PSSceneryFade(Color, In);
 	//if (ShaderModel3) _PSApplyShadowColor(litColor, In);
 	return float4(litColor, Color.a);
@@ -501,7 +513,7 @@ float4 PSImage9_1(in VERTEX_OUTPUT In) : COLOR0
     return PSImage(false, false, In);
 }
 
-float4 PSVegetation(in VERTEX_OUTPUT In) : COLOR0
+float4 PSVegetation(uniform bool Enhanced, in VERTEX_OUTPUT In) : COLOR0
 {
 	float4 Color = tex2D(Image, In.TexCoords.xy);
     // Alpha testing:
@@ -516,7 +528,7 @@ float4 PSVegetation(in VERTEX_OUTPUT In) : COLOR0
 	// Headlights effect use original Color.
 	_PSApplyHeadlights(litColor, Color.rgb, In);
 	// And fogging is last.
-	_PSApplyFog(litColor, In);
+	_PSApplyFog(litColor, In, Enhanced);
 	_PSSceneryFade(Color, In);
 	return float4(litColor, Color.a);
 }
@@ -539,7 +551,7 @@ float4 PSTerrain(uniform bool ShaderModel3, in VERTEX_OUTPUT In) : COLOR0
 	// Headlights effect use original Color.
 	_PSApplyHeadlights(litColor, Color.rgb, In);
 	// And fogging is last.
-	_PSApplyFog(litColor, In);
+	_PSApplyFog(litColor, In, ShaderModel3);
 	_PSSceneryFade(Color, In);
 	//if (ShaderModel3) _PSApplyShadowColor(litColor, In);
 	return float4(litColor, Color.a);
@@ -555,7 +567,7 @@ float4 PSTerrain9_1(in VERTEX_OUTPUT In) : COLOR0
     return PSTerrain(false, In);
 }
 
-float4 PSDarkShade(in VERTEX_OUTPUT In) : COLOR0
+float4 PSDarkShade(uniform bool Enhanced, in VERTEX_OUTPUT In) : COLOR0
 {
 	const float ShadowBrightness = 0.5;
 
@@ -572,12 +584,12 @@ float4 PSDarkShade(in VERTEX_OUTPUT In) : COLOR0
 	// Headlights effect use original Color.
 	_PSApplyHeadlights(litColor, Color.rgb, In);
 	// And fogging is last.
-	_PSApplyFog(litColor, In);
+	_PSApplyFog(litColor, In, Enhanced);
 	_PSSceneryFade(Color, In);
 	return float4(litColor, Color.a);
 }
 
-float4 PSHalfBright(in VERTEX_OUTPUT In) : COLOR0
+float4 PSHalfBright(uniform bool Enhanced, in VERTEX_OUTPUT In) : COLOR0
 {
 	const float HalfShadowBrightness = 0.75;
 
@@ -594,12 +606,12 @@ float4 PSHalfBright(in VERTEX_OUTPUT In) : COLOR0
 	// Headlights effect use original Color.
 	_PSApplyHeadlights(litColor, Color.rgb, In);
 	// And fogging is last.
-	_PSApplyFog(litColor, In);
+	_PSApplyFog(litColor, In, Enhanced);
 	_PSSceneryFade(Color, In);
 	return float4(litColor, Color.a);
 }
 
-float4 PSFullBright(in VERTEX_OUTPUT In) : COLOR0
+float4 PSFullBright(uniform bool Enhanced, in VERTEX_OUTPUT In) : COLOR0
 {
 	float4 Color = tex2D(Image, In.TexCoords.xy);
     // Alpha testing:
@@ -612,7 +624,7 @@ float4 PSFullBright(in VERTEX_OUTPUT In) : COLOR0
 	// Headlights effect use original Color.
 	_PSApplyHeadlights(litColor, Color.rgb, In);
 	// And fogging is last.
-	_PSApplyFog(litColor, In);
+	_PSApplyFog(litColor, In, Enhanced);
 	_PSSceneryFade(Color, In);
 	return float4(litColor, Color.a);
 }
@@ -628,6 +640,16 @@ float4 PSSignalLight(in VERTEX_OUTPUT In) : COLOR0
 	// No specular effect, overcast effect, night-time darkening, headlights or fogging effect for signal lights.
 	return float4(litColor, Color.a * SignalLightIntensity);
 }
+
+// Effect compilation entry points have no uniform arguments (MGFX's effect parser requires this).
+float4 PSVegetationLegacy(VERTEX_OUTPUT In) : COLOR0 { return PSVegetation(false, In); }
+float4 PSVegetationAtmosphere(VERTEX_OUTPUT In) : COLOR0 { return PSVegetation(true, In); }
+float4 PSDarkShadeLegacy(VERTEX_OUTPUT In) : COLOR0 { return PSDarkShade(false, In); }
+float4 PSDarkShadeAtmosphere(VERTEX_OUTPUT In) : COLOR0 { return PSDarkShade(true, In); }
+float4 PSHalfBrightLegacy(VERTEX_OUTPUT In) : COLOR0 { return PSHalfBright(false, In); }
+float4 PSHalfBrightAtmosphere(VERTEX_OUTPUT In) : COLOR0 { return PSHalfBright(true, In); }
+float4 PSFullBrightLegacy(VERTEX_OUTPUT In) : COLOR0 { return PSFullBright(false, In); }
+float4 PSFullBrightAtmosphere(VERTEX_OUTPUT In) : COLOR0 { return PSFullBright(true, In); }
 
 ////////////////////    T E C H N I Q U E S    /////////////////////////////////
 
@@ -668,21 +690,21 @@ technique TransferLevel9_3 {
 technique Forest {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_1 VSForest();
-		PixelShader = compile ps_4_0_level_9_1 PSVegetation();
+		PixelShader = compile ps_4_0_level_9_1 PSVegetationLegacy();
 	}
 }
 
 technique VegetationLevel9_1 {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_1 VSGeneral9_1();
-		PixelShader = compile ps_4_0_level_9_1 PSVegetation();
+		PixelShader = compile ps_4_0_level_9_1 PSVegetationLegacy();
 	}
 }
 
 technique VegetationLevel9_3 {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_3 VSGeneral9_3();
-		PixelShader = compile ps_4_0_level_9_3 PSVegetation();
+		PixelShader = compile ps_4_0_level_9_3 PSVegetationAtmosphere();
 	}
 }
 
@@ -703,42 +725,42 @@ technique TerrainLevel9_3 {
 technique DarkShadeLevel9_1 {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_1 VSGeneral9_1();
-		PixelShader = compile ps_4_0_level_9_1 PSDarkShade();
+		PixelShader = compile ps_4_0_level_9_1 PSDarkShadeLegacy();
 	}
 }
 
 technique DarkShadeLevel9_3 {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_3 VSGeneral9_3();
-		PixelShader = compile ps_4_0_level_9_3 PSDarkShade();
+		PixelShader = compile ps_4_0_level_9_3 PSDarkShadeAtmosphere();
 	}
 }
 
 technique HalfBrightLevel9_1 {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_1 VSGeneral9_1();
-		PixelShader = compile ps_4_0_level_9_1 PSHalfBright();
+		PixelShader = compile ps_4_0_level_9_1 PSHalfBrightLegacy();
 	}
 }
 
 technique HalfBrightLevel9_3 {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_3 VSGeneral9_3();
-		PixelShader = compile ps_4_0_level_9_3 PSHalfBright();
+		PixelShader = compile ps_4_0_level_9_3 PSHalfBrightAtmosphere();
 	}
 }
 
 technique FullBrightLevel9_1 {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_1 VSGeneral9_1();
-		PixelShader = compile ps_4_0_level_9_1 PSFullBright();
+		PixelShader = compile ps_4_0_level_9_1 PSFullBrightLegacy();
 	}
 }
 
 technique FullBrightLevel9_3 {
 	pass Pass_0 {
 		VertexShader = compile vs_4_0_level_9_3 VSGeneral9_3();
-		PixelShader = compile ps_4_0_level_9_3 PSFullBright();
+		PixelShader = compile ps_4_0_level_9_3 PSFullBrightAtmosphere();
 	}
 }
 
@@ -747,6 +769,13 @@ technique SignalLight {
 		VertexShader = compile vs_4_0_level_9_1 VSSignalLight();
 		PixelShader = compile ps_4_0_level_9_1 PSSignalLight();
 	}
+}
+
+technique ForestAtmosphere {
+    pass Pass_0 {
+        VertexShader = compile vs_4_0 VSForest();
+        PixelShader = compile ps_4_0 PSVegetationAtmosphere();
+    }
 }
 
 technique SignalLightGlow {

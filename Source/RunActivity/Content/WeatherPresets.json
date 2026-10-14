@@ -1,0 +1,17 @@
+{
+  "Presets": {
+    "Clear": { "CloudCover": 0.05, "VisibilityM": 24000, "PrecipitationPPSPM2": 0, "WindSpeedMpS": 2, "FogHeightScaleM": 600 },
+    "Cloudy": { "CloudCover": 0.4, "VisibilityM": 18000, "PrecipitationPPSPM2": 0, "WindSpeedMpS": 4, "FogHeightScaleM": 450 },
+    "Overcast": { "CloudCover": 0.95, "VisibilityM": 10000, "PrecipitationPPSPM2": 0, "WindSpeedMpS": 5, "FogHeightScaleM": 250 },
+    "Foggy": { "CloudCover": 0.3, "VisibilityM": 500, "PrecipitationPPSPM2": 0, "WindSpeedMpS": 1, "FogHeightScaleM": 45 },
+    "Rainy": { "CloudCover": 0.85, "VisibilityM": 5500, "PrecipitationPPSPM2": 0.006, "WindSpeedMpS": 6, "FogHeightScaleM": 180 },
+    "HeavyPrecipitation": { "CloudCover": 0.98, "VisibilityM": 1800, "PrecipitationPPSPM2": 0.012, "WindSpeedMpS": 9, "FogHeightScaleM": 120 },
+    "Storm": { "CloudCover": 1, "VisibilityM": 1000, "PrecipitationPPSPM2": 0.015, "WindSpeedMpS": 15, "FogHeightScaleM": 100 }
+  },
+  "Seasons": {
+    "Spring": { "TemperatureC": 10, "VisibilityMultiplier": 1, "WetWeatherProbability": 0.4 },
+    "Summer": { "TemperatureC": 22, "VisibilityMultiplier": 1.2, "WetWeatherProbability": 0.25 },
+    "Autumn": { "TemperatureC": 7, "VisibilityMultiplier": 0.8, "WetWeatherProbability": 0.55 },
+    "Winter": { "TemperatureC": -4, "VisibilityMultiplier": 0.9, "WetWeatherProbability": 0.45 }
+  }
+}

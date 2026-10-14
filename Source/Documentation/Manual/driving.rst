@@ -1861,6 +1861,17 @@ in an activity that will modify the weather during the activity.
 
 For a full list of parameters, see :ref:`Developing OR Content - Parameters and Tokens<parameters_and_tokens>`
 
+Explore and timetable runs also offer Cloudy, Overcast, Foggy day,
+Rain/snowing day, Heavy rain/snow, Storm, and Dynamic in the weather selector.
+These presets use seasonal temperature, visibility, and wind defaults. Dynamic
+weather changes gradually during the run and preserves its transition when saved.
+Activity weather events and timetable weather files retain control of their weather.
+The installed ``Content/WeatherPresets.json`` file can be edited to tune the presets.
+
+On HiDef-capable graphics hardware, the standard sky is generated from the sun's
+position, with separate moving cloud layers and matching sky, lighting, and fog.
+The MSTS environment option and Reach graphics profile retain the existing rendering.
+
 Modifying Weather at Runtime
 ----------------------------
 

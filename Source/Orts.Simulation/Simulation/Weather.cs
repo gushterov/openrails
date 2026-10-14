@@ -16,6 +16,7 @@
 // along with Open Rails.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.IO;
 using Microsoft.Xna.Framework;
 
 namespace Orts.Simulation
@@ -79,6 +80,12 @@ namespace Orts.Simulation
 
     public class Weather
     {
+        // Additional atmospheric properties belong to the weather state, not to shader code.
+        public float TemperatureC = 10;
+        public float FogBaseHeightM;
+        public float FogHeightScaleM; // Zero retains uniform distance fog for authored/legacy weather.
+
+        public WeatherSnapshot Capture() => new WeatherSnapshot(this);
         // Fog/visibility distance. Ranges from 10m (can't see anything), 5km (medium), 20km (clear) to 100km (clear arctic).
         public float VisibilityM;
 
@@ -107,6 +114,68 @@ namespace Orts.Simulation
         {
             get => (float)Math.Atan2(WindInstantaneousDirection.X, -WindInstantaneousDirection.Y);
             set => WindInstantaneousDirection = new Vector2((float)Math.Sin(value), -(float)Math.Cos(value));
+        }
+    }
+
+    /// <summary>A consistent, immutable copy used by all atmospheric rendering passes.</summary>
+    public readonly struct WeatherSnapshot
+    {
+        public readonly float VisibilityM, CloudCoverFactor, PrecipitationIntensityPPSPM2, PrecipitationLiquidity;
+        public readonly float TemperatureC, FogBaseHeightM, FogHeightScaleM;
+        public readonly Vector2 WindAverageDirection, WindInstantaneousDirection;
+        public readonly float WindAverageSpeedMpS, WindInstantaneousSpeedMpS;
+
+        public WeatherSnapshot(Weather weather)
+        {
+            VisibilityM = weather.VisibilityM;
+            CloudCoverFactor = weather.CloudCoverFactor;
+            PrecipitationIntensityPPSPM2 = weather.PrecipitationIntensityPPSPM2;
+            PrecipitationLiquidity = weather.PrecipitationLiquidity;
+            TemperatureC = weather.TemperatureC;
+            FogBaseHeightM = weather.FogBaseHeightM;
+            FogHeightScaleM = weather.FogHeightScaleM;
+            WindAverageDirection = weather.WindAverageDirection;
+            WindInstantaneousDirection = weather.WindInstantaneousDirection;
+            WindAverageSpeedMpS = weather.WindAverageSpeedMpS;
+            WindInstantaneousSpeedMpS = weather.WindInstantaneousSpeedMpS;
+        }
+
+        public void Apply(Weather weather)
+        {
+            weather.VisibilityM = VisibilityM;
+            weather.CloudCoverFactor = CloudCoverFactor;
+            weather.PrecipitationIntensityPPSPM2 = PrecipitationIntensityPPSPM2;
+            weather.PrecipitationLiquidity = PrecipitationLiquidity;
+            weather.TemperatureC = TemperatureC;
+            weather.FogBaseHeightM = FogBaseHeightM;
+            weather.FogHeightScaleM = FogHeightScaleM;
+            weather.WindAverageDirection = WindAverageDirection;
+            weather.WindInstantaneousDirection = WindInstantaneousDirection;
+            weather.WindAverageSpeedMpS = WindAverageSpeedMpS;
+            weather.WindInstantaneousSpeedMpS = WindInstantaneousSpeedMpS;
+        }
+
+        public void Save(BinaryWriter writer)
+        {
+            writer.Write(VisibilityM); writer.Write(CloudCoverFactor);
+            writer.Write(PrecipitationIntensityPPSPM2); writer.Write(PrecipitationLiquidity);
+            writer.Write(TemperatureC); writer.Write(FogBaseHeightM); writer.Write(FogHeightScaleM);
+            writer.Write(WindAverageDirection.X); writer.Write(WindAverageDirection.Y);
+            writer.Write(WindInstantaneousDirection.X); writer.Write(WindInstantaneousDirection.Y);
+            writer.Write(WindAverageSpeedMpS); writer.Write(WindInstantaneousSpeedMpS);
+        }
+
+        public static WeatherSnapshot Restore(BinaryReader reader)
+        {
+            return new WeatherSnapshot(new Weather
+            {
+                VisibilityM = reader.ReadSingle(), CloudCoverFactor = reader.ReadSingle(),
+                PrecipitationIntensityPPSPM2 = reader.ReadSingle(), PrecipitationLiquidity = reader.ReadSingle(),
+                TemperatureC = reader.ReadSingle(), FogBaseHeightM = reader.ReadSingle(), FogHeightScaleM = reader.ReadSingle(),
+                WindAverageDirection = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                WindInstantaneousDirection = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                WindAverageSpeedMpS = reader.ReadSingle(), WindInstantaneousSpeedMpS = reader.ReadSingle(),
+            });
         }
     }
 }

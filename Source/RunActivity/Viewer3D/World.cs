@@ -211,6 +211,7 @@ namespace Orts.Viewer3D
                 MSTSSky.PrepareFrame(frame, elapsedTime);
             else
                 Sky.PrepareFrame(frame, elapsedTime);
+            frame.CaptureAtmosphere(Viewer);
             Precipitation.PrepareFrame(frame, elapsedTime);
             Terrain.PrepareFrame(frame, elapsedTime);
             Scenery.PrepareFrame(frame, elapsedTime);
@@ -223,6 +224,7 @@ namespace Orts.Viewer3D
         {
             if (Viewer.Settings.UseMSTSEnv) MSTSSky.PrepareFrame(frame, ElapsedTime.Zero);
             else Sky.PrepareFrame(frame, ElapsedTime.Zero);
+            frame.CaptureAtmosphere(Viewer);
             Terrain.PrepareFrame(frame, ElapsedTime.Zero);
             Scenery.PrepareFrame(frame, ElapsedTime.Zero);
             Trains.PrepareFrame(frame, ElapsedTime.Zero);

@@ -419,8 +419,9 @@ namespace Orts.Viewer3D
         public override void SetState(GraphicsDevice graphicsDevice, Material previousMaterial)
         {
             var shader = Viewer.MaterialManager.SceneryShader;
-            shader.CurrentTechnique = shader.Techniques["Forest"];
-            if (ShaderPasses == null) ShaderPasses = shader.Techniques["Forest"].Passes.GetEnumerator();
+            var technique = graphicsDevice.GraphicsProfile == GraphicsProfile.HiDef ? "ForestAtmosphere" : "Forest";
+            shader.CurrentTechnique = shader.Techniques[technique];
+            if (ShaderPasses == null) ShaderPasses = shader.Techniques[technique].Passes.GetEnumerator();
             shader.ImageTexture = TreeTexture;
             shader.ReferenceAlpha = 200;
 

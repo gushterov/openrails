@@ -457,14 +457,17 @@ namespace Orts.Viewer3D
             : base(viewer, null)
         {
             Texture = viewer.TextureManager.Get(textureName, true);
-            ShaderPasses = Viewer.MaterialManager.ParticleEmitterShader.Techniques["ParticleEmitterTechnique"].Passes.GetEnumerator();
+            var shader = Viewer.MaterialManager.ParticleEmitterShader;
+            shader.CurrentTechnique = shader.Techniques[Viewer.GraphicsDevice.GraphicsProfile == GraphicsProfile.HiDef
+                ? "ParticleEmitterAtmosphere" : "ParticleEmitterTechnique"];
+            ShaderPasses = shader.CurrentTechnique.Passes.GetEnumerator();
         }
 
         public override void SetState(GraphicsDevice graphicsDevice, Material previousMaterial)
         {
             var shader = Viewer.MaterialManager.ParticleEmitterShader;
             if (Viewer.Settings.UseMSTSEnv == false)
-                shader.LightVector = Viewer.World.Sky.SolarDirection;
+                shader.LightVector = Viewer.MaterialManager.CurrentAtmosphere?.SolarDirection ?? Viewer.World.Sky.SolarDirection;
             else
                 shader.LightVector = Viewer.World.MSTSSky.mstsskysolarDirection; 
 

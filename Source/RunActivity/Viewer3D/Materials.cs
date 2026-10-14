@@ -28,6 +28,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Orts.Viewer3D.Common;
 using Orts.Viewer3D.Popups;
+using Orts.Simulation;
 using ORTS.Common;
 using Color = Microsoft.Xna.Framework.Color;
 using Point = Microsoft.Xna.Framework.Point;
@@ -495,10 +496,32 @@ namespace Orts.Viewer3D
         float fadeDuration = -1;
         float clampValue = 1;
         float distance = 1000;
-        internal void UpdateShaders()
+        internal AtmosphereState CurrentAtmosphere;
+        internal Vector4 WeatherCloudScalePosition;
+        internal double WeatherClockTime;
+
+        internal void SetAtmosphere(RenderFrame frame)
+        {
+            CurrentAtmosphere = frame.Atmosphere;
+            WeatherCloudScalePosition = frame.WeatherCloudScalePosition;
+            WeatherClockTime = frame.WeatherClockTime;
+            if (CurrentAtmosphere != null)
+            {
+                FogColor = CurrentAtmosphere.FogColor;
+                sunDirection = CurrentAtmosphere.SolarDirection;
+                SceneryShader.Overcast = CurrentAtmosphere.Weather.CloudCoverFactor;
+                SceneryShader.SetFog(CurrentAtmosphere.VisibilityM, ref FogColor);
+                ParticleEmitterShader.SetFog(CurrentAtmosphere.VisibilityM, ref FogColor);
+            }
+            SceneryShader.SetAtmosphere(CurrentAtmosphere, frame.CameraLocation.Y);
+            ParticleEmitterShader.SetAtmosphere(CurrentAtmosphere, frame.CameraLocation.Y);
+            SceneryShader.ViewerPos = frame.XNACameraLocation;
+        }
+
+        internal void UpdateShaders(RenderFrame frame)
         {
             if (Viewer.Settings.UseMSTSEnv == false)
-                sunDirection = Viewer.World.Sky.SolarDirection;
+                sunDirection = frame.Atmosphere?.SolarDirection ?? Viewer.World.Sky.SolarDirection;
             else
                 sunDirection = Viewer.World.MSTSSky.mstsskysolarDirection;
 
@@ -558,6 +581,12 @@ namespace Orts.Viewer3D
                 SceneryShader.SetHeadlightOff();
             }
             // End headlight illumination
+            if (!Viewer.Settings.UseMSTSEnv && frame.Atmosphere != null)
+            {
+                SetAtmosphere(frame);
+                return;
+            }
+            CurrentAtmosphere = null;
             var visibility = PrecipitationViewer.GetVisibility(Viewer.Simulator.Weather,
                 Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskyfogDistance : Viewer.Simulator.Weather.VisibilityM);
             if (Viewer.Settings.UseMSTSEnv == false)
@@ -574,6 +603,8 @@ namespace Orts.Viewer3D
                 ParticleEmitterShader.SetFog(visibility, ref SharedMaterialManager.FogColor);
                 SceneryShader.ViewerPos = Viewer.Camera.XnaLocation(Viewer.Camera.CameraWorldLocation);
             }
+            SceneryShader.SetAtmosphere(null, 0);
+            ParticleEmitterShader.SetAtmosphere(null, 0);
         }
     }
 

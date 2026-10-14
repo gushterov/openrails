@@ -105,7 +105,8 @@ namespace Menu
 
         // Shared items
         public int SelectedStartSeason { get { return radioButtonModeActivity.Checked ? (comboBoxStartSeason.SelectedItem as KeyedComboBoxItem).Key : (comboBoxTimetableSeason.SelectedItem as KeyedComboBoxItem).Key; } }
-        public int SelectedStartWeather { get { return radioButtonModeActivity.Checked ? (comboBoxStartWeather.SelectedItem as KeyedComboBoxItem).Key : (comboBoxTimetableWeather.SelectedItem as KeyedComboBoxItem).Key; } }
+        int SelectedWeatherKey => ((radioButtonModeActivity.Checked ? comboBoxStartWeather.SelectedItem : comboBoxTimetableWeather.SelectedItem) as KeyedComboBoxItem)?.Key ?? 0;
+        public int SelectedStartWeather => (int)WeatherPresetSelection.BaseWeather(SelectedWeatherKey, (Orts.Formats.Msts.SeasonType)SelectedStartSeason);
 
         public string SelectedSaveFile { get; set; }
         public UserAction SelectedAction { get; set; }
@@ -169,6 +170,13 @@ namespace Menu
                     new KeyedComboBoxItem(0, catalog.GetString("Clear")),
                     new KeyedComboBoxItem(1, catalog.GetString("Snow")),
                     new KeyedComboBoxItem(2, catalog.GetString("Rain")),
+                    new KeyedComboBoxItem(3, catalog.GetString("Cloudy")),
+                    new KeyedComboBoxItem(4, catalog.GetString("Overcast")),
+                    new KeyedComboBoxItem(5, catalog.GetString("Foggy day")),
+                    new KeyedComboBoxItem(6, catalog.GetString("Rain/snowing day")),
+                    new KeyedComboBoxItem(7, catalog.GetString("Heavy rain/snow")),
+                    new KeyedComboBoxItem(8, catalog.GetString("Storm")),
+                    new KeyedComboBoxItem(9, catalog.GetString("Dynamic")),
                 };
                 var Difficulties = new[] {
                     catalog.GetString("Easy"),
@@ -714,6 +722,8 @@ namespace Menu
             Settings.Logging = checkBoxWarnings.Checked;
             Settings.Multiplayer_User = textBoxMPUser.Text;
             Settings.IsModeActivity = radioButtonModeActivity.Checked;
+            Settings.WeatherPreset = !radioButtonModeActivity.Checked || SelectedActivity is ExploreActivity
+                ? (int)WeatherPresetSelection.FromMenuKey(SelectedWeatherKey) : 0;
 
             var mpHost = textBoxMPHost.Text.Split(':');
             Settings.Multiplayer_Host = mpHost[0];
@@ -752,8 +762,8 @@ namespace Menu
                     SelectedActivity is ExploreActivity ? SelectedStartSeason.ToString() : "" :
                     SelectedStartSeason.ToString(),
                 radioButtonModeActivity.Checked ?
-                    SelectedActivity is ExploreActivity ? SelectedStartWeather.ToString() : "" :
-                    SelectedStartWeather.ToString(),
+                    SelectedActivity is ExploreActivity ? SelectedWeatherKey.ToString() : "" :
+                    SelectedWeatherKey.ToString(),
             };
             Settings.Save();
         }

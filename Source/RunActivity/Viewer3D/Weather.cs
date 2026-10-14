@@ -60,6 +60,9 @@ namespace Orts.Viewer3D
         public bool DesertZone; // We are in a desert zone, so no randomized weather change...
         private readonly float[,] DesertZones = { { 30, 45, -120, -105 } }; // minlat, maxlat, minlong, maxlong
         public float Time;
+        WeatherPresetCatalog PresetCatalog;
+        WeatherPresetController PresetController;
+        float PresetMessageTimer;
 
         // Daylight offset (-12h to +12h), adjustable in 15-minute (0.25h) steps
         public float DaylightOffset = 0.0f;
@@ -69,8 +72,8 @@ namespace Orts.Viewer3D
         const float WindInstantaneousDirectionLimitRad = (float)(45 * Math.PI / 180);
         static readonly float WindInstantaneousSpeedLimit = WeatherConstants.WindSpeedGustMpS[(int)WeatherConstants.Condition.Light];
         const float WindNoiseScale = 10;
-        readonly float WindInstantaneousDirectionNoiseStart = (float)Viewer.Random.NextDouble() * WindNoiseScale;
-        readonly float WindInstantaneousSpeedNoiseStart = (float)Viewer.Random.NextDouble() * WindNoiseScale;
+        float WindInstantaneousDirectionNoiseStart = (float)Viewer.Random.NextDouble() * WindNoiseScale;
+        float WindInstantaneousSpeedNoiseStart = (float)Viewer.Random.NextDouble() * WindNoiseScale;
         const float WindGustUpdateTimeS = 0.25f;
         float WindUpdateTimer = 0.0f;
 
@@ -108,8 +111,23 @@ namespace Orts.Viewer3D
             SetInitialWeatherParameters();
             UpdateWeatherParameters();
 
+            // Activity events and timetable weather files own their weather. Only free runs use menu presets.
+            var preset = (WeatherPreset)Viewer.Settings.WeatherPreset;
+            var freeRun = Viewer.Simulator.Activity == null || !string.IsNullOrEmpty(Viewer.Simulator.ExplorePathFile);
+            var clearPreset = preset == WeatherPreset.Default && Viewer.Simulator.WeatherType == WeatherType.Clear
+                && Viewer.Settings.ActWeatherRandomizationLevel == 0;
+            if (!MPManager.IsClient() && freeRun && string.IsNullOrEmpty(Viewer.Simulator.UserWeatherFile)
+                && (clearPreset || preset > WeatherPreset.Default && preset <= WeatherPreset.Dynamic)
+                && Viewer.Simulator.ActivityRun?.WeatherChangesPresent != true)
+            {
+                PresetCatalog = WeatherPresetCatalog.Load(Path.Combine(Viewer.ContentPath, "WeatherPresets.json"));
+                PresetController = new WeatherPresetController(PresetCatalog, preset, Viewer.Simulator.Season,
+                    (uint)Viewer.Random.Next(1, int.MaxValue), Weather, Viewer.PlayerLocomotive?.WorldPosition.Location.Y ?? 0);
+                SynchronizePresetWeather();
+            }
+
             // Add here randomized weather
-            if (Viewer.Settings.ActWeatherRandomizationLevel > 0 && Viewer.Simulator.ActivityRun != null && !Viewer.Simulator.ActivityRun.WeatherChangesPresent)
+            if (PresetController == null && Viewer.Settings.ActWeatherRandomizationLevel > 0 && Viewer.Simulator.ActivityRun != null && !Viewer.Simulator.ActivityRun.WeatherChangesPresent)
             {
                 RandomizedWeather = RandomizeInitialWeather();
                 dynamicWeather = new DynamicWeather();
@@ -126,6 +144,8 @@ namespace Orts.Viewer3D
 
             Viewer.Simulator.WeatherChanged += (object sender, EventArgs e) =>
             {
+                PresetController = null;
+                Weather.FogHeightScaleM = 0;
                 SetInitialWeatherParameters();
                 UpdateWeatherParameters();
             };
@@ -133,7 +153,7 @@ namespace Orts.Viewer3D
 
         public virtual void SaveWeatherParameters(BinaryWriter outf)
         {
-            outf.Write(0); // Set fixed weather
+            outf.Write(2); // Fixed weather with a versioned atmospheric/preset extension. Read old type 0 below.
             outf.Write(Weather.VisibilityM);
             outf.Write(Weather.CloudCoverFactor);
             outf.Write(Weather.PrecipitationIntensityPPSPM2);
@@ -144,6 +164,12 @@ namespace Orts.Viewer3D
             {
                 dynamicWeather.Save(outf);
             }
+            Weather.Capture().Save(outf);
+            outf.Write(CloudPositionM.X); outf.Write(CloudPositionM.Y); outf.Write(Time);
+            CameraWorldLocation.Save(outf);
+            outf.Write(WindInstantaneousDirectionNoiseStart); outf.Write(WindInstantaneousSpeedNoiseStart); outf.Write(WindUpdateTimer);
+            outf.Write(PresetController != null);
+            PresetController?.Save(outf);
         }
 
         public virtual void RestoreWeatherParameters(BinaryReader inf)
@@ -151,7 +177,7 @@ namespace Orts.Viewer3D
             int weathercontroltype = inf.ReadInt32();
 
             // Restoring wrong type of weather - abort
-            if (weathercontroltype != 0)
+            if (weathercontroltype != 0 && weathercontroltype != 2)
             {
                 Trace.TraceError(Simulator.Catalog.GetString("Restoring wrong weather type : trying to restore dynamic weather but save contains user controlled weather"));
             }
@@ -168,6 +194,33 @@ namespace Orts.Viewer3D
                 dynamicWeather.Restore(inf);
             }
 
+            // A resumed run must never inherit the preset selected for a different run in the menu.
+            PresetController = null;
+            Weather.FogHeightScaleM = 0;
+            if (weathercontroltype == 2)
+            {
+                WeatherSnapshot.Restore(inf).Apply(Weather);
+                CloudPositionM = new Vector2(inf.ReadSingle(), inf.ReadSingle()); Time = inf.ReadSingle();
+                CameraWorldLocation.Restore(inf);
+                WindInstantaneousDirectionNoiseStart = inf.ReadSingle(); WindInstantaneousSpeedNoiseStart = inf.ReadSingle(); WindUpdateTimer = inf.ReadSingle();
+                if (inf.ReadBoolean())
+                    PresetController = WeatherPresetController.Restore(PresetCatalog ?? WeatherPresetCatalog.Load(Path.Combine(Viewer.ContentPath, "WeatherPresets.json")), inf);
+            }
+
+            SynchronizePresetWeather();
+            UpdateSoundSources();
+            UpdateVolume();
+        }
+
+        void SynchronizePresetWeather()
+        {
+            var type = Weather.PrecipitationIntensityPPSPM2 <= 0 ? WeatherType.Clear
+                : Weather.PrecipitationLiquidity > DynamicWeather.RainSnowLiquidityThreshold ? WeatherType.Rain : WeatherType.Snow;
+            if (Viewer.Simulator.WeatherType != type)
+            {
+                Viewer.Simulator.WeatherType = type;
+                UpdateSoundSources();
+            }
             UpdateVolume();
         }
 
@@ -241,7 +294,8 @@ namespace Orts.Viewer3D
 
             WorldLocation.GetDistance(CameraWorldLocation, Viewer.Camera.CameraWorldLocation).Deconstruct(out var x, out var _, out var y);
             CloudPositionM += elapsedTime.ClockSeconds * Weather.WindAverageDirection * Weather.WindAverageSpeedMpS - new Vector2(x, -y);
-            PrecipitationSlewMpS = Weather.WindInstantaneousDirection * Weather.WindInstantaneousSpeedMpS - new Vector2(x, -y) / elapsedTime.ClockSeconds;
+            PrecipitationSlewMpS = Weather.WindInstantaneousDirection * Weather.WindInstantaneousSpeedMpS;
+            if (elapsedTime.ClockSeconds > 0) PrecipitationSlewMpS -= new Vector2(x, -y) / elapsedTime.ClockSeconds;
             CameraWorldLocation = Viewer.Camera.CameraWorldLocation;
         }
 
@@ -336,6 +390,14 @@ namespace Orts.Viewer3D
             Time += elapsedTime.ClockSeconds;
             var manager = MPManager.Instance();
 
+            // Manual controls take ownership, just as activity-authored weather events do.
+            if (UserInput.IsPressed(UserCommand.DebugWeatherChange)
+                || UserInput.IsDown(UserCommand.DebugOvercastIncrease) || UserInput.IsDown(UserCommand.DebugOvercastDecrease)
+                || UserInput.IsDown(UserCommand.DebugPrecipitationIncrease) || UserInput.IsDown(UserCommand.DebugPrecipitationDecrease)
+                || UserInput.IsDown(UserCommand.DebugFogIncrease) || UserInput.IsDown(UserCommand.DebugFogDecrease)
+                || UserInput.IsDown(UserCommand.DebugPrecipitationLiquidityIncrease) || UserInput.IsDown(UserCommand.DebugPrecipitationLiquidityDecrease))
+                PresetController = null;
+
             if (MPManager.IsClient() && manager.weatherChanged)
             {
                 // Multiplayer weather has changed so we need to update our state to match weather, overcastFactor, pricipitationIntensity and fogDistance.
@@ -359,6 +421,13 @@ namespace Orts.Viewer3D
                 if (manager.fogDistance >= 0)
                 {
                     Weather.VisibilityM = manager.fogDistance;
+                }
+                if (manager.AtmosphereWeather.HasValue)
+                {
+                    manager.AtmosphereWeather.Value.Apply(Weather);
+                    manager.AtmosphereWeather = null;
+                    UpdateSoundSources();
+                    UpdateVolume();
                 }
 
                 // Reset the message now that we've applied all the changes.
@@ -397,7 +466,7 @@ namespace Orts.Viewer3D
                     // If we're a multiplayer server, send out the new weather to all clients.
                     if (MPManager.IsServer())
                     {
-                        MPManager.Notify(new MSGWeather((int)Viewer.Simulator.WeatherType, -1, -1, -1).ToString());
+                        MPManager.Notify(new MSGWeather((int)Viewer.Simulator.WeatherType, Weather.Capture()).ToString());
                     }
                 }
 
@@ -589,7 +658,7 @@ namespace Orts.Viewer3D
                     || UserInput.IsReleased(UserCommand.DebugFogIncrease) || UserInput.IsReleased(UserCommand.DebugFogDecrease))
                 {
                     manager.SetEnvInfo(Weather.CloudCoverFactor, Weather.VisibilityM);
-                    MPManager.Notify(new MSGWeather(-1, Weather.CloudCoverFactor, Weather.PrecipitationIntensityPPSPM2, Weather.VisibilityM).ToString());
+                    MPManager.Notify(new MSGWeather((int)Viewer.Simulator.WeatherType, Weather.Capture()).ToString());
                 }
             }
 
@@ -604,6 +673,8 @@ namespace Orts.Viewer3D
                 }
 
                 var weatherChange = Program.Simulator.ActivityRun.triggeredEventWrapper.ParsedObject.ORTSWeatherChange ?? Program.Simulator.ActivityRun.triggeredEventWrapper.ParsedObject.Outcomes.ORTSWeatherChange;
+                PresetController = null;
+                Weather.FogHeightScaleM = 0;
                 dynamicWeather.WeatherChange_Init(weatherChange, this);
                 Program.Simulator.ActivityRun.triggeredEventWrapper = null;
             }
@@ -617,6 +688,23 @@ namespace Orts.Viewer3D
             if (RandomizedWeather && !weatherChangeOn) // Time to prepare a new weather change
             {
                 dynamicWeather.WeatherChange_NextRandomization(elapsedTime, this);
+            }
+
+            if (PresetController != null && !MPManager.IsClient() && !weatherChangeOn)
+            {
+                PresetController.Update(elapsedTime.ClockSeconds, Weather);
+                SynchronizePresetWeather();
+                if (MPManager.IsServer())
+                {
+                    PresetMessageTimer += elapsedTime.ClockSeconds;
+                    if (PresetMessageTimer >= 5)
+                    {
+                        PresetMessageTimer = 0;
+                        manager.SetEnvInfo(Weather.CloudCoverFactor, Weather.VisibilityM);
+                        MPManager.Notify(new MSGWeather((int)Viewer.Simulator.WeatherType, Weather.Capture()).ToString());
+                    }
+                }
+                return; // Type/sound changes must not reset the controller's interpolated precipitation.
             }
 
             if (Weather.PrecipitationIntensityPPSPM2 == 0 && Viewer.Simulator.WeatherType != WeatherType.Clear)

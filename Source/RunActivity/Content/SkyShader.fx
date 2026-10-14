@@ -28,6 +28,13 @@ float4   LightVector;  // Direction vector to sun, w = 1/length of vector
 float    Time;  // Used for moving textures across the sky
 float4   Overcast;  // x = alpha, y = contrast, z = brightness, w = !Overcast.y && !Overcast.z
 float4   CloudScalePosition;
+float    ProceduralSky;
+float3   SkyZenith;
+float3   SkyHorizon;
+float3   SunTint;
+float3   CloudLight;
+float3   CloudShade;
+float4   WeatherAtmosphere; // cover, daylight, effective visibility, direct sunlight fraction
 float3   SkyColor;
 float3   FogColor;
 float4   Fog;
@@ -166,7 +173,7 @@ float3 ContrastSaturationBrightness(float3 color, float brt, float sat, float co
 	return conColor;
 }
 
-float4 PSSky(VERTEX_OUTPUT In) : COLOR
+float4 PSTexturedSky(VERTEX_OUTPUT In) : COLOR
 {
 	// Get the color information for the current pixel
 	float4 skyColor = tex2D(SkyMapSampler, In.TexCoord);
@@ -234,6 +241,24 @@ float4 PSSky(VERTEX_OUTPUT In) : COLOR
 	return skyColor;
 }
 
+float4 PSProceduralSky(VERTEX_OUTPUT In) : COLOR
+{
+    float3 direction = normalize(In.Normal);
+    float height = saturate(direction.y);
+    float3 color = lerp(SkyHorizon, SkyZenith, pow(height, 0.45));
+    float alignment = saturate(dot(direction, normalize(LightVector.xyz)));
+    float sunset = (1 - smoothstep(0.03, 0.22, abs(LightVector.y))) * smoothstep(-0.12, 0.02, LightVector.y);
+    color = lerp(color, SunTint * float3(0.7, 0.65, 0.6), sunset * exp(-height * 6) * pow(alignment, 4) * WeatherAtmosphere.w * 0.75);
+    float sunVisible = smoothstep(-0.006, 0.006, LightVector.y) * WeatherAtmosphere.w;
+    float sunGlow = pow(alignment, 32) * 0.12 + pow(alignment, 256) * 0.2;
+    float sunDisc = smoothstep(0.99995, 0.999989, alignment);
+    color += SunTint * (sunGlow + sunDisc * 1.4) * sunVisible;
+    float2 starCoord = float2(1 - In.TexCoord.x + Time, In.TexCoord.y);
+    float stars = (1 - WeatherAtmosphere.y) * (1 - WeatherAtmosphere.y) * WeatherAtmosphere.w;
+    color += tex2D(StarMapSampler, starCoord).rgb * stars;
+    return float4(color, 1);
+}
+
 float4 PSMoon(VERTEX_OUTPUT In) : COLOR
 {
 	// Get the color information for the current pixel
@@ -245,12 +270,37 @@ float4 PSMoon(VERTEX_OUTPUT In) : COLOR
 	moonColor.a *= MoonColor.x;
 	
 	// Fogging
-	moonColor.rgb = lerp(moonColor.rgb, FogColor.rgb, saturate((1 - In.Normal.y) * Fog.x));
+	moonColor.rgb = lerp(moonColor.rgb, ProceduralSky ? SkyHorizon : FogColor.rgb, saturate((1 - In.Normal.y) * Fog.x));
 	
 	// Mask stars behind dark side (mask fades in)
 	moonColor.a += moonMask.r * MoonColor.y;
 		
 	return moonColor;
+}
+
+float4 PSProceduralClouds(VERTEX_OUTPUT In) : COLOR
+{
+        float cover = saturate(WeatherAtmosphere.x);
+        float2 lowCoord = In.TexCoord * CloudScalePosition.xy - CloudScalePosition.zw;
+        float2 highCoord = In.TexCoord * CloudScalePosition.xy * 0.47 - CloudScalePosition.zw * 0.35 + float2(0.37, 0.63);
+        // The existing cloud texture carries a useful density mask in its alpha, independent of its baked RGB.
+        float lowDensity = saturate((tex2D(CloudMapSampler, lowCoord).a - 0.4) * 2.5);
+        float highDensity = saturate((tex2D(CloudMapSampler, highCoord).a - 0.4) * 2.5);
+        // Mixing nonmatching scales reduces repetition without loading another large texture.
+        lowDensity = lowDensity * 0.7 + highDensity * 0.3;
+        float threshold = lerp(0.98, 0.02, cover);
+        float lowAlpha = smoothstep(threshold - 0.16, threshold + 0.16, lowDensity) * smoothstep(0, 0.08, cover);
+        lowAlpha = max(lowAlpha, smoothstep(0.8, 1, cover) * 0.96);
+        float highAlpha = smoothstep(0.65, 0.9, highDensity) * cover * (1 - cover) * 0.55;
+        float alpha = 1 - (1 - lowAlpha) * (1 - highAlpha);
+        float3 lowerColor = lerp(CloudLight, CloudShade, saturate(lowDensity * (0.4 + cover * 0.55)));
+        float3 color = lerp(CloudLight, lowerColor, lowAlpha / max(alpha, 0.001));
+        float rim = pow(saturate(dot(normalize(In.Normal), normalize(LightVector.xyz))), 8);
+        color += SunTint * rim * 0.1 * WeatherAtmosphere.y * WeatherAtmosphere.w;
+        float horizon = 1 - smoothstep(0, 0.25, In.Normal.y);
+        color = lerp(color, SkyHorizon, horizon);
+        alpha *= 1 - horizon * 0.7;
+        return float4(color, saturate(alpha));
 }
 
 float4 PSClouds(VERTEX_OUTPUT In) : COLOR
@@ -288,7 +338,7 @@ float4 PSClouds(VERTEX_OUTPUT In) : COLOR
 technique Sky {
    pass Pass_0 {
 	  VertexShader = compile vs_4_0_level_9_1 VSSky();
-	  PixelShader = compile ps_4_0_level_9_1 PSSky();
+	  PixelShader = compile ps_4_0_level_9_1 PSTexturedSky();
    }
 }
 
@@ -303,5 +353,19 @@ technique Clouds {
    pass Pass_0 {
 	  VertexShader = compile vs_4_0_level_9_1 VSSky();
 	  PixelShader = compile ps_4_0_level_9_1 PSClouds();
+   }
+}
+
+technique SkyProcedural {
+   pass Pass_0 {
+      VertexShader = compile vs_4_0 VSSky();
+      PixelShader = compile ps_4_0 PSProceduralSky();
+   }
+}
+
+technique CloudsProcedural {
+   pass Pass_0 {
+      VertexShader = compile vs_4_0 VSSky();
+      PixelShader = compile ps_4_0 PSProceduralClouds();
    }
 }

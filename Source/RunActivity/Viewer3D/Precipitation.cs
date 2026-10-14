@@ -38,12 +38,7 @@ namespace Orts.Viewer3D
         // Keep this in the renderer so activity weather, saves and multiplayer values are unchanged.
         public static float GetVisibility(Weather weather, float visibilityM)
         {
-            var intensity = MathHelper.Clamp(weather.PrecipitationIntensityPPSPM2 / MaxIntensityPPSPM2, 0, 1);
-            if (intensity == 0)
-                return visibilityM;
-
-            var precipitationVisibility = MathHelper.Lerp(300, 900, MathHelper.Clamp(weather.PrecipitationLiquidity, 0, 1));
-            return 1 / (1 / Math.Max(1, visibilityM) + intensity / precipitationVisibility);
+            return AtmosphereState.EffectiveVisibility(weather.Capture(), visibilityM);
         }
 
         readonly Viewer Viewer;
@@ -595,11 +590,13 @@ namespace Orts.Viewer3D
                 ShaderPasses = shader.Techniques["Precipitation"].Passes.GetEnumerator();
             }
 
-            shader.LightVector.SetValue(Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskysolarDirection : Viewer.World.Sky.SolarDirection);
+            shader.LightVector.SetValue(Viewer.MaterialManager.CurrentAtmosphere?.SolarDirection
+                ?? (Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskysolarDirection : Viewer.World.Sky.SolarDirection));
             shader.RainTexture.SetValue(RainTexture);
             shader.SnowTexture.SetValue(SnowTexture);
             var visibility = Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.mstsskyfogDistance : Viewer.Simulator.Weather.VisibilityM;
-            shader.Visibility.SetValue(Math.Max(1, PrecipitationViewer.GetVisibility(Viewer.Simulator.Weather, visibility)));
+            shader.Visibility.SetValue(Viewer.MaterialManager.CurrentAtmosphere?.VisibilityM
+                ?? Math.Max(1, PrecipitationViewer.GetVisibility(Viewer.Simulator.Weather, visibility)));
             shader.FadeDistance.SetValue(new Vector2(PrecipitationPrimitive.ParticleFadeStartM, PrecipitationPrimitive.ParticleFadeEndM));
 
             graphicsDevice.BlendState = BlendState.NonPremultiplied;

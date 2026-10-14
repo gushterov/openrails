@@ -73,6 +73,7 @@ namespace Orts.MultiPlayer
         public float fogDistance = -1f;
         public float pricipitationIntensity = -1f;
         public float overcastFactor = -1f;
+        public WeatherSnapshot? AtmosphereWeather;
         public double serverTimeDifference = 0;
 
         public double lastPlayerAddedTime;
@@ -505,7 +506,8 @@ namespace Orts.MultiPlayer
         //create weather message
         public string GetEnvInfo()
         {
-            return (new MSGWeather(-1, overcastFactor, pricipitationIntensity, fogDistance)).ToString();//update weather
+            return Simulator != null ? new MSGWeather((int)Simulator.WeatherType, Simulator.Weather.Capture()).ToString()
+                : new MSGWeather(-1, overcastFactor, pricipitationIntensity, fogDistance).ToString();
 
         }
 

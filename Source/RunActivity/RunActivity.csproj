@@ -672,11 +672,12 @@
   </ItemGroup>
   <!-- The renderer and its effect parameters must be deployed together. -->
   <ItemGroup>
-    <RuntimeShader Include="Content\PrecipitationShader.fx;Content\CabRainShader.fx;Content\CabShader.fx;Content\CabWiperShader.fx" />
+    <RuntimeShader Include="Content\PrecipitationShader.fx;Content\CabRainShader.fx;Content\CabShader.fx;Content\CabWiperShader.fx;Content\SkyShader.fx;Content\SceneryShader.fx;Content\ParticleEmitterShader.fx" />
+    <Content Include="Content\WeatherPresets.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="CompilePrecipitationShader" BeforeTargets="CopyFilesToOutputDirectory"
           Condition="'$(SkipRuntimeShaderCompilation)' != 'true'"
-          Inputs="@(RuntimeShader);$(MSBuildProjectDirectory)\..\..\.config\dotnet-tools.json"
+          Inputs="@(RuntimeShader);Content\AtmosphereFog.fxh;$(MSBuildProjectDirectory)\..\..\.config\dotnet-tools.json"
           Outputs="@(RuntimeShader->'$(TargetDir)Content\%(Filename).mgfx')">
     <PropertyGroup>
       <PrecipitationDotNetHost Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</PrecipitationDotNetHost>

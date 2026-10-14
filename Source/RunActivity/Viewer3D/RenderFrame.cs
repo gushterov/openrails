@@ -31,6 +31,7 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Orts.Viewer3D.Processes;
+using Orts.Simulation;
 using ORTS.Common;
 using ORTS.Common.Input;
 using Game = Orts.Viewer3D.Processes.Game;
@@ -372,6 +373,17 @@ namespace Orts.Viewer3D
 
     public class RenderFrame
     {
+        internal AtmosphereState Atmosphere;
+        internal Vector4 WeatherCloudScalePosition;
+        internal double WeatherClockTime;
+
+        internal void CaptureAtmosphere(Viewer viewer)
+        {
+            WeatherCloudScalePosition = viewer.World.WeatherControl.CloudScalePosition;
+            WeatherClockTime = viewer.Simulator.ClockTime;
+            Atmosphere = viewer.Settings.UseMSTSEnv || viewer.RenderProcess.GraphicsDevice.GraphicsProfile != GraphicsProfile.HiDef ? null : new AtmosphereState(viewer.Simulator.Weather.Capture(),
+                viewer.World.Sky.SolarDirection, viewer.Settings.NightAmbientLight, viewer.Settings.DayAmbientLight);
+        }
         readonly Game Game;
         internal readonly bool IsCameraFeed;
         readonly List<CabCameraFeed> CameraFeedRequests = new List<CabCameraFeed>();
@@ -410,8 +422,8 @@ namespace Orts.Viewer3D
         SceneryShader SceneryShader;
         Vector3 SolarDirection;
         Camera Camera;
-        Vector3 CameraLocation;
-        Vector3 XNACameraLocation;
+        internal Vector3 CameraLocation;
+        internal Vector3 XNACameraLocation;
         Matrix XNACameraView;
         Matrix XNACameraProjection;
 
@@ -581,7 +593,11 @@ namespace Orts.Viewer3D
                     if (SceneryShader != null)
                         SceneryShader.Parameters["HeadlightPosition"].SetValue(headlight + new Vector4(
                             (CameraTileX - frame.CameraTileX) * 2048, 0, (frame.CameraTileZ - CameraTileZ) * 2048, 0));
-                    using (FrameViewer.UseCameraForFrame(frame.Camera)) frame.DrawSequences(device, false);
+                    using (FrameViewer.UseCameraForFrame(frame.Camera))
+                    {
+                        FrameViewer.MaterialManager.SetAtmosphere(frame);
+                        frame.DrawSequences(device, false);
+                    }
                 }
             }
             finally
@@ -589,6 +605,7 @@ namespace Orts.Viewer3D
                 device.SetRenderTargets(targets);
                 device.Viewport = viewport;
                 if (SceneryShader != null) SceneryShader.Parameters["HeadlightPosition"].SetValue(headlight);
+                FrameViewer.MaterialManager.SetAtmosphere(this);
             }
         }
 
