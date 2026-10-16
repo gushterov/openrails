@@ -16,6 +16,7 @@
 // along with Open Rails.  If not, see <http://www.gnu.org/licenses/>.
 
 // This file is the responsibility of the 3D & Environment Team.
+using System;
 using Microsoft.Xna.Framework;
 
 namespace Orts.Viewer3D
@@ -28,6 +29,7 @@ namespace Orts.Viewer3D
         public double OldClockTime;
         public int Step1;
         public int Step2;
+        public bool CabIsDark { get; private set; }
 
         static float DaylightOffsetS => (float)Program.Viewer.World.WeatherControl.DaylightOffset * 60 * 60;
 
@@ -78,6 +80,40 @@ namespace Orts.Viewer3D
             lunarDirection.X = MathHelper.Lerp(lunarPosArray[Step1].X, lunarPosArray[Step2].X, diff);
             lunarDirection.Y = MathHelper.Lerp(lunarPosArray[Step1].Y, lunarPosArray[Step2].Y, diff);
             lunarDirection.Z = MathHelper.Lerp(lunarPosArray[Step1].Z, lunarPosArray[Step2].Z, diff);
+            // Use the same interpolated sky time, including the daylight-offset keybinds.
+            CabIsDark = IsCabDark(solarPosArray, (Step1 + (double)diff) * 1200);
+        }
+
+        /// <summary>
+        /// Extends the night cab by 30 minutes before dusk and after dawn, using
+        /// the sky's existing sun-height threshold and interpolated position table.
+        /// skyTime is the effective sky time in seconds, including any daylight offset.
+        /// </summary>
+        public static bool IsCabDark(Vector3[] solarPositions, double skyTime)
+        {
+            const float nightSunHeight = -0.085f;
+            const double nightExtensionS = 30 * 60;
+            double stepDurationS = 86400.0 / solarPositions.Length;
+            double start = (skyTime - nightExtensionS) / stepDurationS;
+            double end = (skyTime + nightExtensionS) / stepDurationS;
+
+            float HeightAt(double step)
+            {
+                int lower = (int)Math.Floor(step);
+                int index = (lower % solarPositions.Length + solarPositions.Length) % solarPositions.Length;
+                return MathHelper.Lerp(solarPositions[index].Y,
+                    solarPositions[(index + 1) % solarPositions.Length].Y, (float)(step - lower));
+            }
+
+            // Any night within this hour keeps the cab dark. Check the endpoints
+            // and every intervening table entry, including across midnight and
+            // very short polar days/nights; interpolation is linear between entries.
+            if (HeightAt(start) <= nightSunHeight || HeightAt(end) <= nightSunHeight)
+                return true;
+            for (int step = (int)Math.Ceiling(start); step < end; step++)
+                if (HeightAt(step) <= nightSunHeight)
+                    return true;
+            return false;
         }
 
         /// <summary>

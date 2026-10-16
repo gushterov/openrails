@@ -56,6 +56,48 @@ clearing when the wipers are on. This effect applies to 2D cab images, not 3D
 cab windows.
 
 
+Coasting indicator
+------------------
+
+``ORTS_COASTING`` is a read-only indicator that returns 1 when throttle and
+dynamic-brake percentages are zero and the selected cruise-control MaxAccel is
+zero. A disabled dynamic brake (-1%) counts as zero; a locomotive without cruise
+control has no MaxAccel demand. A stored nonzero MaxAccel prevents the indicator
+from lighting even in Manual mode. Speed, pneumatic braking and remaining force
+ramps are not tested.
+
+For a two-frame texture with frame 0 unlit and frame 1 lit::
+
+    TwoState (
+        Type ( ORTS_COASTING TWO_STATE )
+        Position ( 100 100 32 32 )
+        Graphic ( coasting.ace )
+        NumFrames ( 2 2 1 )
+        Style ( NONE )
+        MouseControl ( 0 )
+    )
+
+Parking-brake indicator
+-----------------------
+
+``ORTS_PARKING_BRAKE`` is a read-only indicator for the Open Rails handbrake.
+It returns 1 if any car in the current consist has its handbrake applied, even
+partially, and 0 when all are released. It reflects actual brake state, including
+individual car handbrakes, rather than the last train-wide command. Without a
+consist it checks the current locomotive. Pneumatic service-brake pressure does
+not affect this indicator.
+
+For a two-frame texture with frame 0 released and frame 1 applied::
+
+    TwoState (
+        Type ( ORTS_PARKING_BRAKE TWO_STATE )
+        Position ( 140 100 32 32 )
+        Graphic ( parking_brake.ace )
+        NumFrames ( 2 2 1 )
+        Style ( NONE )
+        MouseControl ( 0 )
+    )
+
 ETCS circular speed gauge
 -------------------------
 

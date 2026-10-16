@@ -542,7 +542,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     previousDriveModeWasAddPower = false;
                     Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Neutral;
                     bool canApplyDynamicBrake = Locomotive.ThrottlePercent < 1 &&
-                        (!forceSelectingMPC || Locomotive.CruiseControl.CCThrottleOrDynBrakePercent < 1);
+                        (!forceSelectingMPC || Locomotive.CruiseControl.CCThrottleOrDynBrakePercent < 1 &&
+                         Locomotive.CruiseControl.SelectedMaxAccelerationPercent <= 0);
                     if (forceSelectingMPC && canApplyDynamicBrake)
                     {
                         Locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;
@@ -571,7 +572,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                     previousDriveModeWasAddPower = false;
                     Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Neutral;
                     bool canApplyDynamicBrake = Locomotive.ThrottlePercent < 1 &&
-                        (!forceSelectingMPC || Locomotive.CruiseControl.CCThrottleOrDynBrakePercent < 1);
+                        (!forceSelectingMPC || Locomotive.CruiseControl.CCThrottleOrDynBrakePercent < 1 &&
+                         Locomotive.CruiseControl.SelectedMaxAccelerationPercent <= 0);
                     if (forceSelectingMPC && canApplyDynamicBrake)
                     {
                         Locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;

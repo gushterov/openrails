@@ -1571,7 +1571,7 @@ namespace Orts.Viewer3D.RollingStock
             if (!_Locomotive.ShowCab)
                 return;
 
-            bool Dark = _Viewer.MaterialManager.sunDirection.Y <= -0.085f || _Viewer.Camera.IsUnderground;
+            bool Dark = _Viewer.MaterialManager.CabIsDark;
             bool CabLight = _Locomotive.CabLightOn;
 
             CabCamera cbc = _Viewer.Camera as CabCamera;
@@ -1727,6 +1727,9 @@ namespace Orts.Viewer3D.RollingStock
         protected readonly CabShader Shader;
         public readonly SpriteBatchMaterial ControlView;
         readonly int WobbleSeed;
+        bool RequestedForceDisplayInitialized;
+        float RequestedForceDisplayValue;
+        double RequestedForceDisplayTime;
 
         protected Vector2 Position;
         protected Texture2D Texture;
@@ -1794,6 +1797,39 @@ namespace Orts.Viewer3D.RollingStock
         {
             return Control.ControlType;
         }
+
+        protected float GetDisplayData()
+        {
+            float data = Locomotive.GetDataOf(Control);
+            if (Control.ControlType.Type != CABViewControlTypes.ORTS_AMMETER_REQUESTED)
+                return data;
+
+            if (Locomotive.CruiseControl?.SpeedRegMode != CruiseControl.SpeedRegulatorMode.Auto ||
+                !IsPowered || Control.MaxValue <= Control.MinValue)
+            {
+                RequestedForceDisplayInitialized = false;
+                return data;
+            }
+
+            // Dampen the displayed force only; CC's selected limit and applied force stay unchanged.
+            // Simulation time keeps this independent of frame rate and freezes it while paused.
+            const double responseTimeS = 0.2;
+            double time = Locomotive.Simulator.ClockTime;
+            data = MathHelper.Clamp(data, (float)Control.MinValue, (float)Control.MaxValue);
+            if (!RequestedForceDisplayInitialized || time < RequestedForceDisplayTime)
+            {
+                RequestedForceDisplayValue = data;
+                RequestedForceDisplayInitialized = true;
+            }
+            else
+            {
+                float fraction = (float)(1 - Math.Exp(-(time - RequestedForceDisplayTime) / responseTimeS));
+                RequestedForceDisplayValue += (data - RequestedForceDisplayValue) * fraction;
+            }
+            RequestedForceDisplayTime = time;
+            return RequestedForceDisplayValue;
+        }
+
         /// <summary>
         /// Gets the requested Locomotive data and returns it as a fraction (from 0 to 1) of the range between Min and Max values.
         /// </summary>
@@ -1803,9 +1839,12 @@ namespace Orts.Viewer3D.RollingStock
             float data;
 
             if (!IsPowered && Control.ValueIfDisabled != null)
+            {
                 data = (float)Control.ValueIfDisabled;
+                RequestedForceDisplayInitialized = false;
+            }
             else
-                data = Locomotive.GetDataOf(Control);
+                data = GetDisplayData();
 
             if (Control.QuantizationStep > 0)
                 data = (float)(Math.Round(data / Control.QuantizationStep, MidpointRounding.AwayFromZero) * Control.QuantizationStep);
@@ -1903,7 +1942,7 @@ namespace Orts.Viewer3D.RollingStock
                 return;
             }
 
-            var dark = Viewer.MaterialManager.sunDirection.Y <= -0.085f || Viewer.Camera.IsUnderground;
+            var dark = Viewer.MaterialManager.CabIsDark;
 
             Texture = CABTextureManager.GetTexture(Control.ACEFile, dark, Locomotive.CabLightOn, out IsNightTexture, HasCabLightDirectory);
             if (Texture == SharedMaterialManager.MissingTexture)
@@ -1984,7 +2023,7 @@ namespace Orts.Viewer3D.RollingStock
 
         public color GetColor(out bool positive)
         {
-            if (Locomotive.GetDataOf(Control) < 0)
+            if (GetDisplayData() < 0)
             { positive = false; return Gauge.NegativeColor; }
             else { positive = true; return Gauge.PositiveColor; }
         }
@@ -1995,7 +2034,7 @@ namespace Orts.Viewer3D.RollingStock
         {
             if (!(Gauge is CVCFirebox))
             {
-                var dark = Viewer.MaterialManager.sunDirection.Y <= -0.085f || Viewer.Camera.IsUnderground;
+                var dark = Viewer.MaterialManager.CabIsDark;
                 Texture = CABTextureManager.GetTexture(Control.ACEFile, dark, Locomotive.CabLightOn, out IsNightTexture, HasCabLightDirectory);
             }
             if (Texture == SharedMaterialManager.MissingTexture)
@@ -2014,7 +2053,7 @@ namespace Orts.Viewer3D.RollingStock
             if (!IsPowered && Control.ValueIfDisabled != null)
                 Num = (float)Control.ValueIfDisabled;
             else
-                Num = Locomotive.GetDataOf(Control);
+                Num = GetDisplayData();
 
             if (Gauge.Orientation == 0)  // gauge horizontal
             {
@@ -2274,7 +2313,7 @@ namespace Orts.Viewer3D.RollingStock
 
         protected void PrepareFrameForIndex(RenderFrame frame, ElapsedTime elapsedTime, int index)
         {
-            var dark = Viewer.MaterialManager.sunDirection.Y <= -0.085f || Viewer.Camera.IsUnderground;
+            var dark = Viewer.MaterialManager.CabIsDark;
 
             Texture = CABTextureManager.GetTextureByIndexes(Control.ACEFile, index, dark, Locomotive.CabLightOn, out IsNightTexture, HasCabLightDirectory);
             if (Texture == SharedMaterialManager.MissingTexture)
@@ -2417,6 +2456,8 @@ namespace Orts.Viewer3D.RollingStock
                 case CABViewControlTypes.ORTS_TRACTION_CUT_OFF_RELAY_DRIVER_OPENING_ORDER:
                 case CABViewControlTypes.ORTS_TRACTION_CUT_OFF_RELAY_DRIVER_CLOSING_AUTHORIZATION:
                 case CABViewControlTypes.ORTS_TRACTION_CUT_OFF_RELAY_STATE:
+                case CABViewControlTypes.ORTS_COASTING:
+                case CABViewControlTypes.ORTS_PARKING_BRAKE:
                 case CABViewControlTypes.ORTS_TRACTION_CUT_OFF_RELAY_CLOSED:
                 case CABViewControlTypes.ORTS_TRACTION_CUT_OFF_RELAY_OPEN:
                 case CABViewControlTypes.ORTS_TRACTION_CUT_OFF_RELAY_AUTHORIZED:
@@ -3487,7 +3528,7 @@ namespace Orts.Viewer3D.RollingStock
             PrepareFrameForIndex(frame, elapsedTime, index);
             if (BlendWiperFrames)
             {
-                bool dark = Viewer.MaterialManager.sunDirection.Y <= -0.085f || Viewer.Camera.IsUnderground;
+                bool dark = Viewer.MaterialManager.CabIsDark;
                 NextWiperTexture = CABTextureManager.GetTextureByIndexes(Control.ACEFile, blend.Second,
                     dark, Locomotive.CabLightOn, out _, HasCabLightDirectory);
                 WiperBlendAmount = blend.Amount;

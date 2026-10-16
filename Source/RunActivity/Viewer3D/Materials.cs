@@ -491,6 +491,8 @@ namespace Orts.Viewer3D
         public static Color FogColor = new Color(110, 110, 110, 255);
 
         internal Vector3 sunDirection;
+        internal bool CabIsDark => Viewer.Camera.IsUnderground || (Viewer.Settings.UseMSTSEnv
+            ? Viewer.World.MSTSSky.CabIsDark : Viewer.World.Sky.CabIsDark);
         bool lastLightState;
         double fadeStartTimer;
         float fadeDuration = -1;

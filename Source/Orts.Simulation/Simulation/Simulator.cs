@@ -468,6 +468,7 @@ namespace Orts.Simulation
                     playerTrain = InitializeTrains(cancellation);
                     break;
             }
+            playerTrain?.InitializeParkingBrakes();
             MPManager.Instance().RememberOriginalSwitchState();
 
             // start activity logging if required
@@ -515,6 +516,7 @@ namespace Orts.Simulation
             {
                 playerTTTrain.CalculatePositionOfCars(); // calculate position of player train cars
                 playerTTTrain.PostInit();               // place player train after pre-running of AI trains
+                playerTTTrain.InitializeParkingBrakes();
                 if (!TrainDictionary.ContainsKey(playerTTTrain.Number)) TrainDictionary.Add(playerTTTrain.Number, playerTTTrain);
                 if (!NameDictionary.ContainsKey(playerTTTrain.Name.ToLower())) NameDictionary.Add(playerTTTrain.Name.ToLower(), playerTTTrain);
             }

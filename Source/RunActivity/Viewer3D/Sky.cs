@@ -45,6 +45,7 @@ namespace Orts.Viewer3D
         readonly Vector3[] SolarPositionCache = new Vector3[72];
         readonly Vector3[] LunarPositionCache = new Vector3[72];
         readonly SkyInterpolation SkyInterpolation = new SkyInterpolation();
+        internal bool CabIsDark => SkyInterpolation.CabIsDark;
 
         public SkyViewer(Viewer viewer)
         {

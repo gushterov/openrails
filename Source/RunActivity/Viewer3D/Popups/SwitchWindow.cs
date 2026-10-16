@@ -109,7 +109,8 @@ namespace Orts.Viewer3D.Popups
         {
             image.Source = new Rectangle(0, 0, SwitchImageSize, SwitchImageSize);
 
-            var traveller = front ? new Traveller(train.FrontTDBTraveller) : new Traveller(train.RearTDBTraveller, Traveller.TravellerDirection.Backward);
+            bool consistFront = front ^ train.IsPlayerCabReversed;
+            var traveller = consistFront ? new Traveller(train.FrontTDBTraveller) : new Traveller(train.RearTDBTraveller, Traveller.TravellerDirection.Backward);
 
             TrackNode SwitchPreviousNode = traveller.TN;
             TrackNode SwitchNode = null;
@@ -150,16 +151,17 @@ namespace Orts.Viewer3D.Popups
         {
             image.Source = new Rectangle(0, 0, SwitchImageSize, SwitchImageSize);
             image.Source.Y = 4 * SwitchImageSize;
-            image.Source.X = train.MUDirection == Direction.Forward ? 2 * SwitchImageSize :
-                (train.MUDirection == Direction.Reverse ? 1 * SwitchImageSize : 0);
+            var direction = train.IsPlayerCabReversed ? DirectionControl.Flip(train.MUDirection) : train.MUDirection;
+            image.Source.X = direction == Direction.Forward ? 2 * SwitchImageSize :
+                (direction == Direction.Reverse ? 1 * SwitchImageSize : 0);
         }
 
         static void UpdateEye(Image image, Train train, bool front)
         {
             image.Source = new Rectangle(0, 0, SwitchImageSize, SwitchImageSize / 2);
             image.Source.Y = (int)(4.25 * SwitchImageSize);
-            bool flipped = Program.Simulator.PlayerLocomotive.Flipped ^ Program.Simulator.PlayerLocomotive.GetCabFlipped();
-            image.Source.X = (front ^ !flipped) ? 0 : 3 * SwitchImageSize;
+            // The window is oriented to the active cab, just like its switch buttons.
+            image.Source.X = front ? 3 * SwitchImageSize : 0;
         }
 
     }

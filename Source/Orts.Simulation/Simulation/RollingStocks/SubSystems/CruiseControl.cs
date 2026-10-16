@@ -51,6 +51,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 else selectedMaxAccelerationStep = value * SpeedRegulatorMaxForceSteps / 100;
             }
         }
+        // Resolve the driver's force selector independently of the throttle applied by the regulator.
+        public float SelectedMaxThrottlePercent =>
+            !SpeedRegulatorMaxForcePercentUnits && ForceStepsThrottleTable.Count > 0
+                ? (selectedMaxAccelerationStep > 0 ? ForceStepsThrottleTable[(int)selectedMaxAccelerationStep - 1] : 0)
+                : SelectedMaxAccelerationPercent;
+
         public bool MaxForceSetSingleStep = false;
         public bool MaxForceKeepSelectedStepWhenManualModeSet = false;
         public bool KeepSelectedSpeedWhenManualModeSet = false;
@@ -447,6 +453,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         }
 
         bool IsActive = false;
+        bool MPCIsCoasting => UseThrottleAsForceSelector && SpeedSelMode == SpeedSelectorMode.Neutral &&
+            Locomotive.MultiPositionControllers?.Any(mpc => mpc.controllerBinding == ControllerBinding.Throttle &&
+                mpc.controllerPosition == ControllerPosition.Neutral) == true;
+
         public void Update(float elapsedClockSeconds)
         {
             if (!Locomotive.IsPlayerTrain || Locomotive != Locomotive.Train.LeadLocomotive)
@@ -550,7 +560,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                         CCThrottleOrDynBrakePercent = 0;
                 }
                 else if (TrainBrakePriority && (TrainBrakeCommandHasPriorityOverCruiseControl || TrainBrakeCommandHasPriorityOverAcceleratingCruiseControl && CCThrottleOrDynBrakePercent > 0)
-                    || DynamicBrakePriority || (ThrottleNeutralPosition && SelectedSpeedMpS == 0) || SelectedMaxAccelerationPercent == 0 ||
+                    || DynamicBrakePriority || (ThrottleNeutralPosition && SelectedSpeedMpS == 0) ||
+                    (SelectedMaxAccelerationPercent == 0 && !(MPCIsCoasting && CCThrottleOrDynBrakePercent < 0)) ||
                     (ForceResetRequiredAfterBraking && (TrainBrakeCommandHasPriorityOverAcceleratingCruiseControl && (CCThrottleOrDynBrakePercent > 0 || TrainBrakeCommandHasPriorityOverCruiseControl)) &&
                         (!WasForceReset || (WasBraking && SelectedMaxAccelerationPercent > 0))))
                 {
@@ -1246,14 +1257,14 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             }
             else if (SpeedSelMode == SpeedSelectorMode.Neutral || SpeedSelMode < SpeedSelectorMode.Start && !SpeedRegulatorOptions.Contains("startfromzero") && AbsWheelSpeedMpS < SafeSpeedForAutomaticOperationMpS)
             {
-                // BE holds remaining traction like the manual MPC; V is used to reduce it.
-                bool mpcHoldsTraction = UseThrottleAsForceSelector && CCThrottleOrDynBrakePercent >= 1 &&
+                // BE holds the demand until V has reduced the selected traction limit to zero.
+                bool mpcHoldsDemand = UseThrottleAsForceSelector && SelectedMaxAccelerationPercent > 0 &&
                     Locomotive.MultiPositionControllers?.Any(mpc => mpc.controllerBinding == ControllerBinding.Throttle &&
                         (mpc.controllerPosition == ControllerPosition.DynamicBrakeIncrease ||
                          mpc.controllerPosition == ControllerPosition.DynamicBrakeIncreaseFast)) == true;
-                if (mpcHoldsTraction)
+                if (mpcHoldsDemand)
                     TrainBrakePercent = 0;
-                else if (deltaSpeedMpS >= 0)
+                else if (deltaSpeedMpS >= 0 || MPCIsCoasting)
                 {
                     // Progressively stop accelerating/braking: reach 0
                     if (CCThrottleOrDynBrakePercent < 0) IncreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, 0);

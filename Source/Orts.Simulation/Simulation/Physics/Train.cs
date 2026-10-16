@@ -4234,6 +4234,20 @@ namespace Orts.Simulation.Physics
                 car.BrakeSystem.Initialize(LeadLocomotiveIndex < 0, maxPressurePSI, fullServPressurePSI, false);
         }
 
+        /// <summary>
+        /// Applies configured locomotive parking brakes once, after a new player train has been initialized.
+        /// </summary>
+        public void InitializeParkingBrakes()
+        {
+            if (SpeedMpS != 0)
+                return;
+            foreach (var locomotive in Cars.OfType<MSTSLocomotive>())
+            {
+                if (locomotive.StartWithParkingBrake)
+                    locomotive.BrakeSystem.SetHandbrakePercent(100);
+            }
+        }
+
         //================================================================================================//
         /// <summary>
         /// Set handbrakes
@@ -8970,7 +8984,7 @@ namespace Orts.Simulation.Physics
                     ProcessManualSwitch(routeDirectionIndex, reqSwitch, direction);
                 if (Simulator.Confirmer != null) // As Confirmer may not be created until after a restore.
                     Simulator.Confirmer.Confirm(
-                        (direction == Direction.Forward) ? CabControl.SwitchAhead : CabControl.SwitchBehind,
+                        ((direction == Direction.Forward) ^ IsPlayerCabReversed) ? CabControl.SwitchAhead : CabControl.SwitchBehind,
                         CabSetting.On);
             }
             else

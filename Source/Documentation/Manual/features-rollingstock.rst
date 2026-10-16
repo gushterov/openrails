@@ -1698,6 +1698,23 @@ Note that the advanced brake cylinder calculations are only run on air brake sys
 player train to save computing power. As such, brake cylinder animations on AI trains
 or brake systems other than air brakes behave in a simplified manner.
 
+Starting with the Parking Brake Applied
+--------------------------------------
+
+Add the following boolean parameter inside the ``Engine ()`` block of an ``.eng``
+file to start a new stationary player train with that locomotive's parking brake
+(handbrake) fully applied::
+
+  ORTSStartWithParkingBrake ( 1 )
+
+The default is ``0`` (off). The locomotive must have ``Handbrake`` listed in its
+``BrakeEquipmentType``. Each locomotive in the player consist uses its own setting;
+the parameter does not apply the handbrakes on wagons. It is ignored for moving
+starts and AI trains. Resuming a saved game preserves the saved brake application.
+Release the parking brake using the normal handbrake controls before driving.
+
+.. index:: ORTSStartWithParkingBrake
+
 Handbrake Animation
 -------------------
 

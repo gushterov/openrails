@@ -406,6 +406,7 @@ namespace Orts.Simulation.RollingStocks
         public float EngineBrakeApplyRatePSIpS = 12.5f;
         public float DoorBrakeCylinderPressurePSI { get; private set; }
         public bool DoorsOpeningBlockedWhenMoving { get; private set; }
+        public bool StartWithParkingBrake { get; private set; }
         public float BrakePipeTimeFactorS = 0.0015f;
         public float BrakePipeDischargeTimeFactor;
         public float BrakeServiceTimeFactorPSIpS;
@@ -1172,6 +1173,7 @@ namespace Orts.Simulation.RollingStocks
                 case "engine(ortsenginebrakeapplicationrate": EngineBrakeApplyRatePSIpS = stf.ReadFloatBlock(STFReader.UNITS.PressureRateDefaultPSIpS, null); break;
                 case "engine(ortsdoorbrakecylinderpressure": DoorBrakeCylinderPressurePSI = Math.Max(0, ReadPressureBlockDefaultBarPSI(stf, "Engine(ORTSDoorBrakeCylinderPressure)")); break;
                 case "engine(ortsdoorsopeningblockedwhenmoving": DoorsOpeningBlockedWhenMoving = stf.ReadBoolBlock(false); break;
+                case "engine(ortsstartwithparkingbrake": StartWithParkingBrake = stf.ReadBoolBlock(false); break;
                 case "engine(ortsbrakepipetimefactor": BrakePipeTimeFactorS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(ortsbrakeservicetimefactor": BrakeServiceTimeFactorPSIpS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(ortsbrakeemergencytimefactor": BrakeEmergencyTimeFactorPSIpS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
@@ -1441,6 +1443,7 @@ namespace Orts.Simulation.RollingStocks
             EngineBrakeReleaseRatePSIpS = locoCopy.EngineBrakeReleaseRatePSIpS;
             DoorBrakeCylinderPressurePSI = locoCopy.DoorBrakeCylinderPressurePSI;
             DoorsOpeningBlockedWhenMoving = locoCopy.DoorsOpeningBlockedWhenMoving;
+            StartWithParkingBrake = locoCopy.StartWithParkingBrake;
             BrakePipeDischargeTimeFactor = locoCopy.BrakePipeDischargeTimeFactor;
             DriveWheelOnlyBrakes = locoCopy.DriveWheelOnlyBrakes;
             DynamicBrakeBlendingEnabled = locoCopy.DynamicBrakeBlendingEnabled;
@@ -5910,7 +5913,9 @@ namespace Orts.Simulation.RollingStocks
                             }
                             else
                             {
-                                float t = ThrottlePercent / 100;
+                                // Automatic throttle follows the speed error; the gauge shows the selected force limit.
+                                float t = (CruiseControl?.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto
+                                    ? CruiseControl.SelectedMaxThrottlePercent : ThrottlePercent) / 100;
                                 if (t > 0)
                                 {
                                     float maxthrottle = MaxThrottlePercent / 100;
@@ -6756,6 +6761,19 @@ namespace Orts.Simulation.RollingStocks
                         var mpc = MultiPositionControllers.Where(x => x.ControllerId == cvc.ControlId).FirstOrDefault();
                         if (mpc != null) data = mpc.GetDataOf(cvc);
                     }
+                    break;
+
+                case CABViewControlTypes.ORTS_COASTING:
+                    // Dynamic brake off is represented by -1%, which also counts as zero demand.
+                    data = ThrottlePercent <= 0 && DynamicBrakePercent <= 0 &&
+                        (CruiseControl?.SelectedMaxAccelerationPercent ?? 0) <= 0 ? 1 : 0;
+                    break;
+
+                case CABViewControlTypes.ORTS_PARKING_BRAKE:
+                    // The train-wide command operates each car's handbrake; show actual applied status.
+                    data = Train?.Cars != null && Train.Cars.Count > 0
+                        ? (Train.Cars.Any(car => car.BrakeSystem?.GetHandbrakeStatus() == true) ? 1 : 0)
+                        : (BrakeSystem?.GetHandbrakeStatus() == true ? 1 : 0);
                     break;
 
                 default:

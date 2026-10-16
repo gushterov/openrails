@@ -1816,25 +1816,27 @@ namespace Orts.Viewer3D
         }
         public void ToggleSwitchAhead()
         {
-            if (PlayerTrain.ControlMode == Train.TRAIN_CONTROL.MANUAL)
-            {
-                PlayerTrain.ProcessRequestManualSetSwitch(Direction.Forward);
-            }
-            else if (PlayerTrain.ControlMode == Train.TRAIN_CONTROL.EXPLORER)
-            {
-                PlayerTrain.ProcessRequestExplorerSetSwitch(Direction.Forward);
-            }
+            ToggleSwitch(Direction.Forward);
         }
 
         public void ToggleSwitchBehind()
         {
+            ToggleSwitch(Direction.Reverse);
+        }
+
+        void ToggleSwitch(Direction direction)
+        {
+            // Commands are relative to the active cab; signalling routes use consist coordinates.
+            if (PlayerTrain.IsPlayerCabReversed)
+                direction = DirectionControl.Flip(direction);
+
             if (PlayerTrain.ControlMode == Train.TRAIN_CONTROL.MANUAL)
             {
-                PlayerTrain.ProcessRequestManualSetSwitch(Direction.Reverse);
+                PlayerTrain.ProcessRequestManualSetSwitch(direction);
             }
             else if (PlayerTrain.ControlMode == Train.TRAIN_CONTROL.EXPLORER)
             {
-                PlayerTrain.ProcessRequestExplorerSetSwitch(Direction.Reverse);
+                PlayerTrain.ProcessRequestExplorerSetSwitch(direction);
             }
         }
 

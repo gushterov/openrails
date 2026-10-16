@@ -296,6 +296,8 @@ namespace Orts.Formats.Msts
         ORTS_DP_MORE,
         ORTS_DP_LESS,
         ORTS_CIRCUIT_BREAKER_DRIVER_COMMAND,
+        ORTS_COASTING,
+        ORTS_PARKING_BRAKE,
 
         // Further CabViewControlTypes must be added above this line, to avoid their malfunction in 3DCabs
         EXTERNALWIPERS,

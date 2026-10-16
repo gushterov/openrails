@@ -216,10 +216,10 @@ namespace Tests.Orts.Simulation
             locomotive.CruiseControl.SelectedMaxAccelerationPercent = 40;
             locomotive.CruiseControl.DynamicBrakePriority = true;
             for (int frame = 0; frame < 60; frame++) controller.Update(1f / 60);
-            Assert.InRange(locomotive.DynamicBrakeController.CurrentValue, 0.2499f, 0.2501f);
+            Assert.InRange(locomotive.DynamicBrakeController.CurrentValue, 0.3499f, 0.3501f);
             Assert.Equal(40f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
             Assert.Equal(CruiseControl.SpeedSelectorMode.Neutral, locomotive.CruiseControl.SpeedSelMode);
-            for (int frame = 0; frame < 61; frame++) controller.Update(1f / 60);
+            for (int frame = 0; frame < 141; frame++) controller.Update(1f / 60);
             Assert.Equal(0f, locomotive.DynamicBrakeController.CurrentValue);
             Assert.False(locomotive.CruiseControl.DynamicBrakePriority);
             Assert.Equal(position == ControllerPosition.Drive ? CruiseControl.SpeedSelectorMode.On : CruiseControl.SpeedSelectorMode.Start,
@@ -229,7 +229,7 @@ namespace Tests.Orts.Simulation
         [Theory]
         [InlineData(30)]
         [InlineData(120)]
-        public void AutomaticBrakeClearsTractionLimitAndIncreasesOverTime(int updatesPerSecond)
+        public void AutomaticBrakeWaitsForZeroForceLimitAndIncreasesOverTime(int updatesPerSecond)
         {
             var (controller, locomotive) = CreateController(ControllerPosition.DynamicBrakeIncrease, -1, true);
             locomotive.CruiseControl.UseThrottleAsForceSelector = true;
@@ -239,8 +239,16 @@ namespace Tests.Orts.Simulation
                 controller.Update(1f / updatesPerSecond);
                 locomotive.LocalDynamicBrakePercent = locomotive.DynamicBrakeController.SavedValue * 100;
             }
-            Assert.Equal(0f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
-            Assert.InRange(locomotive.DynamicBrakeController.CurrentValue, 0.4999f, 0.5001f);
+            Assert.Equal(100f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
+            Assert.Equal(0f, locomotive.DynamicBrakeController.CurrentValue);
+            Assert.False(locomotive.CruiseControl.DynamicBrakePriority);
+            locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;
+            for (int frame = 0; frame < updatesPerSecond; frame++)
+            {
+                controller.Update(1f / updatesPerSecond);
+                locomotive.LocalDynamicBrakePercent = locomotive.DynamicBrakeController.SavedValue * 100;
+            }
+            Assert.InRange(locomotive.DynamicBrakeController.CurrentValue, 0.1499f, 0.1501f);
             Assert.True(locomotive.CruiseControl.DynamicBrakePriority);
         }
 
@@ -390,9 +398,10 @@ namespace Tests.Orts.Simulation
             }
 
             SelectPosition(controller, ControllerPosition.Neutral);
-            for (int frame = 0; frame < updatesPerSecond * 3; frame++)
+            for (int frame = 0; frame < updatesPerSecond * 4; frame++)
                 UpdateRegulatorAndMPC(controller, locomotive, elapsedSeconds);
             Assert.Equal(0f, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
+            Assert.Equal(0f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
             SelectPosition(controller, brakePosition);
             for (int frame = 0; frame < 3; frame++)
                 UpdateRegulatorAndMPC(controller, locomotive, elapsedSeconds);
@@ -426,6 +435,106 @@ namespace Tests.Orts.Simulation
             UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
             UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
             Assert.InRange(locomotive.CruiseControl.CCThrottleOrDynBrakePercent, 59.4f, 59.5f);
+        }
+
+        [Theory]
+        [InlineData(ControllerPosition.DynamicBrakeIncrease)]
+        [InlineData(ControllerPosition.DynamicBrakeIncreaseFast)]
+        public void AutomaticBEWaitsForSelectedForceEvenWhenThrottleIsZero(ControllerPosition brakePosition)
+        {
+            var (controller, locomotive) = CreateRunningRegulator();
+            locomotive.CruiseControl.SelectedMaxAccelerationPercent = 50;
+            locomotive.CruiseControl.CCThrottleOrDynBrakePercent = 0;
+            locomotive.LocalThrottlePercent = 0;
+            for (int frame = 0; frame < 60; frame++) UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            float forceLimit = locomotive.CruiseControl.SelectedMaxAccelerationPercent;
+            Assert.InRange(forceLimit, 33.32f, 33.35f);
+            SelectPosition(controller, brakePosition);
+            for (int frame = 0; frame < 60; frame++)
+            {
+                UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+                Assert.Equal(forceLimit, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
+                Assert.Equal(0f, locomotive.DynamicBrakeController.CurrentValue);
+            }
+            SelectPosition(controller, ControllerPosition.Neutral);
+            for (int frame = 0; frame < 121; frame++) UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            Assert.Equal(0f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
+            SelectPosition(controller, brakePosition);
+            UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            Assert.True(locomotive.DynamicBrakeController.CurrentValue > 0);
+        }
+
+        [Theory]
+        [InlineData(ControllerPosition.DynamicBrakeIncrease)]
+        [InlineData(ControllerPosition.DynamicBrakeIncreaseFast)]
+        public void AutomaticVReleasesRegulatorBrakeAndBEHoldsItUntilSelectedForceIsZero(ControllerPosition brakePosition)
+        {
+            var (controller, locomotive) = CreateRunningRegulator();
+            locomotive.CruiseControl.SelectedMaxAccelerationPercent = 50;
+            locomotive.CruiseControl.CCThrottleOrDynBrakePercent = -60;
+            locomotive.CruiseControl.DynamicBrakeFullRangeDecreaseTimeSeconds = 6;
+            locomotive.LocalThrottlePercent = 0;
+            locomotive.LocalDynamicBrakePercent = 60;
+            locomotive.WheelSpeedMpS = 20;
+            locomotive.AbsWheelSpeedMpS = 20;
+            locomotive.SpeedMpS = 20;
+            // The train remains above the set speed: V must still release rather than regulate braking.
+            controller.Update(1f / 60);
+            for (int frame = 0; frame < 60; frame++) UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            Assert.InRange(locomotive.CruiseControl.CCThrottleOrDynBrakePercent, -43.35f, -43.32f);
+            Assert.Equal(0f, locomotive.DynamicBrakeController.CurrentValue);
+            float brakeDemand = locomotive.CruiseControl.CCThrottleOrDynBrakePercent;
+            float forceLimit = locomotive.CruiseControl.SelectedMaxAccelerationPercent;
+            SelectPosition(controller, brakePosition);
+            for (int frame = 0; frame < 60; frame++)
+            {
+                UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+                Assert.Equal(forceLimit, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
+                Assert.Equal(brakeDemand, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
+                Assert.Equal(0f, locomotive.DynamicBrakeController.CurrentValue);
+            }
+            SelectPosition(controller, ControllerPosition.Neutral);
+            bool releasedAfterForceReachedZero = false;
+            for (int frame = 0; frame < 240; frame++)
+            {
+                float previousBrakeDemand = locomotive.CruiseControl.CCThrottleOrDynBrakePercent;
+                UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+                if (locomotive.CruiseControl.SelectedMaxAccelerationPercent == 0 && previousBrakeDemand < 0)
+                {
+                    Assert.InRange(locomotive.CruiseControl.CCThrottleOrDynBrakePercent - previousBrakeDemand, 0, 100f / 6 / 30 + 0.001f);
+                    releasedAfterForceReachedZero = true;
+                }
+            }
+            Assert.Equal(0f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
+            Assert.True(releasedAfterForceReachedZero);
+            Assert.Equal(0f, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
+            Assert.Equal(0f, locomotive.DynamicBrakeController.CurrentValue);
+            Assert.False(locomotive.CruiseControl.DynamicBrakePriority);
+            SelectPosition(controller, brakePosition);
+            UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            Assert.True(locomotive.DynamicBrakeController.CurrentValue > 0);
+        }
+
+        [Theory]
+        [InlineData(ControllerPosition.DynamicBrakeIncrease)]
+        [InlineData(ControllerPosition.DynamicBrakeIncreaseFast)]
+        public void AutomaticVStillHoldsBrakeAppliedManuallyWithBE(ControllerPosition brakePosition)
+        {
+            var (controller, locomotive) = CreateRunningRegulator();
+            locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;
+            locomotive.CruiseControl.CCThrottleOrDynBrakePercent = 0;
+            locomotive.LocalThrottlePercent = 0;
+            SelectPosition(controller, brakePosition);
+            for (int frame = 0; frame < 60; frame++) UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+            float manualBrakeDemand = locomotive.DynamicBrakeController.CurrentValue;
+            Assert.True(manualBrakeDemand > 0);
+            SelectPosition(controller, ControllerPosition.Neutral);
+            for (int frame = 0; frame < 300; frame++)
+            {
+                UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
+                Assert.Equal(manualBrakeDemand, locomotive.DynamicBrakeController.CurrentValue);
+                Assert.True(locomotive.CruiseControl.DynamicBrakePriority);
+            }
         }
     }
 }

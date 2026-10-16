@@ -16,6 +16,31 @@ namespace Tests.Orts.Formats.Msts
     public class CabViewFileTests
     {
         [Theory]
+        [InlineData(CABViewControlTypes.ORTS_COASTING)]
+        [InlineData(CABViewControlTypes.ORTS_PARKING_BRAKE)]
+        public void ReadOnlyIndicatorParsesAsTwoStateControl(CABViewControlTypes type)
+        {
+            var filePath = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(filePath, $@"
+                    Tr_CabViewFile ( CabViewControls ( 1
+                        TwoState (
+                            Type ( {type} TWO_STATE )
+                            Position ( 100 100 32 32 ) Graphic ( coasting.ace )
+                            NumFrames ( 2 2 1 ) Style ( NONE ) MouseControl ( 0 )
+                        )
+                    ) )");
+                var cab = new CabViewFile(filePath, Path.GetDirectoryName(filePath));
+                var control = Assert.IsType<CVCDiscrete>(Assert.Single(cab.CabViewControls));
+                Assert.Equal(type, control.ControlType.Type);
+                Assert.Equal(2, control.FramesCount);
+                Assert.False(control.MouseControl);
+            }
+            finally { File.Delete(filePath); }
+        }
+
+        [Theory]
         [InlineData("", 0f, true)]
         [InlineData("ORTSCycleDelay ( 0 )", 0f, true)]
         [InlineData("ORTSCycleDelay ( 2.5 )", 2.5f, true)]

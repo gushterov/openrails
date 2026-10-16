@@ -68,6 +68,7 @@ namespace Orts.Viewer3D
         public Orts.Viewer3D.SkyViewer.SkyDate date;
 
         private SkyInterpolation skySteps = new SkyInterpolation();
+        internal bool CabIsDark => skySteps.CabIsDark;
 
         // Phase of the moon
         public int mstsskymoonPhase;

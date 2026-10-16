@@ -281,8 +281,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems.PowerSupplies
                 MaximumPowerW = PowerLimitationSelector.Position.PowerW;
             }
 
-            // By default, on electric locomotives, dynamic brake is always available (rheostatic brake is always available).
-            SetCurrentDynamicBrakeAvailability(CurrentAuxiliaryPowerSupplyState() == PowerSupplyState.PowerOn);
+            // Dynamic braking requires main and auxiliary power, including their power-on delays.
+            SetCurrentDynamicBrakeAvailability(CurrentMainPowerSupplyState() == PowerSupplyState.PowerOn
+                && CurrentAuxiliaryPowerSupplyState() == PowerSupplyState.PowerOn);
 
             if (ElectricTrainSupplyUnfitted())
             {

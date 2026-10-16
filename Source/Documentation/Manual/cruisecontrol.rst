@@ -276,6 +276,15 @@ The ControllerBinding parameter defines to which function the
 MPC is connected. Controllers linked may be either "Throttle" or 
 "SelectedSpeed".
 
+For a throttle-bound MPC with ``UseThrottleAsForceSelector ( True )`` in Auto
+mode, Neutral reduces the selected MaxAccel toward zero and gradually releases
+braking applied automatically by CC, including when the train is above its set
+speed. The automatic brake release uses
+``DynamicBrakeFullRangeDecreaseTimeSeconds`` and continues after MaxAccel reaches
+zero. Braking applied manually with the MPC is held in Neutral. Entering a
+dynamic-brake increase position before MaxAccel has reached zero holds the
+remaining demand; manual brake increase is permitted once MaxAccel is zero.
+
 The boolean parameter *CanControlTrainBrake*, which is false by 
 default, is optional.
 

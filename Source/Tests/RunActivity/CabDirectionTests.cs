@@ -9,6 +9,7 @@ using Orts.Formats.Msts;
 using Orts.Simulation;
 using Orts.Simulation.Physics;
 using Orts.Simulation.RollingStocks;
+using Orts.Simulation.Signalling;
 using Orts.Viewer3D;
 using Orts.Viewer3D.Popups;
 using ORTS.Common;
@@ -87,6 +88,40 @@ namespace Tests.RunActivity
             Assert.False(train.IsPlayerCabReversed);
             train.MUDirection = Direction.Forward;
             Assert.False(train.LeadingEndIsRear);
+        }
+
+        [Theory]
+        [InlineData(Train.TRAIN_CONTROL.MANUAL, false, false, 0)]
+        [InlineData(Train.TRAIN_CONTROL.MANUAL, false, true, 1)]
+        [InlineData(Train.TRAIN_CONTROL.MANUAL, true, false, 1)]
+        [InlineData(Train.TRAIN_CONTROL.MANUAL, true, true, 0)]
+        [InlineData(Train.TRAIN_CONTROL.EXPLORER, false, false, 0)]
+        [InlineData(Train.TRAIN_CONTROL.EXPLORER, false, true, 1)]
+        [InlineData(Train.TRAIN_CONTROL.EXPLORER, true, false, 1)]
+        [InlineData(Train.TRAIN_CONTROL.EXPLORER, true, true, 0)]
+        public void SwitchCommandsSearchAheadAndBehindTheActiveCab(Train.TRAIN_CONTROL mode, bool flipped, bool rearCab, int aheadRoute)
+        {
+            var (train, simulator, _) = CreateTrain(flipped, rearCab);
+            train.ControlMode = mode;
+            var signals = Uninitialized<Signals>();
+            var junction = Uninitialized<TrackCircuitSection>();
+            junction.CircuitType = TrackCircuitSection.TrackCircuitType.Junction;
+            // A reserved switch can be found but must not be moved by either command.
+            junction.CircuitState = new TrackCircuitState { SignalReserved = 1 };
+            signals.TrackCircuitList = new List<TrackCircuitSection> { junction };
+            SetProperty(train, nameof(Train.signalRef), signals);
+            var viewer = Uninitialized<Viewer>();
+            SetProperty(viewer, nameof(Viewer.Simulator), simulator);
+
+            // Only the expected route is available, so selecting the wrong end fails.
+            var route = new Train.TCSubpathRoute { new Train.TCRouteElement(0, 0) };
+            train.ValidRoute = new Train.TCSubpathRoute[2];
+            train.ValidRoute[aheadRoute] = route;
+            viewer.ToggleSwitchAhead();
+            train.ValidRoute[aheadRoute] = null;
+            train.ValidRoute[1 - aheadRoute] = route;
+            viewer.ToggleSwitchBehind();
+            Assert.Equal(1, junction.CircuitState.SignalReserved);
         }
 
         static TrackSoundSource CreateTrackSound(Train train, Simulator simulator, int increment)
