@@ -1172,7 +1172,7 @@ namespace Orts.Viewer3D
             if (UserInput.IsPressed(UserCommand.CameraVibrate))
             {
                 Program.Simulator.CarVibrating = (Program.Simulator.CarVibrating + 1) % 4;
-                Simulator.Confirmer.Message(ConfirmLevel.Information, Catalog.GetStringFmt("Vibrating at level {0}", Program.Simulator.CarVibrating));
+                Simulator.Confirmer.Message(ConfirmLevel.Warning, Catalog.GetStringFmt("Vibrating at level {0}", Program.Simulator.CarVibrating));
                 Settings.CarVibratingLevel = Program.Simulator.CarVibrating;
                 Settings.Save("CarVibratingLevel");
             }

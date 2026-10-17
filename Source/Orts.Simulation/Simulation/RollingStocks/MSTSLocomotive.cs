@@ -5897,13 +5897,13 @@ namespace Orts.Simulation.RollingStocks
                         if (LocomotiveAxles.Count > 0)
                         {
                             data = 0.0f;
-                            if (DynamicBrake)
+                            bool automatic = CruiseControl?.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto;
+                            // CC's output can change sides without the driver moving the MPC or combined handle.
+                            // The brake controller stores the driver's selection, before CC and brake blending.
+                            float requestedBrake = automatic ? DynamicBrakeController?.CurrentValue ?? 0 : DynamicBrakePercent / 100;
+                            if (automatic ? requestedBrake > 0 : DynamicBrake)
                             {
-                                float maxdynamic = DynamicBrake ? 1 : 0;
-                                float d = DynamicBrakePercent / 100;
-                                bool dynamicLimited = d > maxdynamic;
-                                if (dynamicLimited) d = maxdynamic;
-                                d = MathHelper.Clamp(d, 0, 1);
+                                float d = MathHelper.Clamp(requestedBrake, 0, 1);
                                 
                                 if (d > 0 && DynamicBrakeForceCurves != null && AbsTractionSpeedMpS > 0)
                                 {
@@ -5914,12 +5914,11 @@ namespace Orts.Simulation.RollingStocks
                             else
                             {
                                 // Automatic throttle follows the speed error; the gauge shows the selected force limit.
-                                float t = (CruiseControl?.SpeedRegMode == CruiseControl.SpeedRegulatorMode.Auto
+                                float t = (automatic
                                     ? CruiseControl.SelectedMaxThrottlePercent : ThrottlePercent) / 100;
                                 if (t > 0)
                                 {
                                     float maxthrottle = MaxThrottlePercent / 100;
-                                    if (DynamicBrake) maxthrottle = 0;
                                     // For diesel locomotives, also take into account the throttle setting associated to the current engine RPM
                                     // if (IsPlayerTrain && this is MSTSDieselLocomotive diesel && !diesel.TractiveForcePowerLimited)
                                     // {

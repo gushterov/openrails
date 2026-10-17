@@ -51,8 +51,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         public bool MouseInputActive = false;
 
         protected const float MPCFullRangeIncreaseTimeS = 6.0f;
-        protected const float DynamicBrakeIncreaseStepPerSecond = 15f;
-        protected const float DynamicBrakeDecreaseStepPerSecond = 15f;
+        protected const float DynamicBrakeIncreaseStepPerSecond = 25f;
+        protected const float DynamicBrakeDecreaseStepPerSecond = 25f;
         protected const float ThrottleIncreaseStepPerSecond = 15f;
         protected const float ThrottleDecreaseStepPerSecond = 15f;
 

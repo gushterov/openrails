@@ -2484,13 +2484,19 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Brakes.MSTS
                     if (dp / elapsedClockSeconds < 1.0f)
                         leadLoco.EngineBrakeState = ValveState.Lap;
 
-                    // Send messages for loco brake audio to lead locomotive only
-                    if (leadLoco == lead && leadLoco.EngineBrakeState != prevState)
-                        switch (leadLoco.EngineBrakeState)
+                    // All locomotives in the MU group share the independent brake pipe.
+                    // Send state changes to each locomotive so its own SMS can play/stop the sound.
+                    if (leadLoco.EngineBrakeState != prevState)
+                        foreach (TrainCar locoCar in train.LocoGroups[i])
                         {
-                            case ValveState.Release: leadLoco.SignalEvent(Event.EngineBrakePressureIncrease); break;
-                            case ValveState.Apply: leadLoco.SignalEvent(Event.EngineBrakePressureDecrease); break;
-                            case ValveState.Lap: leadLoco.SignalEvent(Event.EngineBrakePressureStoppedChanging); break;
+                            if (locoCar is MSTSLocomotive loco)
+                                switch (leadLoco.EngineBrakeState)
+                                {
+                                    // Preserve the existing SMS trigger 21/22 behavior.
+                                    case ValveState.Release: loco.SignalEvent(Event.EngineBrakePressureIncrease); break;
+                                    case ValveState.Apply: loco.SignalEvent(Event.EngineBrakePressureDecrease); break;
+                                    case ValveState.Lap: loco.SignalEvent(Event.EngineBrakePressureStoppedChanging); break;
+                                }
                         }
                 }
 

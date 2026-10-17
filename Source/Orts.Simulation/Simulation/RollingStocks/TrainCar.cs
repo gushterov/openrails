@@ -3230,8 +3230,17 @@ public string GetCurveDirection()
         //   k' = 9.8 / 0.2
         const float VibrationSpringConstantPrimepSpS = 9.8f / 0.2f; // 1/s/s
 
-        // 
-        const float VibratioDampingCoefficient = 0.01f;
+        // A softer lateral suspension halves the sway frequency. Reduce lateral impulses too
+        // so the softer springs don't increase the displacement, and damp repeated track bumps.
+        const float VibrationLateralSpringFactor = 0.25f;
+        const float VibrationLateralIntroductionFactor = 0.5f;
+        const float VibrationLateralDampingPerS = 1.5f;
+
+        // Set vertical bounce and pitch to 75% of the original natural frequency.
+        // Scale impulses with frequency to keep the undamped displacement consistent.
+        const float VibrationVerticalSpringFactor = 0.5625f;
+        const float VibrationVerticalIntroductionFactor = 0.75f;
+        const float VibrationVerticalDampingPerS = 1.5f;
 
         // This is multiplied by the CarVibratingLevel (which goes up to 3).
         const float VibrationIntroductionStrength = 0.03f;
@@ -3241,8 +3250,10 @@ public string GetCurveDirection()
         const float VibrationContinuousVerticalAmplitudeM = 0.004f;
         const float VibrationReferenceSpeedMpS = 200f / 3.6f;
         const float VibrationMaximumFrequencySpeedMpS = 80f / 3.6f;
-        const float VibrationPrimaryWavelengthM = 18f;
-        const float VibrationSecondaryWavelengthM = 9f;
+        // Frequencies halfway between the original and slow settings; at the speed limit
+        // these give periods of about 1.2 and 0.65 seconds.
+        const float VibrationPrimaryWavelengthM = 27f;
+        const float VibrationSecondaryWavelengthM = 14.4f;
 
         // The tightest curve we care about has a radius of 100m. This is used as the basis for the most violent vibrations.
         const float VibrationMaximumCurvaturepM = 1f / 100;
@@ -3309,14 +3320,25 @@ public string GetCurveDirection()
                 //   a = -k' * x
                 var rotationAccelerationRadpSpS = -VibrationSpringConstantPrimepSpS * VibrationRotationRad;
                 var translationAccelerationMpSpS = -VibrationSpringConstantPrimepSpS * VibrationTranslationM;
+                // Sideways translation, yaw and roll all contribute to the lateral sway.
+                rotationAccelerationRadpSpS.Y *= VibrationLateralSpringFactor;
+                rotationAccelerationRadpSpS.Z *= VibrationLateralSpringFactor;
+                translationAccelerationMpSpS.X *= VibrationLateralSpringFactor;
+                rotationAccelerationRadpSpS.X *= VibrationVerticalSpringFactor;
+                translationAccelerationMpSpS.Y *= VibrationVerticalSpringFactor;
                 // https://en.wikipedia.org/wiki/Damping
                 //   Let F be the force in N
                 //   Let c be the damping coefficient in N*s/m
                 //   Let v be the velocity in m/s
                 //   Then F = -c * v
                 // We apply the acceleration (let t be time in s, then dv/dt = a * t) and damping (-c * v) to the velocities:
-                VibrationRotationVelocityRadpS += rotationAccelerationRadpSpS * elapsedTimeS - VibratioDampingCoefficient * VibrationRotationVelocityRadpS;
-                VibrationTranslationVelocityMpS += translationAccelerationMpSpS * elapsedTimeS - VibratioDampingCoefficient * VibrationTranslationVelocityMpS;
+                // Express damping per second so its strength doesn't depend on frame rate.
+                float lateralDamping = 1 - (float)Math.Exp(-VibrationLateralDampingPerS * elapsedTimeS);
+                float verticalDamping = 1 - (float)Math.Exp(-VibrationVerticalDampingPerS * elapsedTimeS);
+                var rotationDamping = new Vector3(verticalDamping, lateralDamping, lateralDamping);
+                var translationDamping = new Vector2(lateralDamping, verticalDamping);
+                VibrationRotationVelocityRadpS += rotationAccelerationRadpSpS * elapsedTimeS - rotationDamping * VibrationRotationVelocityRadpS;
+                VibrationTranslationVelocityMpS += translationAccelerationMpSpS * elapsedTimeS - translationDamping * VibrationTranslationVelocityMpS;
                 // Now apply the velocities (dx/dt = v * t):
                 VibrationRotationRad += VibrationRotationVelocityRadpS * elapsedTimeS;
                 VibrationTranslationM += VibrationTranslationVelocityMpS * elapsedTimeS;
@@ -3372,17 +3394,17 @@ public string GetCurveDirection()
             switch (Simulator.Random.Next(4))
             {
                 case 0:
-                    VibrationRotationVelocityRadpS.Y += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength / CarLengthM;
+                    VibrationRotationVelocityRadpS.Y += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * VibrationLateralIntroductionFactor / CarLengthM;
                     break;
                 case 1:
-                    VibrationRotationVelocityRadpS.Z += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * 2 / CarLengthM;
+                    VibrationRotationVelocityRadpS.Z += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * VibrationLateralIntroductionFactor * 2 / CarLengthM;
                     break;
                 case 2:
-                    VibrationTranslationVelocityMpS.X += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength;
+                    VibrationTranslationVelocityMpS.X += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * VibrationLateralIntroductionFactor;
                     break;
                 case 3:
-                    VibrationTranslationVelocityMpS.Y += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength;
-                    VibrationRotationVelocityRadpS.X += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * 2 / CarLengthM;
+                    VibrationTranslationVelocityMpS.Y += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * VibrationVerticalIntroductionFactor;
+                    VibrationRotationVelocityRadpS.X += factor * Simulator.Settings.CarVibratingLevel * VibrationIntroductionStrength * VibrationVerticalIntroductionFactor * 2 / CarLengthM;
                     break;
             }
         }

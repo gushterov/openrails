@@ -5,6 +5,7 @@ using Orts.Formats.Msts;
 using Orts.Parsers.Msts;
 using Orts.Simulation.RollingStocks;
 using Orts.Simulation.RollingStocks.SubSystems;
+using Orts.Simulation.RollingStocks.SubSystems.Controllers;
 using Orts.Simulation.RollingStocks.SubSystems.PowerTransmissions;
 using ORTS.Scripting.Api;
 using Xunit;
@@ -38,6 +39,75 @@ namespace Tests.Orts.Simulation
             };
             locomotive.AbsTractionSpeedMpS = 10;
             return locomotive;
+        }
+
+        static MSTSLocomotive CreateDriverControls(bool combinedHandle)
+        {
+            var locomotive = CreateLocomotive();
+            locomotive.ThrottleController = new MSTSNotchController(new List<MSTSNotch> { new MSTSNotch(0, true, 0) });
+            locomotive.DynamicBrakeController = new MSTSNotchController(new List<MSTSNotch> { new MSTSNotch(0, true, 0) });
+            locomotive.DynamicBrakeForceCurves = locomotive.TractiveForceCurves;
+            locomotive.CruiseControl.UseThrottleAsForceSelector = true;
+            locomotive.CruiseControl.UseThrottleInCombinedControl = combinedHandle;
+            locomotive.CombinedControlType = combinedHandle ? MSTSLocomotive.CombinedControl.ThrottleDynamic : MSTSLocomotive.CombinedControl.None;
+            return locomotive;
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void AutomaticBrakingDoesNotReplaceTheDriversTractionSelection(bool combinedHandle)
+        {
+            var locomotive = CreateDriverControls(combinedHandle);
+            var control = Control();
+            foreach (var brake in new[] { 0f, 20f, 80f, 100f })
+            {
+                locomotive.DynamicBrake = true;
+                locomotive.LocalThrottlePercent = 0;
+                locomotive.LocalDynamicBrakePercent = brake;
+                locomotive.DynamicBrakeForceN = brake * 2000;
+                locomotive.CruiseControl.CCThrottleOrDynBrakePercent = -brake;
+                Assert.Equal(100f, locomotive.GetDataOf(control));
+            }
+            locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;
+            Assert.Equal(0f, locomotive.GetDataOf(control));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void DriverBrakeSelectionIsIndependentOfAutomaticAndBlendedBraking(bool combinedHandle)
+        {
+            var locomotive = CreateDriverControls(combinedHandle);
+            var control = Control();
+            control.DynamicBrakeScale = 2;
+            locomotive.CruiseControl.SelectedMaxAccelerationPercent = 0;
+            locomotive.DynamicBrakeController.SetPercent(50);
+            foreach (var automaticBrake in new[] { -1f, 0f, 20f, 90f })
+            {
+                locomotive.DynamicBrake = automaticBrake > 0;
+                locomotive.LocalDynamicBrakePercent = automaticBrake;
+                locomotive.LocomotivePowerSupply.PowerSupplyDynamicBrakePercent = 100;
+                locomotive.CruiseControl.CCThrottleOrDynBrakePercent = -automaticBrake;
+                Assert.Equal(-200f, locomotive.GetDataOf(control));
+            }
+            locomotive.DynamicBrakeController.SetPercent(100);
+            Assert.Equal(-500f, locomotive.GetDataOf(control));
+            locomotive.DynamicBrakeController.SetPercent(0);
+            Assert.Equal(0f, locomotive.GetDataOf(control));
+            locomotive.CruiseControl.SelectedMaxAccelerationPercent = 50;
+            Assert.Equal(100f, locomotive.GetDataOf(control));
+        }
+
+        [Fact]
+        public void ManualModeKeepsUsingAppliedBrakeDemand()
+        {
+            var locomotive = CreateDriverControls(false);
+            locomotive.CruiseControl.SpeedRegMode = CruiseControl.SpeedRegulatorMode.Manual;
+            locomotive.DynamicBrake = true;
+            locomotive.DynamicBrakeController.SetPercent(10);
+            locomotive.LocalDynamicBrakePercent = 50;
+            Assert.Equal(-100f, locomotive.GetDataOf(Control()));
         }
 
         [Fact]
