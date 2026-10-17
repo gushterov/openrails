@@ -559,8 +559,12 @@ namespace Orts.Viewer3D
             if (!IsCameraFeed && !CameraFeedRequests.Contains(feed)) CameraFeedRequests.Add(feed);
         }
 
-        internal void PrepareCameraFeeds(Viewer viewer)
+        internal void PrepareCameraFeeds(Viewer viewer, double elapsedRealSeconds)
         {
+            // Requests initially contain every eligible feed. Prepare and draw only the selected one.
+            var selected = viewer.CameraCaptureScheduler.Select(CameraFeedRequests, elapsedRealSeconds);
+            CameraFeedRequests.Clear();
+            if (selected != null) CameraFeedRequests.Add(selected);
             foreach (var feed in CameraFeedRequests)
             {
                 if (!CameraFeedFrames.TryGetValue(feed, out var frame))

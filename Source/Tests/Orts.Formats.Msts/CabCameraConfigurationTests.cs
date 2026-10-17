@@ -114,5 +114,25 @@ namespace Tests.Orts.Formats.Msts
             var controls = Parse("ORTSCameraDisplay ( ActivateOnDoors ( 1 ) )");
             Assert.Equal(0, Assert.Single(controls.CameraDisplays).ActivateBelowSpeedMpS);
         }
+
+        [Theory]
+        [InlineData("OppositeCab", CabCameraMount.OppositeCab)]
+        [InlineData("oppositecab", CabCameraMount.OppositeCab)]
+        [InlineData("CarOffset", CabCameraMount.CarOffset)]
+        [InlineData("Unknown", CabCameraMount.CarOffset)]
+        public void CameraMountSelectorIsParsed(string value, CabCameraMount expected)
+        {
+            var camera = Assert.IsType<CVCCamera>(Assert.Single(Parse($"ORTSCamera ( CameraMount ( {value} ) )")));
+            Assert.Equal(expected, camera.CameraMount);
+        }
+
+        [Fact]
+        public void SelectionButtonsSupportCabPowerHiding()
+        {
+            var button = Assert.IsType<CVCCameraSelect>(Assert.Single(Parse(@"ORTSCameraSelect (
+                DisabledIfCabPowerSupplyOff ( 1 ) HideIfDisabled ( 1 ) )")));
+            Assert.True(button.DisabledIfCabPowerSupplyOff);
+            Assert.True(button.HideIfDisabled);
+        }
     }
 }

@@ -39,10 +39,44 @@ each end) continues to use `CameraPosition` and `CameraDirection`, even if that
 vehicle is reversed in the consist. Its world transform already accounts for the
 reversal. The rear overrides apply to using the rear cab of the same vehicle.
 
+For multiple units with an outward-facing front cab at each end, use
+`CameraMount ( OppositeCab )` to select the other end of the same unit. Starting
+from the cab vehicle, this searches inward (using the vehicle's consist reversal)
+and stops at the first vehicle with a cab. That vehicle must have a front cab
+facing the opposite way; otherwise the feed is unavailable and displays black.
+This keeps the feeds within one unit when units are coupled. It is based on cab
+placement, not an EMU identity or electrical camera network; unusual formations
+with intermediate cabs should use explicit `CarOffset` configurations instead.
+
+`OppositeCab` ignores `CarOffset` and always uses `CameraPosition` and
+`CameraDirection` at the target vehicle's front end, independently of either
+vehicle's selected cab. To show left/right relative to the active driving end,
+swap the two remote camera definitions because the far-end vehicle faces the
+opposite direction. Omitting `CameraMount` (or using `CameraMount ( CarOffset )`)
+preserves the existing fixed-offset behavior.
+
+A four-camera page uses four ordinary `ORTSCamera` controls with different
+`ScreenCorners` on a shared `ORTSScreenPage ( cameras_all )`: two mounted on the
+current vehicle and two using `CameraMount ( OppositeCab )`. A manual selection
+hotspot can switch between `cameras` and `cameras_all` without changing automatic
+door/speed activation of the two-camera page. Only the visible page's feeds are
+updated. Alternatively, use `ORTSScreenPage ( cameras )` for all four controls
+to make the four-view layout the only camera page, selected by the existing
+automatic policy and camera button. The supplied Škoda configuration uses this
+single-page layout: current end on top, opposite end below, with 160 × 120 images
+at 8 fps per feed. The Back button returns to the normal display.
+
 `ImageSize` defaults to 320 × 240 and is limited to 16–1024 pixels per dimension.
 `UpdateRate` defaults to 10 frames/second and is limited to 1–30. `Mirror ( 1 )`
 flips the image horizontally. A hidden or unpowered feed does not render another
 scene. Feed updates use real elapsed time, without advancing simulation time.
+Visible feeds share a capture scheduler: at most one feed is prepared and rendered
+per game frame, with captures spaced according to their combined update rates.
+For four feeds at 8 fps, this targets one capture about every 31 ms rather than
+four scene passes together every 125 ms. The previous images remain on screen
+between captures. Hidden feeds leave the schedule, and missed captures after a
+stall are discarded. If game frames cannot keep up, camera refresh rates fall
+below their configured targets instead of accumulating extra scene passes.
 
 For a screen viewed at an angle, `ScreenCorners` specifies top-left, top-right,
 bottom-right, and bottom-left, in the same cab coordinates as `Position`:

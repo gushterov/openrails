@@ -159,6 +159,8 @@ namespace Orts.Viewer3D
         /// Camera #1, 3D cab. Swaps with <see cref="CabCamera"/> with Alt+1.
         /// </summary>
         public readonly ThreeDimCabCamera ThreeDimCabCamera;
+        internal readonly CabCameraCaptureScheduler<CabCameraFeed> CameraCaptureScheduler =
+            new CabCameraCaptureScheduler<CabCameraFeed>(feed => feed.Configuration.FramesPerSecond);
         public HeadOutCamera HeadOutForwardCamera { get; private set; } // Camera 1+Up
         public HeadOutCamera HeadOutBackCamera { get; private set; } // Camera 2+Down
         public TrackingCamera FrontCamera { get; private set; } // Camera 2
@@ -944,7 +946,7 @@ namespace Orts.Viewer3D
             Camera.PrepareFrame(frame, elapsedTime);
             frame.PrepareFrame(elapsedTime);
             World.PrepareFrame(frame, elapsedTime);
-            frame.PrepareCameraFeeds(this);
+            frame.PrepareCameraFeeds(this, elapsedTime.RealSeconds);
             InfoDisplay.PrepareFrame(frame, elapsedTime);
             // TODO: This is not correct. The ActivityWindow's PrepareFrame is already called by the WindowManager!
             if (Simulator.ActivityRun != null) ActivityWindow.PrepareFrame(elapsedTime, true);

@@ -45,14 +45,35 @@ namespace Orts.Viewer3D
             var train = Owner.Train;
             if (train == null) return false;
             int ownerIndex = train.Cars.IndexOf(Owner);
-            long index = (long)ownerIndex + Configuration.CarOffset;
-            if (ownerIndex < 0 || index < 0 || index >= train.Cars.Count) return false;
-            Mount = train.Cars[(int)index];
+            if (ownerIndex < 0) return false;
+            Mount = null;
+            if (Configuration.CameraMount == CabCameraMount.OppositeCab)
+            {
+                // Walk inward from this vehicle's front cab. Stop at the first cab,
+                // so a coupled unit can never supply the far-end camera by accident.
+                int step = Owner.Flipped ? -1 : 1;
+                for (int index = ownerIndex + step; index >= 0 && index < train.Cars.Count; index += step)
+                {
+                    var candidate = train.Cars[index];
+                    bool frontCab = candidate.HasFrontCab || candidate.HasFront3DCab;
+                    if (!frontCab && !candidate.HasRearCab && !candidate.HasRear3DCab) continue;
+                    if (frontCab && candidate.Flipped != Owner.Flipped) Mount = candidate;
+                    break;
+                }
+            }
+            else
+            {
+                long index = (long)ownerIndex + Configuration.CarOffset;
+                if (index >= 0 && index < train.Cars.Count) Mount = train.Cars[(int)index];
+            }
+            if (Mount == null) return false;
             // Train physics already includes the consist's Flipped rotation in WorldPosition.
             // Applying it again would exchange sides and move the camera to the other vehicle end.
             Matrix transform = Mount.WorldPosition.XNAMatrix;
-            var mountPosition = Owner.UsingRearCab ? Configuration.RearCameraPosition ?? Configuration.CameraPosition : Configuration.CameraPosition;
-            var mountDirection = Owner.UsingRearCab ? Configuration.RearCameraDirection ?? Configuration.CameraDirection : Configuration.CameraDirection;
+            // OppositeCab always describes cameras at the target vehicle's front end.
+            bool rearView = Configuration.CameraMount != CabCameraMount.OppositeCab && Owner.UsingRearCab;
+            var mountPosition = rearView ? Configuration.RearCameraPosition ?? Configuration.CameraPosition : Configuration.CameraPosition;
+            var mountDirection = rearView ? Configuration.RearCameraDirection ?? Configuration.CameraDirection : Configuration.CameraDirection;
             var local = mountPosition * new Vector3(1, 1, -1);
             var eye = Vector3.Transform(local, transform);
             Matrix direction = CabCameraGeometry.DirectionTransform(mountDirection) * transform;

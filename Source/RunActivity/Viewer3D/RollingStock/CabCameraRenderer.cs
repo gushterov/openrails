@@ -22,7 +22,6 @@ namespace Orts.Viewer3D.RollingStock
         static readonly short[] Indices = { 0, 1, 2, 0, 2, 3 };
         bool Texture3D;
         bool Available;
-        double TimeSinceCapture = double.PositiveInfinity;
         public bool IsPageVisible => Cab.IsCameraCabActive(CabIndex) && (Control.Screens == null || Control.Screens.Count == 0 ||
             Control.Screens.Contains("all") || (Control.Display >= 0 && Control.Display < Cab.ActiveScreen.Length &&
             Control.Screens.Contains(Cab.ActiveScreen[Control.Display])));
@@ -75,12 +74,8 @@ namespace Orts.Viewer3D.RollingStock
             if (frame.IsCameraFeed || !Control.IsVisible || !IsPageVisible || (!IsPowered && Control.HideIfDisabled) ||
                 Control.Width <= 0 || Control.Height <= 0) return;
             Available = IsPowered && Feed.Camera.UpdateMount();
-            TimeSinceCapture += elapsedTime.RealSeconds;
-            if (Available && TimeSinceCapture >= 1 / Configuration.FramesPerSecond)
-            {
-                frame.RequestCameraFeed(Feed);
-                TimeSinceCapture = 0;
-            }
+            // The viewer schedules visible feeds together, spreading their scene passes across frames.
+            if (Available) frame.RequestCameraFeed(Feed);
             if (Texture3D) return;
             float xScale = (float)Viewer.CabWidthPixels / 640;
             float yScale = (float)Viewer.CabHeightPixels / 480;

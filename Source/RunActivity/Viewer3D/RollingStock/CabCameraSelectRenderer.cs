@@ -19,7 +19,7 @@ namespace Orts.Viewer3D.RollingStock
 
         public override void PrepareFrame(RenderFrame frame, ElapsedTime elapsedTime)
         {
-            if (frame.IsCameraFeed) return;
+            if (frame.IsCameraFeed || !Control.IsVisible || (!IsPowered && Control.HideIfDisabled)) return;
             float xScale = Viewer.CabWidthPixels / 640f;
             float yScale = Viewer.CabHeightPixels / 480f;
             Rectangle = new Rectangle((int)(Control.PositionX * xScale) - Viewer.CabXOffsetPixels + Viewer.CabXLetterboxPixels,

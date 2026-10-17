@@ -5,6 +5,8 @@ using Orts.Parsers.Msts;
 
 namespace Orts.Formats.Msts
 {
+    public enum CabCameraMount { CarOffset, OppositeCab }
+
     /// <summary>A live camera feed, independently positioned on a cab display.</summary>
     public class CVCCamera : CabViewControl
     {
@@ -14,6 +16,7 @@ namespace Orts.Formats.Msts
         public Vector3? RearCameraPosition;
         public Vector3? RearCameraDirection;
         public int CarOffset;
+        public CabCameraMount CameraMount;
         public float FieldOfView = 60;
         public int ImageWidth = 320;
         public int ImageHeight = 240;
@@ -38,6 +41,11 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("rearcameraposition", () => RearCameraPosition = ReadVector(stf)),
                 new STFReader.TokenProcessor("rearcameradirection", () => RearCameraDirection = ReadVector(stf)),
                 new STFReader.TokenProcessor("caroffset", () => CarOffset = stf.ReadIntBlock(0)),
+                new STFReader.TokenProcessor("cameramount", () => {
+                    string value = stf.ReadStringBlock("CarOffset");
+                    if (Enum.TryParse(value, true, out CabCameraMount mount) && Enum.IsDefined(typeof(CabCameraMount), mount)) CameraMount = mount;
+                    else STFException.TraceWarning(stf, "Unknown camera mount: " + value);
+                }),
                 new STFReader.TokenProcessor("fieldofview", () => FieldOfView = stf.ReadFloatBlock(STFReader.UNITS.None, 60)),
                 new STFReader.TokenProcessor("imagesize", () => {
                     stf.MustMatch("(");
@@ -106,6 +114,9 @@ namespace Orts.Formats.Msts
                 new STFReader.TokenProcessor("targetpage", () => TargetPage = stf.ReadStringBlock("default").ToLowerInvariant()),
                 new STFReader.TokenProcessor("label", () => Label = stf.ReadStringBlock("")),
                 new STFReader.TokenProcessor("drawlabel", () => DrawLabel = stf.ReadBoolBlock(false)),
+                new STFReader.TokenProcessor("disablediflowvoltagepowersupplyoff", () => ParseDisabledIfLowVoltagePowerSupplyOff(stf)),
+                new STFReader.TokenProcessor("disabledifcabpowersupplyoff", () => ParseDisabledIfCabPowerSupplyOff(stf)),
+                new STFReader.TokenProcessor("hideifdisabled", () => ParseHideIfDisabled(stf)),
             });
             Display = Math.Clamp(Display, 0, 7);
         }
