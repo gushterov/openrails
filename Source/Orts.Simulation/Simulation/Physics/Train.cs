@@ -4557,7 +4557,7 @@ namespace Orts.Simulation.Physics
                 if (lead.EngineBrakeController != null)
                 {
                     float previousEngineBrakePressurePSI = BrakeLine3PressurePSI;
-                    lead.EngineBrakeController.UpdateEngineBrakePressure(ref BrakeLine3PressurePSI, elapsedClockSeconds);
+                    lead.UpdateEngineBrakePressure(ref BrakeLine3PressurePSI, elapsedClockSeconds);
                     lead.ApplyDoorBrakeInterlock(ref BrakeLine3PressurePSI, previousEngineBrakePressurePSI, elapsedClockSeconds);
                 }
                 lead.BrakeSystem.PropagateBrakePressure(elapsedClockSeconds);

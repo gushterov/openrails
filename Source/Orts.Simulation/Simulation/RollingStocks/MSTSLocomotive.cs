@@ -407,6 +407,7 @@ namespace Orts.Simulation.RollingStocks
         public float DoorBrakeCylinderPressurePSI { get; private set; }
         public bool DoorsOpeningBlockedWhenMoving { get; private set; }
         public bool StartWithParkingBrake { get; private set; }
+        public AutomaticRetainingBrake AutomaticRetainingBrake = new AutomaticRetainingBrake();
         public float BrakePipeTimeFactorS = 0.0015f;
         public float BrakePipeDischargeTimeFactor;
         public float BrakeServiceTimeFactorPSIpS;
@@ -1174,6 +1175,11 @@ namespace Orts.Simulation.RollingStocks
                 case "engine(ortsdoorbrakecylinderpressure": DoorBrakeCylinderPressurePSI = Math.Max(0, ReadPressureBlockDefaultBarPSI(stf, "Engine(ORTSDoorBrakeCylinderPressure)")); break;
                 case "engine(ortsdoorsopeningblockedwhenmoving": DoorsOpeningBlockedWhenMoving = stf.ReadBoolBlock(false); break;
                 case "engine(ortsstartwithparkingbrake": StartWithParkingBrake = stf.ReadBoolBlock(false); break;
+                case "engine(ortsautomaticretainingbrake": AutomaticRetainingBrake.Enabled = stf.ReadBoolBlock(false); break;
+                case "engine(ortsautomaticretainingbrakeapplyspeed": AutomaticRetainingBrake.ApplySpeedMpS = Math.Max(0, stf.ReadFloatBlock(STFReader.UNITS.Speed, null)); break;
+                case "engine(ortsautomaticretainingbrakedeparturespeed": AutomaticRetainingBrake.DepartureSpeedMpS = Math.Max(0, stf.ReadFloatBlock(STFReader.UNITS.Speed, null)); break;
+                case "engine(ortsautomaticretainingbrakedeparturetimeout": AutomaticRetainingBrake.DepartureTimeoutS = Math.Max(0, stf.ReadFloatBlock(STFReader.UNITS.Time, null)); break;
+                case "engine(ortsautomaticretainingbrakepressure": AutomaticRetainingBrake.PressurePSI = Math.Max(0, ReadPressureBlockDefaultBarPSI(stf, "Engine(ORTSAutomaticRetainingBrakePressure)")); break;
                 case "engine(ortsbrakepipetimefactor": BrakePipeTimeFactorS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(ortsbrakeservicetimefactor": BrakeServiceTimeFactorPSIpS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
                 case "engine(ortsbrakeemergencytimefactor": BrakeEmergencyTimeFactorPSIpS = stf.ReadFloatBlock(STFReader.UNITS.Time, null); break;
@@ -1444,6 +1450,7 @@ namespace Orts.Simulation.RollingStocks
             DoorBrakeCylinderPressurePSI = locoCopy.DoorBrakeCylinderPressurePSI;
             DoorsOpeningBlockedWhenMoving = locoCopy.DoorsOpeningBlockedWhenMoving;
             StartWithParkingBrake = locoCopy.StartWithParkingBrake;
+            AutomaticRetainingBrake = new AutomaticRetainingBrake(locoCopy.AutomaticRetainingBrake);
             BrakePipeDischargeTimeFactor = locoCopy.BrakePipeDischargeTimeFactor;
             DriveWheelOnlyBrakes = locoCopy.DriveWheelOnlyBrakes;
             DynamicBrakeBlendingEnabled = locoCopy.DynamicBrakeBlendingEnabled;
@@ -1557,6 +1564,13 @@ namespace Orts.Simulation.RollingStocks
             outf.Write(CurrentTrackSanderAirConsumptionM3pS);
             outf.Write(AbsTractionSpeedMpS);
 
+            if (AutomaticRetainingBrake?.Enabled == true)
+            {
+                AutomaticRetainingBrake.Save(outf);
+                foreach (var mpc in MultiPositionControllers)
+                    mpc.Save(outf);
+            }
+
             base.Save(outf);
 
             LocomotivePowerSupply?.Save(outf);
@@ -1616,6 +1630,13 @@ namespace Orts.Simulation.RollingStocks
             CurrentTrackSanderAirConsumptionM3pS = inf.ReadSingle();
 
             AbsTractionSpeedMpS = PrevAbsTractionSpeedMpS = inf.ReadSingle();
+
+            if (AutomaticRetainingBrake?.Enabled == true)
+            {
+                AutomaticRetainingBrake.Restore(inf);
+                foreach (var mpc in MultiPositionControllers)
+                    mpc.Restore(inf);
+            }
 
             base.Restore(inf);
 
@@ -1686,6 +1707,9 @@ namespace Orts.Simulation.RollingStocks
                 TrainBrakeController.SetValue(((MSTSLocomotive)other).TrainBrakeController.CurrentValue);
             if (EngineBrakeController != null)
                 EngineBrakeController.SetValue(0);
+            if (AutomaticRetainingBrake?.Enabled == true && other is MSTSLocomotive locomotive
+                && locomotive.AutomaticRetainingBrake?.Enabled == true)
+                AutomaticRetainingBrake.CopyPressureStateFrom(locomotive.AutomaticRetainingBrake);
             if (BrakemanBrakeController != null)
                 BrakemanBrakeController.SetValue(0);
         }
@@ -5169,6 +5193,23 @@ namespace Orts.Simulation.RollingStocks
             if (EngineBrakeController == null)
                 return;
             EngineBrakeController.SetPercent(percent);
+        }
+
+        public void UpdateEngineBrakePressure(ref float pressurePSI, float elapsedClockSeconds)
+        {
+            var mpc = AutomaticRetainingBrake?.Enabled == true && IsPlayerTrain && BrakeSystem is AirSinglePipe
+                ? MultiPositionControllers?.FirstOrDefault(x => x.controllerBinding == ControllerBinding.Throttle)
+                : null;
+            if (mpc == null)
+            {
+                EngineBrakeController.UpdateEngineBrakePressure(ref pressurePSI, elapsedClockSeconds);
+                return;
+            }
+
+            AutomaticRetainingBrake.Update(elapsedClockSeconds, Train.SpeedMpS, mpc.SelectedPosition,
+                Train.DoorState(DoorSide.Both) == DoorState.Closed);
+            AutomaticRetainingBrake.UpdateEngineBrakePressure(ref pressurePSI, EngineBrakeController,
+                elapsedClockSeconds, EngineBrakeApplyRatePSIpS, EngineBrakeReleaseRatePSIpS);
         }
 
         internal void ApplyDoorBrakeInterlock(ref float pressurePSI, float previousPressurePSI, float elapsedClockSeconds)

@@ -39,6 +39,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         protected bool checkNeutral = false;
         protected bool noKeyPressed = true;
         protected ControllerPosition currentPosition = ControllerPosition.Undefined;
+        public ControllerPosition SelectedPosition => currentPosition;
         protected bool emergencyBrake = false;
         protected bool previousDriveModeWasAddPower = false;
         protected bool isBraking = false;

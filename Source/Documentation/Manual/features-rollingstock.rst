@@ -1715,6 +1715,54 @@ Release the parking brake using the normal handbrake controls before driving.
 
 .. index:: ORTSStartWithParkingBrake
 
+Automatic Retaining Brake
+-------------------------
+
+A player locomotive with an air brake and a throttle-bound multi-position controller
+can use its independent-brake circuit as an automatic pneumatic retaining brake. Add
+these parameters inside the ``Engine ()`` block::
+
+  ORTSAutomaticRetainingBrake ( 1 )
+  ORTSAutomaticRetainingBrakeApplySpeed ( 2km/h )
+  ORTSAutomaticRetainingBrakeDepartureSpeed ( 3km/h )
+  ORTSAutomaticRetainingBrakeDepartureTimeout ( 8s )
+  ORTSAutomaticRetainingBrakePressure ( 2bar )
+
+The feature is disabled by default. The other parameters are optional and default
+to the values shown. Speed parameters accept normal speed units (m/s if omitted),
+the timeout is in seconds, and the pressure defaults to bar if no unit is given.
+Negative settings are clamped to zero. An independent brake controller is required.
+
+The brake applies strictly below the apply speed, in either direction. Entering
+``ThrottleIncrease`` (ENABLE), or ``ThrottleIncreaseFast``, releases it and grants
+temporary permission to depart below that speed. Entering ``Drive`` starts the
+departure timer. Reaching the departure speed before the timeout completes the
+departure; otherwise the brake becomes eligible to apply again. Returning the
+lever to ``Neutral`` also cancels the departure permission. Neither a timeout nor
+NEUTRAL applies the brake at or above the apply speed. Enter ENABLE again to retry
+a failed departure. Repeated movements between ENABLE and DRIVE during an attempt
+do not restart the timer.
+
+The retaining brake cannot be released while any door in the train is opening,
+open, or closing. Opening doors cancels an active departure permission, with brake
+application still restricted to below the apply speed. All doors must report
+closed before entering ENABLE again; holding ENABLE while doors close does not
+release the brake. This check is built into the automatic retaining brake and does
+not require ``ORTSDoorBrakeCylinderPressure``.
+
+Automatic pressure builds and releases at the configured engine-brake application
+and release rates. The pressure is an independent-brake pipe demand, limited by
+the engine-brake controller's maximum service pressure; cylinder pressure also
+depends on the vehicle's engine-brake relay settings. It propagates through the
+normal independent-brake circuit to connected locomotives. A stronger manual
+application is retained, and the automatic function does not move the driver's
+engine-brake handle. Saved games preserve the departure timer and pressure state.
+
+This pneumatic function is separate from the handbrake controlled by
+``ORTSStartWithParkingBrake``. It does not require a door brake interlock.
+
+.. index:: ORTSAutomaticRetainingBrake, ORTSAutomaticRetainingBrakeApplySpeed, ORTSAutomaticRetainingBrakeDepartureSpeed, ORTSAutomaticRetainingBrakeDepartureTimeout, ORTSAutomaticRetainingBrakePressure
+
 Handbrake Animation
 -------------------
 
