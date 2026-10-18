@@ -1073,10 +1073,15 @@ namespace Orts.Viewer3D.RollingStock
             Texture2D retval = SharedMaterialManager.MissingTexture;
             Texture2D[] tmp = null;
 
-            isNightTexture = false;
+            // Callers can pass a field read by the rendering thread. Publish only
+            // the final lighting state, never a temporary daytime default.
+            bool nightTexture = false;
 
             if (string.IsNullOrEmpty(FileName) || !PDayTextures.Keys.Contains(FileName))
+            {
+                isNightTexture = false;
                 return SharedMaterialManager.MissingTexture;
+            }
 
             if (isLight)
             {
@@ -1093,14 +1098,14 @@ namespace Orts.Viewer3D.RollingStock
                     }
                 }
                 // Both light and day textures should be used as-is in this situation.
-                isNightTexture = true;
+                nightTexture = true;
             }
             else if (isDark)
             {
                 // Darkness: use night texture, if available.
                 tmp = PNightTextures[FileName];
                 // Only use night texture as-is in this situation.
-                isNightTexture = tmp != null;
+                nightTexture = tmp != null;
             }
 
             // No light or dark texture selected/available? Use day texture instead.
@@ -1110,6 +1115,7 @@ namespace Orts.Viewer3D.RollingStock
             if (tmp != null)
                 retval = SafeGetAt(tmp, indx, FileName);
 
+            isNightTexture = nightTexture;
             return retval;
         }
 
@@ -1124,10 +1130,14 @@ namespace Orts.Viewer3D.RollingStock
         public static Texture2D GetTexture(string FileName, bool isDark, bool isLight, out bool isNightTexture, bool hasCabLightDirectory)
         {
             Texture2D retval = SharedMaterialManager.MissingTexture;
-            isNightTexture = false;
+            // Keep the previous frame's lighting valid while selecting its successor.
+            bool nightTexture = false;
 
             if (string.IsNullOrEmpty(FileName) || !DayTextures.Keys.Contains(FileName))
+            {
+                isNightTexture = false;
                 return retval;
+            }
 
             if (isLight)
             {
@@ -1140,20 +1150,21 @@ namespace Orts.Viewer3D.RollingStock
                 }
 
                 // Both light and day textures should be used as-is in this situation.
-                isNightTexture = true;
+                nightTexture = true;
             }
             else if (isDark)
             {
                 // Darkness: use night texture, if available.
                 retval = NightTextures[FileName];
                 // Only use night texture as-is in this situation.
-                isNightTexture = retval != SharedMaterialManager.MissingTexture;
+                nightTexture = retval != SharedMaterialManager.MissingTexture;
             }
 
             // No light or dark texture selected/available? Use day texture instead.
             if (retval == SharedMaterialManager.MissingTexture)
                 retval = DayTextures[FileName];
 
+            isNightTexture = nightTexture;
             return retval;
         }
 
