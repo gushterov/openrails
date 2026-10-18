@@ -26,6 +26,7 @@ using Orts.Common;
 using Orts.Formats.Msts;
 using Orts.Parsers.Msts;
 using Orts.Simulation.Physics;
+using Orts.Simulation.RollingStocks.SubSystems.Controllers;
 using Orts.Simulation.RollingStocks.SubSystems.PowerSupplies;
 using Orts.Simulation.Signalling;
 using ORTS.Common;
@@ -55,6 +56,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             public bool ResetOnDirectionNeutral = false;
             public bool ResetOnZeroSpeed = true;
             public bool ResetOnResetButton;                     // OverspeedMonitor only
+            public float ActivationSpeedMpS = 20.0f / 3.6f;     // VigilanceMonitor only
+            public bool ResetOnHorn;                           // VigilanceMonitor only
+            public bool ResetOnBell;                           // VigilanceMonitor only
+            public bool ResetOnMPCThrottleUp;                  // VigilanceMonitor only
 
             public MonitoringDevice(STFReader stf)
             {
@@ -76,6 +81,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                     new STFReader.TokenProcessor("monitoringdeviceresetondirectionneutral", () => { ResetOnDirectionNeutral = stf.ReadBoolBlock(ResetOnDirectionNeutral); }),
                     new STFReader.TokenProcessor("monitoringdeviceresetonresetbutton", () => { ResetOnResetButton = stf.ReadBoolBlock(ResetOnResetButton); }),
                     new STFReader.TokenProcessor("monitoringdeviceresetonzerospeed", () => { ResetOnZeroSpeed = stf.ReadBoolBlock(ResetOnZeroSpeed); }),
+                    new STFReader.TokenProcessor("ortsmonitoringdeviceactivationspeed", () => { ActivationSpeedMpS = Math.Max(0, stf.ReadFloatBlock(STFReader.UNITS.Speed, ActivationSpeedMpS)); }),
+                    new STFReader.TokenProcessor("ortsmonitoringdeviceresetonhorn", () => { ResetOnHorn = stf.ReadBoolBlock(ResetOnHorn); }),
+                    new STFReader.TokenProcessor("ortsmonitoringdeviceresetonbell", () => { ResetOnBell = stf.ReadBoolBlock(ResetOnBell); }),
+                    new STFReader.TokenProcessor("ortsmonitoringdeviceresetonmpcthrottleup", () => { ResetOnMPCThrottleUp = stf.ReadBoolBlock(ResetOnMPCThrottleUp); }),
                 });
             }
 
@@ -99,6 +108,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 ResetOnDirectionNeutral = other.ResetOnDirectionNeutral;
                 ResetOnZeroSpeed = other.ResetOnZeroSpeed;
                 ResetOnResetButton = other.ResetOnResetButton;
+                ActivationSpeedMpS = other.ActivationSpeedMpS;
+                ResetOnHorn = other.ResetOnHorn;
+                ResetOnBell = other.ResetOnBell;
+                ResetOnMPCThrottleUp = other.ResetOnMPCThrottleUp;
             }
         }
 
@@ -252,6 +265,12 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                     ((MSTSTrainControlSystem)Script).AWSMonitor = AWSMonitor;
                     ((MSTSTrainControlSystem)Script).EmergencyCausesThrottleDown = Locomotive.EmergencyCausesThrottleDown;
                     ((MSTSTrainControlSystem)Script).EmergencyEngagesHorn = Locomotive.EmergencyEngagesHorn;
+                    ((MSTSTrainControlSystem)Script).HornPressed = () => Locomotive.ManualHorn;
+                    ((MSTSTrainControlSystem)Script).BellPressed = () => Locomotive.ManualBell;
+                    ((MSTSTrainControlSystem)Script).MPCThrottleUp = () => Locomotive.MultiPositionControllers != null
+                        && Locomotive.MultiPositionControllers.Exists(controller => controller.controllerBinding == ControllerBinding.Throttle
+                            && (controller.SelectedPosition == ControllerPosition.ThrottleIncrease
+                                || controller.SelectedPosition == ControllerPosition.ThrottleIncreaseFast));
                 }
 
                 if (SoundFileName != null)
@@ -967,8 +986,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
     public class MSTSTrainControlSystem : TrainControlSystem
     {
-        const float VigilanceEnableSpeedMpS = 20.0f / 3.6f; // Enable alerter above 20 km/h
-
         public enum MonitorState
         {
             Disabled,
@@ -996,7 +1013,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
                     if (VigilanceMonitor.ResetOnZeroSpeed)
                     {
-                        enabled &= SpeedMpS() >= VigilanceEnableSpeedMpS;
+                        float speedMpS = SpeedMpS();
+                        enabled &= speedMpS > 0 && speedMpS >= VigilanceMonitor.ActivationSpeedMpS;
                     }
                 }
 
@@ -1123,6 +1141,14 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         public bool EmergencyCausesThrottleDown;
         public bool EmergencyEngagesHorn;
 
+        // Driver inputs only: automatic horn/bell operation must not acknowledge vigilance.
+        public Func<bool> HornPressed = () => false;
+        public Func<bool> BellPressed = () => false;
+        public Func<bool> MPCThrottleUp = () => false;
+        bool PreviousHornPressed;
+        bool PreviousBellPressed;
+        bool PreviousMPCThrottleUp;
+
         public MSTSTrainControlSystem() { }
 
         public override void Initialize()
@@ -1140,7 +1166,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 VigilanceAlarmTimer.Setup(VigilanceMonitor.AlarmTimeS);
                 VigilanceEmergencyTimer.Setup(VigilanceAlarmTimeoutS);
                 VigilancePenaltyTimer.Setup(VigilanceMonitor.PenaltyTimeS);
-                VigilanceAlarmTimer.Start();
             }
             if (OverspeedMonitor != null)
             {
@@ -1297,21 +1322,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 case TCSEvent.AlerterReset:
                     if (Activated)
                     {
-                        switch (VigilanceMonitorState)
-                        {
-                            // case VigilanceState.Disabled: do nothing
-
-                            case MonitorState.StandBy:
-                                VigilanceAlarmTimer.Stop();
-                                break;
-
-                            case MonitorState.Alarm:
-                                VigilanceEmergencyTimer.Stop();
-                                VigilanceMonitorState = MonitorState.StandBy;
-                                break;
-
-                            // case VigilanceState.Emergency: do nothing
-                        }
+                        ResetVigilance();
                     }
                     break;
             }
@@ -1338,6 +1349,19 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
         void UpdateVigilance()
         {
+            bool hornPressed = HornPressed();
+            bool bellPressed = BellPressed();
+            bool mpcThrottleUp = MPCThrottleUp();
+            if ((VigilanceMonitor.ResetOnHorn && hornPressed && !PreviousHornPressed)
+                || (VigilanceMonitor.ResetOnBell && bellPressed && !PreviousBellPressed)
+                || (VigilanceMonitor.ResetOnMPCThrottleUp && mpcThrottleUp && !PreviousMPCThrottleUp))
+            {
+                ResetVigilance();
+            }
+            PreviousHornPressed = hornPressed;
+            PreviousBellPressed = bellPressed;
+            PreviousMPCThrottleUp = mpcThrottleUp;
+
             switch (VigilanceMonitorState)
             {
                 case MonitorState.Disabled:
@@ -1420,6 +1444,23 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
             SetVigilanceAlarmDisplay(VigilanceMonitorState == MonitorState.Alarm);
             SetVigilanceEmergencyDisplay(VigilanceMonitorState == MonitorState.Emergency);
+        }
+
+        void ResetVigilance()
+        {
+            switch (VigilanceMonitorState)
+            {
+                case MonitorState.StandBy:
+                    VigilanceAlarmTimer.Stop();
+                    break;
+
+                case MonitorState.Alarm:
+                    VigilanceEmergencyTimer.Stop();
+                    VigilanceMonitorState = MonitorState.StandBy;
+                    break;
+
+                // Disabled and emergency states retain their existing reset requirements.
+            }
         }
 
         void UpdateSpeedControl()

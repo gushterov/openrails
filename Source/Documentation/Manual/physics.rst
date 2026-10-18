@@ -5897,6 +5897,40 @@ the tables below.
    single: BrakeCutsPowerAtBrakeCylinderPressure
    single: OrtsEmergencyBrakeCutsDynamicBrake
 
+The built-in vigilance monitor also accepts the following Open Rails parameters
+inside ``VigilanceMonitor()``:
+
+* ``ORTSMonitoringDeviceActivationSpeed ( 20kph )`` sets the minimum activation
+  speed when ``MonitoringDeviceResetOnZeroSpeed ( 1 )`` is enabled (the default).
+  The default is 20 km/h. Use ``0kph`` to activate at any nonzero speed, in either
+  direction. The monitor remains disabled at standstill. If reset on zero speed
+  is disabled, the monitor runs regardless of speed.
+* ``ORTSMonitoringDeviceResetOnHorn ( 0 )`` enables acknowledgement when the
+  driver starts sounding the horn.
+* ``ORTSMonitoringDeviceResetOnBell ( 0 )`` enables acknowledgement when the
+  driver switches the bell on.
+* ``ORTSMonitoringDeviceResetOnMPCThrottleUp ( 0 )`` enables acknowledgement
+  when a throttle-bound multi-position controller enters ``ThrottleIncrease``
+  or ``ThrottleIncreaseFast``. Moving directly between those two positions
+  counts as remaining in throttle-up.
+
+The three optional reset controls default to disabled. Each acknowledges once
+on entry; holding a control active does not continuously reset the timer.
+Automatic horn and bell operation does not acknowledge vigilance. The alerter
+button (``Z`` by default) remains available. These acknowledgements reset the
+countdown or cancel the warning; they do not bypass the existing penalty release
+conditions. Custom TCS scripts retain their own vigilance behavior.
+
+For a train that activates vigilance as soon as it moves and also accepts the
+horn, bell, and MPC throttle-up as acknowledgements, add these lines to its
+existing ``VigilanceMonitor()`` block, retaining the other monitor settings::
+
+    MonitoringDeviceResetOnZeroSpeed ( 1 )
+    ORTSMonitoringDeviceActivationSpeed ( 0kph )
+    ORTSMonitoringDeviceResetOnHorn ( 1 )
+    ORTSMonitoringDeviceResetOnBell ( 1 )
+    ORTSMonitoringDeviceResetOnMPCThrottleUp ( 1 )
+
 Other parameters in the Engine section of the ENG file are used by the TCS:
 
 - ``DoesBrakeCutPower( x )`` sets whether applying brake on the locomotive cuts the traction (1 for enabled, 0 for disabled)
