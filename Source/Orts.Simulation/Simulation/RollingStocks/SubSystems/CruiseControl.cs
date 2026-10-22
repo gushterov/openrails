@@ -1245,6 +1245,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             // Effective deltas that consider residual acceleration/deceleration during ramp-down
             float deltaForAccel = deltaSpeedMpS - accelMarginMpS;
             float deltaForBrake = deltaSpeedMpS + brakeMarginMpS;
+            // Lowering the MPC force limit must not release downhill speed regulation while
+            // the selected limit still permits braking. Coasting must never request traction.
+            bool mpcRegulatesBraking = MPCIsCoasting && SelectedMaxAccelerationPercent > 0 && CCThrottleOrDynBrakePercent <= 0;
             if (SpeedSelMode == SpeedSelectorMode.Parking && !EngineBrakePriority)
             {
                 if (CCThrottleOrDynBrakePercent > 0 || AbsWheelSpeedMpS == 0)
@@ -1255,7 +1258,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 if (AbsWheelSpeedMpS < (SpeedIsMph ? MpS.FromMpH(ParkingBrakeEngageSpeed) : MpS.FromKpH(ParkingBrakeEngageSpeed)))
                     Locomotive.SetEngineBrakePercent(ParkingBrakePercent);
             }
-            else if (SpeedSelMode == SpeedSelectorMode.Neutral || SpeedSelMode < SpeedSelectorMode.Start && !SpeedRegulatorOptions.Contains("startfromzero") && AbsWheelSpeedMpS < SafeSpeedForAutomaticOperationMpS)
+            else if (!mpcRegulatesBraking && (SpeedSelMode == SpeedSelectorMode.Neutral || SpeedSelMode < SpeedSelectorMode.Start && !SpeedRegulatorOptions.Contains("startfromzero") && AbsWheelSpeedMpS < SafeSpeedForAutomaticOperationMpS))
             {
                 // BE holds the demand until V has reduced the selected traction limit to zero.
                 bool mpcHoldsDemand = UseThrottleAsForceSelector && SelectedMaxAccelerationPercent > 0 &&
@@ -1306,13 +1309,13 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 }
             }
 
-            if ((AbsWheelSpeedMpS > SafeSpeedForAutomaticOperationMpS || SpeedSelMode == SpeedSelectorMode.Start || SpeedRegulatorOptions.Contains("startfromzero")) && (SpeedSelMode != SpeedSelectorMode.Neutral && SpeedSelMode != SpeedSelectorMode.Parking))
+            if (mpcRegulatesBraking || (AbsWheelSpeedMpS > SafeSpeedForAutomaticOperationMpS || SpeedSelMode == SpeedSelectorMode.Start || SpeedRegulatorOptions.Contains("startfromzero")) && (SpeedSelMode != SpeedSelectorMode.Neutral && SpeedSelMode != SpeedSelectorMode.Parking))
             {
                 float coeff = Math.Max(MpS.FromMpS(Locomotive.WheelSpeedMpS, !SpeedIsMph) / 100 * 1.2f, 1);
                 if (deltaSpeedMpS >= 0)
                 {
                     AccelerationDemandMpSS = (float)Math.Sqrt(StartReducingSpeedDelta * coeff * deltaSpeedMpS);
-                    if ((SpeedSelMode == SpeedSelectorMode.On || SpeedSelMode == SpeedSelectorMode.Start) && CCThrottleOrDynBrakePercent < 0)
+                    if ((SpeedSelMode == SpeedSelectorMode.On || SpeedSelMode == SpeedSelectorMode.Start || mpcRegulatesBraking) && CCThrottleOrDynBrakePercent < 0)
                     {
                         IncreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, 0);
                     }
@@ -1357,7 +1360,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                     }
                 }
 
-                if (Locomotive.Direction != Direction.N)
+                if (Locomotive.Direction != Direction.N && !mpcRegulatesBraking)
                 {
                     float a = 0;
                     float demandedPercent = 0;

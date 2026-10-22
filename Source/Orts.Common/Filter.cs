@@ -282,7 +282,8 @@ namespace ORTS.Common
         public float Filter(float NewSample, float samplingPeriod)
         {
             if (samplingPeriod <= 0.0f)
-                return 0.0f;
+                // No simulation time has elapsed (for example, while paused).
+                return y[0];
 
             switch(FilterType)
             {

@@ -37,7 +37,7 @@ float2 Drops(float2 uv, float density, float speed, float seed)
     float random = Hash(cell + seed);
     float2 center = float2(0.2 + random * 0.6, 0.2 + Hash(cell + seed + 13) * 0.6);
     float2 d = frac(p) - center;
-    float radius = lerp(0.055, 0.13, Hash(cell + seed + 29));
+    float radius = lerp(0.07, 0.16, Hash(cell + seed + 29));
     float2 shape = d / float2(radius, radius * (speed > 0 ? 1.6 : 1));
     float distance = length(shape);
     float edge = 1 - smoothstep(0.85, 1.15, distance);
@@ -66,8 +66,9 @@ float4 RainPS(float4 position : SV_POSITION, float4 color : COLOR0, float2 uv : 
     float recovery = saturate(WipeRecoveryTime - tex2D(WipeSampler, uv).r - 0.15);
     coverage *= lerp(1, recovery, UseWipeMask);
     float highlight = max(beads.y, runners.y);
-    float brightness = lerp(0.075, 0.42, Daylight) + highlight * lerp(0.16, 0.42, Daylight);
-    return float4(brightness * float3(0.91, 0.96, 1), coverage * glass * saturate(Wetness * 4) * 0.55);
+    // A darker rim and brighter glint keep the beads distinct over both sky and scenery.
+    float brightness = lerp(0.065, 0.28, Daylight) + highlight * lerp(0.3, 0.7, Daylight);
+    return float4(brightness * float3(0.91, 0.96, 1), coverage * glass * saturate(Wetness * 4) * 0.75);
 }
 
 technique CabRain

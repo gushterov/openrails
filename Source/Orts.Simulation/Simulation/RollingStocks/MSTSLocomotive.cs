@@ -6443,9 +6443,19 @@ namespace Orts.Simulation.RollingStocks
                     }
                 case CABViewControlTypes.DOORS_DISPLAY:
                     {
-                        if (cvc.Feature == "FlashOnClose")
+                        DoorState doorState = Train.DoorState(DoorSide.Both);
+                        if (cvc is CVCMultiStateDisplay doorsDisplay && doorsDisplay.FramesCount == 4)
                         {
-                            DoorState doorState = Train.DoorState(DoorSide.Both);
+                            // Keep the closed/open frames and add two dedicated closing frames.
+                            if (doorState == DoorState.Closed)
+                                data = 0;
+                            else if (doorState == DoorState.Closing)
+                                data = Simulator.GameTime % 1.0 < 0.7 ? 2 : 3;
+                            else
+                                data = 1;
+                        }
+                        else if (cvc.Feature == "FlashOnClose")
+                        {
                             if (doorState == DoorState.Closed)
                                 data = 0;
                             else if (doorState == DoorState.Closing)
@@ -6455,7 +6465,7 @@ namespace Orts.Simulation.RollingStocks
                         }
                         else
                         {
-                            data = Train.DoorState(DoorSide.Both) != DoorState.Closed ? 1 : 0;
+                            data = doorState != DoorState.Closed ? 1 : 0;
                         }
                         break;
                     }

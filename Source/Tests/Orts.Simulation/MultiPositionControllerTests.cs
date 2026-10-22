@@ -467,21 +467,23 @@ namespace Tests.Orts.Simulation
         [Theory]
         [InlineData(ControllerPosition.DynamicBrakeIncrease)]
         [InlineData(ControllerPosition.DynamicBrakeIncreaseFast)]
-        public void AutomaticVReleasesRegulatorBrakeAndBEHoldsItUntilSelectedForceIsZero(ControllerPosition brakePosition)
+        public void AutomaticVLimitsRegulatorBrakeAndBEHoldsItUntilSelectedForceIsZero(ControllerPosition brakePosition)
         {
             var (controller, locomotive) = CreateRunningRegulator();
             locomotive.CruiseControl.SelectedMaxAccelerationPercent = 50;
-            locomotive.CruiseControl.CCThrottleOrDynBrakePercent = -60;
+            locomotive.CruiseControl.CCThrottleOrDynBrakePercent = -9;
             locomotive.CruiseControl.DynamicBrakeFullRangeDecreaseTimeSeconds = 6;
+            locomotive.CruiseControl.DynamicBrakeIsSelectedForceDependant = true;
+            locomotive.DynamicBrakeAvailable = true;
             locomotive.LocalThrottlePercent = 0;
-            locomotive.LocalDynamicBrakePercent = 60;
+            locomotive.LocalDynamicBrakePercent = 9;
             locomotive.WheelSpeedMpS = 20;
             locomotive.AbsWheelSpeedMpS = 20;
             locomotive.SpeedMpS = 20;
-            // The train remains above the set speed: V must still release rather than regulate braking.
+            // Downhill braking remains available while V lowers a force limit above the demand.
             controller.Update(1f / 60);
             for (int frame = 0; frame < 60; frame++) UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
-            Assert.InRange(locomotive.CruiseControl.CCThrottleOrDynBrakePercent, -43.35f, -43.32f);
+            Assert.Equal(-9f, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
             Assert.Equal(0f, locomotive.DynamicBrakeController.CurrentValue);
             float brakeDemand = locomotive.CruiseControl.CCThrottleOrDynBrakePercent;
             float forceLimit = locomotive.CruiseControl.SelectedMaxAccelerationPercent;
@@ -513,6 +515,49 @@ namespace Tests.Orts.Simulation
             SelectPosition(controller, brakePosition);
             UpdateRegulatorAndMPC(controller, locomotive, 1f / 60);
             Assert.True(locomotive.DynamicBrakeController.CurrentValue > 0);
+        }
+
+        [Theory]
+        [InlineData(30, true)]
+        [InlineData(120, true)]
+        [InlineData(60, false)]
+        public void AutomaticVPreservesDownhillRegulationWithoutApplyingTraction(int updatesPerSecond, bool overspeed)
+        {
+            var (controller, locomotive) = CreateRunningRegulator();
+            locomotive.CruiseControl.SelectedMaxAccelerationPercent = 50;
+            locomotive.CruiseControl.CCThrottleOrDynBrakePercent = -9;
+            locomotive.CruiseControl.DynamicBrakeFullRangeIncreaseTimeSeconds = 6;
+            locomotive.CruiseControl.DynamicBrakeFullRangeDecreaseTimeSeconds = 6;
+            locomotive.CruiseControl.DynamicBrakeIsSelectedForceDependant = true;
+            locomotive.CruiseControl.StartReducingSpeedDeltaDownwards = 1;
+            locomotive.DynamicBrakeAvailable = true;
+            locomotive.LocalThrottlePercent = 0;
+            locomotive.LocalDynamicBrakePercent = 9;
+            locomotive.WheelSpeedMpS = overspeed ? 11 : 9;
+            locomotive.AbsWheelSpeedMpS = locomotive.WheelSpeedMpS;
+            locomotive.SpeedMpS = locomotive.WheelSpeedMpS;
+            controller.Update(0);
+
+            bool limitedBrake = false;
+            // CC samples separately from MPC updates, so its cap can lag by one sampling interval.
+            float samplingTolerance = 100f / 6 * (locomotive.CruiseControl.SamplingPeriodS + 1f / updatesPerSecond) + 0.001f;
+            for (int frame = 0; frame < updatesPerSecond * 4; frame++)
+            {
+                float previousLimit = locomotive.CruiseControl.SelectedMaxAccelerationPercent;
+                UpdateRegulatorAndMPC(controller, locomotive, 1f / updatesPerSecond);
+                Assert.Equal(0f, locomotive.CruiseControl.ThrottlePercent);
+                Assert.InRange(locomotive.CruiseControl.CCThrottleOrDynBrakePercent, -previousLimit - samplingTolerance, 0);
+                if (overspeed && previousLimit > 20)
+                    Assert.True(locomotive.CruiseControl.DynamicBrakePercent >= 9);
+                if (overspeed && previousLimit > 0 && previousLimit < 9)
+                {
+                    Assert.InRange(locomotive.CruiseControl.DynamicBrakePercent.Value, previousLimit - 0.001f, previousLimit + samplingTolerance);
+                    limitedBrake = true;
+                }
+            }
+            Assert.Equal(0f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
+            Assert.Equal(0f, locomotive.CruiseControl.CCThrottleOrDynBrakePercent);
+            Assert.Equal(overspeed, limitedBrake);
         }
 
         [Theory]

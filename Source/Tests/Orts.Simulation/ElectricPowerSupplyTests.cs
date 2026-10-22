@@ -46,11 +46,42 @@ namespace Tests.Orts.Simulation
             public void SetPantographState(PantographState state) =>
                 typeof(Pantograph).GetProperty(nameof(Pantograph.State)).SetValue(Pantograph, state);
 
-            public void Update(float time)
+            public void Update(float time, float elapsedClockSeconds = 0.01f)
             {
                 Time = time;
-                Script.Update(0.01f);
+                Script.Update(elapsedClockSeconds);
             }
+        }
+
+        [Fact]
+        public void PausePreservesVoltageAndPowerStates()
+        {
+            var rig = new PowerSupplyTestRig(0, 0);
+            rig.SetPantographState(PantographState.Up);
+            rig.Supply.CircuitBreaker.State = CircuitBreakerState.Closed;
+            for (int i = 0; i < 100; i++)
+                rig.Update(i * 0.01f);
+
+            var pantographVoltage = rig.Supply.PantographVoltageV;
+            var filterVoltage = rig.Supply.FilterVoltageV;
+            Assert.True(pantographVoltage > 0);
+            Assert.True(filterVoltage > 0);
+
+            for (int i = 0; i < 100; i++)
+            {
+                rig.Update(0.99f, 0);
+                Assert.Equal(pantographVoltage, rig.Supply.PantographVoltageV);
+                Assert.Equal(filterVoltage, rig.Supply.FilterVoltageV);
+                Assert.True(rig.Supply.MainPowerSupplyOn);
+                Assert.True(rig.Supply.AuxiliaryPowerSupplyOn);
+                Assert.True(rig.Supply.DynamicBrakeAvailable);
+                Assert.Equal(CircuitBreakerState.Closed, rig.Supply.CircuitBreaker.State);
+            }
+
+            rig.Update(1);
+            Assert.True(rig.Supply.PantographVoltageV >= pantographVoltage);
+            Assert.True(rig.Supply.FilterVoltageV >= filterVoltage);
+            Assert.True(rig.Supply.DynamicBrakeAvailable);
         }
 
         [Theory]

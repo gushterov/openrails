@@ -1841,9 +1841,36 @@ ENG or WAG file::
     OpeningDelay ( 1s )
   )
 
-The cab-view ``DOORS_DISPLAY`` indication remains steady while doors are opening or open and
-flashes while they are closing. It turns off only after every door has completed its
-``ClosingDelay`` and reports closed.
+The cab-view ``DOORS_DISPLAY`` indication uses value/frame 0 when all doors are closed and
+value/frame 1 while any door is opening or open. With ``Feature ( FlashOnClose )``, a
+two-state display alternates between frames 1 and 0 while doors are closing. Without
+this feature, it stays on frame 1 until all doors are closed.
+
+A ``MultiStateDisplay`` with exactly four frames automatically uses dedicated closing
+frames, with or without ``Feature ( FlashOnClose )``:
+
+* Value/frame 0: all doors closed.
+* Value/frame 1: any door opening or open.
+* Value/frame 2: doors closing, first 0.7 seconds of each one-second flash cycle.
+* Value/frame 3: doors closing, remaining 0.3 seconds of the cycle.
+
+For example, using a texture containing four frames in a horizontal row::
+
+  MultiStateDisplay (
+    Type ( DOORS_DISPLAY MULTI_STATE_DISPLAY )
+    Position ( 100 100 32 32 )
+    Graphic ( doors.ace )
+    States ( 4 4 1
+      State ( Style ( 0 ) SwitchVal ( 0 ) )
+      State ( Style ( 0 ) SwitchVal ( 1 ) )
+      State ( Style ( 0 ) SwitchVal ( 2 ) )
+      State ( Style ( 0 ) SwitchVal ( 3 ) )
+    )
+  )
+
+Use ``Style ( 0 )`` for these frames so that closing alternates between the two images.
+The display reports closed only after every door has completed its ``ClosingDelay``.
+Existing two-state displays retain their behavior.
 
 .. index:: ORTSDoorsOpeningBlockedWhenMoving
 
