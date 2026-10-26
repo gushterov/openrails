@@ -64,6 +64,25 @@ namespace Tests.RunActivity
             Assert.Equal(-10000, map[4 * Width + 8]);
         }
 
+        [Theory]
+        [InlineData(4, 4)]
+        [InlineData(3, 6)]
+        public void SweptBladeClearsEnclosedPixelGaps(int firstRow, int lastRow)
+        {
+            var first = Blade(2, 3, 4, 5, 6);
+            var second = Blade(3, 4, 5, 6, 7);
+            // Small alpha gaps between blade parts can survive both scanline bridges.
+            for (int y = firstRow; y <= lastRow; y++)
+                first[y * Width + 4] = second[y * Width + 4] = false;
+            var sweep = new CabWiperSweep(Width, Height, new[] { first, second });
+            var map = DryMap();
+            sweep.Advance(0, 1, 2, p => p < 0.5f ? 0 : 1);
+            sweep.Apply(map, 1);
+            for (int y = 0; y < Height; y++)
+                for (int x = 0; x < Width; x++)
+                    Assert.Equal(y >= 2 && y <= 7 && x >= 2 && x <= 7 ? 1f : -10000f, map[y * Width + x]);
+        }
+
         [Fact]
         public void PausedAnimationDoesNotWipe()
         {

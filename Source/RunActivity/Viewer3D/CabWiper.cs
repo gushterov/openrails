@@ -28,11 +28,47 @@ namespace Orts.Viewer3D
                 // do not join scanlines whose number of separate parts changes between frames.
                 Bridge(frames[i], frames[i + 1], swept, width, height, 1, width);
                 Bridge(frames[i], frames[i + 1], swept, height, width, width, 1);
+                FillEnclosedGaps(swept, width, height);
                 Strips[i] = Pixels(swept);
             }
         }
 
         static int[] Pixels(bool[] mask) => Enumerable.Range(0, mask.Length).Where(i => mask[i]).ToArray();
+
+        static void FillEnclosedGaps(bool[] swept, int width, int height)
+        {
+            // Alpha gaps between blade parts can leave pinholes and slits after bridging.
+            // Only fill enclosed gaps; glass outside the sweep and between separate blades
+            // remains connected to the mask border and must stay unwiped.
+            var reached = (bool[])swept.Clone();
+            var pending = new Queue<int>();
+            void Visit(int pixel)
+            {
+                if (reached[pixel]) return;
+                reached[pixel] = true;
+                pending.Enqueue(pixel);
+            }
+            for (int x = 0; x < width; x++)
+            {
+                Visit(x);
+                Visit((height - 1) * width + x);
+            }
+            for (int y = 0; y < height; y++)
+            {
+                Visit(y * width);
+                Visit(y * width + width - 1);
+            }
+            while (pending.TryDequeue(out int pixel))
+            {
+                int x = pixel % width;
+                if (x > 0) Visit(pixel - 1);
+                if (x + 1 < width) Visit(pixel + 1);
+                if (pixel >= width) Visit(pixel - width);
+                if (pixel + width < swept.Length) Visit(pixel + width);
+            }
+            for (int pixel = 0; pixel < swept.Length; pixel++)
+                if (!reached[pixel]) swept[pixel] = true;
+        }
 
         static void Bridge(bool[] a, bool[] b, bool[] result, int length, int lines, int step, int lineStep)
         {

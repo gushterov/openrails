@@ -31,12 +31,15 @@ float Hash(float2 p)
 // Returns coverage and the rim's highlight. Cells have jittered positions and sizes.
 float2 Drops(float2 uv, float density, float speed, float seed)
 {
-    float2 p = uv * float2(PaneAspect, 1) * density;
-    p.y -= RainTime * speed;
+    // sqrt(1.33) adds 33% more cells across the pane's area.
+    const float densityScale = 1.1532563;
+    float2 p = uv * float2(PaneAspect, 1) * density * densityScale;
+    p.y -= RainTime * speed * densityScale;
     float2 cell = floor(p);
     float random = Hash(cell + seed);
     float2 center = float2(0.2 + random * 0.6, 0.2 + Hash(cell + seed + 13) * 0.6);
-    float2 d = frac(p) - center;
+    // Keep droplet and trail sizes unchanged as the cells get smaller.
+    float2 d = (frac(p) - center) / densityScale;
     float radius = lerp(0.07, 0.16, Hash(cell + seed + 29));
     float2 shape = d / float2(radius, radius * (speed > 0 ? 1.6 : 1));
     float distance = length(shape);
