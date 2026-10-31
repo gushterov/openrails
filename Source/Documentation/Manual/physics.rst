@@ -5913,6 +5913,14 @@ inside ``VigilanceMonitor()``:
   when a throttle-bound multi-position controller enters ``ThrottleIncrease``
   or ``ThrottleIncreaseFast``. Moving directly between those two positions
   counts as remaining in throttle-up.
+* ``ORTSMonitoringDeviceResetOnResetButtonAfterAlarm ( 0 )`` prevents the
+  alerter reset button from restarting the countdown before
+  ``MonitoringDeviceAlarmTimeLimit`` is reached. Set it to ``1`` to require
+  the driver to wait until the alarm is due before acknowledging with the
+  button. It defaults to disabled. Early button inputs are ignored, so holding
+  the button does not automatically acknowledge the alarm when it starts.
+  Horn, bell, and MPC acknowledgements and penalty release conditions are
+  unaffected.
 
 The three optional reset controls default to disabled. Each acknowledges once
 on entry; holding a control active does not continuously reset the timer.

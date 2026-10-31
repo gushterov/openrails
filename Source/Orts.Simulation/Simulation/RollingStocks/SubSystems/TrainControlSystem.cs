@@ -57,6 +57,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             public bool ResetOnZeroSpeed = true;
             public bool ResetOnResetButton;                     // OverspeedMonitor only
             public float ActivationSpeedMpS = 20.0f / 3.6f;     // VigilanceMonitor only
+            public bool ResetOnResetButtonAfterAlarm;           // VigilanceMonitor only
             public bool ResetOnHorn;                           // VigilanceMonitor only
             public bool ResetOnBell;                           // VigilanceMonitor only
             public bool ResetOnMPCThrottleUp;                  // VigilanceMonitor only
@@ -82,6 +83,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                     new STFReader.TokenProcessor("monitoringdeviceresetonresetbutton", () => { ResetOnResetButton = stf.ReadBoolBlock(ResetOnResetButton); }),
                     new STFReader.TokenProcessor("monitoringdeviceresetonzerospeed", () => { ResetOnZeroSpeed = stf.ReadBoolBlock(ResetOnZeroSpeed); }),
                     new STFReader.TokenProcessor("ortsmonitoringdeviceactivationspeed", () => { ActivationSpeedMpS = Math.Max(0, stf.ReadFloatBlock(STFReader.UNITS.Speed, ActivationSpeedMpS)); }),
+                    new STFReader.TokenProcessor("ortsmonitoringdeviceresetonresetbuttonafteralarm", () => { ResetOnResetButtonAfterAlarm = stf.ReadBoolBlock(ResetOnResetButtonAfterAlarm); }),
                     new STFReader.TokenProcessor("ortsmonitoringdeviceresetonhorn", () => { ResetOnHorn = stf.ReadBoolBlock(ResetOnHorn); }),
                     new STFReader.TokenProcessor("ortsmonitoringdeviceresetonbell", () => { ResetOnBell = stf.ReadBoolBlock(ResetOnBell); }),
                     new STFReader.TokenProcessor("ortsmonitoringdeviceresetonmpcthrottleup", () => { ResetOnMPCThrottleUp = stf.ReadBoolBlock(ResetOnMPCThrottleUp); }),
@@ -109,6 +111,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 ResetOnZeroSpeed = other.ResetOnZeroSpeed;
                 ResetOnResetButton = other.ResetOnResetButton;
                 ActivationSpeedMpS = other.ActivationSpeedMpS;
+                ResetOnResetButtonAfterAlarm = other.ResetOnResetButtonAfterAlarm;
                 ResetOnHorn = other.ResetOnHorn;
                 ResetOnBell = other.ResetOnBell;
                 ResetOnMPCThrottleUp = other.ResetOnMPCThrottleUp;
@@ -1320,7 +1323,8 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 case TCSEvent.AlerterPressed:
                 case TCSEvent.AlerterReleased:
                 case TCSEvent.AlerterReset:
-                    if (Activated)
+                    if (Activated && (VigilanceMonitor == null || !VigilanceMonitor.ResetOnResetButtonAfterAlarm
+                        || VigilanceMonitorState != MonitorState.StandBy || VigilanceAlarmTimer.Triggered))
                     {
                         ResetVigilance();
                     }

@@ -207,6 +207,102 @@ namespace Tests.Orts.Simulation
         }
 
         [Theory]
+        [InlineData(TCSEvent.AlerterPressed)]
+        [InlineData(TCSEvent.AlerterReleased)]
+        [InlineData(TCSEvent.AlerterReset)]
+        public void EarlyButtonResetIsAllowedByDefault(TCSEvent input)
+        {
+            var rig = new Rig();
+            Assert.False(rig.Monitor.ResetOnResetButtonAfterAlarm);
+            rig.Start();
+            rig.Update(9);
+            rig.Script.HandleEvent(input, "");
+            rig.Update(9);
+            rig.Update(10);
+            Assert.False(rig.Alarm);
+            rig.Update(19);
+            Assert.True(rig.Alarm);
+        }
+
+        [Theory]
+        [InlineData(TCSEvent.AlerterPressed)]
+        [InlineData(TCSEvent.AlerterReleased)]
+        [InlineData(TCSEvent.AlerterReset)]
+        public void RestrictedEarlyButtonResetIsIgnoredAndNotQueued(TCSEvent input)
+        {
+            var rig = new Rig();
+            rig.Monitor.ResetOnResetButtonAfterAlarm = true;
+            rig.Start();
+            rig.Update(9.99f);
+            rig.Script.HandleEvent(input, "");
+            Assert.Equal(input == TCSEvent.AlerterPressed, rig.Script.ResetButtonPressed);
+            rig.Update(10);
+            Assert.True(rig.Alarm);
+            rig.Update(10);
+            rig.Update(15);
+            Assert.True(rig.Emergency);
+        }
+
+        [Theory]
+        [InlineData(TCSEvent.AlerterPressed, false)]
+        [InlineData(TCSEvent.AlerterReleased, false)]
+        [InlineData(TCSEvent.AlerterReset, false)]
+        [InlineData(TCSEvent.AlerterPressed, true)]
+        [InlineData(TCSEvent.AlerterReleased, true)]
+        [InlineData(TCSEvent.AlerterReset, true)]
+        public void RestrictedButtonResetWorksAtAlarmDeadlineAndDuringAlarm(TCSEvent input, bool updateAtDeadline)
+        {
+            var rig = new Rig();
+            rig.Monitor.ResetOnResetButtonAfterAlarm = true;
+            rig.Start();
+            rig.Time = 10;
+            if (updateAtDeadline)
+            {
+                rig.Update(10);
+                Assert.True(rig.Alarm);
+            }
+            rig.Script.HandleEvent(input, "");
+            rig.Update(10);
+            Assert.False(rig.Alarm);
+            rig.Update(19.99f);
+            Assert.False(rig.Alarm);
+            rig.Update(20);
+            Assert.True(rig.Alarm);
+        }
+
+        [Theory]
+        [InlineData("Horn")]
+        [InlineData("Bell")]
+        [InlineData("MPC")]
+        public void ButtonRestrictionDoesNotBlockOtherAcknowledgements(string control)
+        {
+            var rig = new Rig();
+            rig.Monitor.ResetOnResetButtonAfterAlarm = true;
+            rig.Enable(control);
+            rig.Start();
+            rig.Input(control, true);
+            rig.Update(9);
+            rig.Update(10);
+            Assert.False(rig.Alarm);
+            rig.Update(19);
+            Assert.True(rig.Alarm);
+        }
+
+        [Theory]
+        [InlineData("", false)]
+        [InlineData("ORTSMonitoringDeviceResetOnResetButtonAfterAlarm ( 0 )", false)]
+        [InlineData("ORTSMonitoringDeviceResetOnResetButtonAfterAlarm ( 1 )", true)]
+        public void ParsesAndCopiesButtonResetRestriction(string setting, bool expected)
+        {
+            using var stream = new MemoryStream(Encoding.Unicode.GetBytes("( " + setting + " )"));
+            using var reader = new STFReader(stream, "", Encoding.Unicode, false);
+            var parsed = new ScriptedTrainControlSystem.MonitoringDevice(reader);
+            var copy = new ScriptedTrainControlSystem.MonitoringDevice(parsed);
+            Assert.Equal(expected, parsed.ResetOnResetButtonAfterAlarm);
+            Assert.Equal(expected, copy.ResetOnResetButtonAfterAlarm);
+        }
+
+        [Theory]
         [InlineData("Horn")]
         [InlineData("Bell")]
         [InlineData("MPC")]
