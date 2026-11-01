@@ -42,9 +42,10 @@ namespace ORTS.Scripting.Api
         }
 
         /// <summary>
-        /// True if the driver has asked for an emergency braking (push button)
+        /// True if the driver has asked for emergency braking with the push button or MPC.
+        /// Includes the MPC request so existing brake scripts respond to the emergency handle.
         /// </summary>
-        public bool EmergencyBrakingPushButton() => Host.EmergencyBrakingPushButton;
+        public bool EmergencyBrakingPushButton() => Host.EmergencyBrakingPushButton || Host.MPCEmergencyBraking;
 
         /// <summary>
         /// True if the TCS has asked for an emergency braking

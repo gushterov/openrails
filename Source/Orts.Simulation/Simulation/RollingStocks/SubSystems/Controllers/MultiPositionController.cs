@@ -41,6 +41,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         protected ControllerPosition currentPosition = ControllerPosition.Undefined;
         public ControllerPosition SelectedPosition => currentPosition;
         protected bool emergencyBrake = false;
+        public bool EmergencyBraking => emergencyBrake;
         protected bool previousDriveModeWasAddPower = false;
         protected bool isBraking = false;
         protected bool needPowerUpAfterBrake = false;
@@ -141,21 +142,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
             if (!Locomotive.IsPlayerTrain) return;
 
             bool forceSelectingMPC = haveCruiseControl && controllerBinding == ControllerBinding.Throttle && Locomotive.CruiseControl.UseThrottleAsForceSelector;
-            if (haveCruiseControl && Locomotive.CruiseControl.DynamicBrakePriority && controllerBinding != ControllerBinding.SelectedSpeed && !forceSelectingMPC) return;
-
             ReloadPositions();
-            if (Locomotive.AbsSpeedMpS > 0)
-            {
-                if (emergencyBrake)
-                {
-                    Locomotive.TrainBrakeController.EmergencyBrakingPushButton = true;
-                    return;
-                }
-            }
-            else
-            {
-                emergencyBrake = false;
-            }
             elapsedSecondsFromLastChange += elapsedClockSeconds;
             if (checkNeutral)
             {
@@ -163,9 +150,24 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 if (elapsedSecondsFromLastChange > 0.2f)
                 {
                     CheckNeutralPosition();
+                    ReloadPositions();
                     checkNeutral = false;
                 }
             }
+            // Emergency belongs to the handle position, independently of the push button.
+            // Process it before cruise-control priority and mode checks, including release.
+            emergencyBrake = controllerPosition == ControllerPosition.EmergencyBrake;
+            if (emergencyBrake)
+            {
+                isBraking = true;
+                previousDriveModeWasAddPower = false;
+                if (haveCruiseControl)
+                    Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Neutral;
+                EmergencyBrakes();
+                return;
+            }
+            if (haveCruiseControl && Locomotive.CruiseControl.DynamicBrakePriority && controllerBinding != ControllerBinding.SelectedSpeed && !forceSelectingMPC) return;
+
             bool ccAutoMode = false;
             if (haveCruiseControl)
             {
@@ -334,11 +336,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                         else
                             Locomotive.StopTrainBrakeDecrease();
                     }
-                }
-                if (controllerPosition == ControllerPosition.EmergencyBrake)
-                {
-                    EmergencyBrakes();
-                    emergencyBrake = true;
                 }
                 if (controllerPosition == ControllerPosition.ThrottleIncreaseOrDynamicBrakeDecrease)
                 {
@@ -617,14 +614,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                         }
                     }
                 }
-                if (controllerPosition == ControllerPosition.EmergencyBrake)
-                {
-                    isBraking = true;
-                    previousDriveModeWasAddPower = false;
-                    Locomotive.CruiseControl.SpeedSelMode = CruiseControl.SpeedSelectorMode.Neutral;
-                    EmergencyBrakes();
-                    emergencyBrake = true;
-                }
                 if (controllerPosition == ControllerPosition.SelectedSpeedIncrease)
                 {
                     Locomotive.CruiseControl.SpeedRegulatorSelectedSpeedIncrease();
@@ -805,7 +794,6 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         {
             Locomotive.SetThrottlePercent(0);
             Locomotive.SetDynamicBrakePercent(100);
-            Locomotive.TrainBrakeController.EmergencyBrakingPushButton = true;
         }
         public enum Movement
         {

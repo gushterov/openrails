@@ -371,8 +371,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
 
         public override ControllerState GetState()
         {
-            if (EmergencyBrakingPushButton())
+            if (Host.EmergencyBrakingPushButton)
                 return ControllerState.EBPB;
+            else if (Host.MPCEmergencyBraking)
+                return ControllerState.Emergency;
             else if (TCSEmergencyBraking())
                 return ControllerState.TCSEmergency;
             else if (TCSFullServiceBraking())

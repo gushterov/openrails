@@ -1637,6 +1637,7 @@ namespace Orts.Simulation.RollingStocks
                     break;
                 case "wagon(ortsdoors(closingdelay":
                 case "wagon(ortsdoors(openingdelay":
+                case "wagon(ortsdoors(separateclosecommand":
                     Doors.Parse(lowercasetoken, stf);
                     break;
                 case "wagon(ortspowersupply":

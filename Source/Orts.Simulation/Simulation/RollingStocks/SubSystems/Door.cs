@@ -40,6 +40,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
     {
         public Door RightDoor;
         public Door LeftDoor;
+        public bool SeparateCloseCommand { get; private set; }
 
         public Doors(MSTSWagon wagon)
         {
@@ -51,6 +52,9 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         {
             switch (lowercasetoken)
             {
+                case "wagon(ortsdoors(separateclosecommand":
+                    SeparateCloseCommand = stf.ReadBoolBlock(false);
+                    break;
                 case "wagon(ortsdoors(closingdelay": 
                 {
                     float delayS = stf.ReadFloatBlock(STFReader.UNITS.Time, 0f);
@@ -70,6 +74,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
         public void Copy(Doors other)
         {
+            SeparateCloseCommand = other.SeparateCloseCommand;
             LeftDoor.Copy(other.LeftDoor);
             RightDoor.Copy(other.RightDoor);
         }

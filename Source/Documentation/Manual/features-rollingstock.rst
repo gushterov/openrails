@@ -1841,6 +1841,21 @@ ENG or WAG file::
     OpeningDelay ( 1s )
   )
 
+To make ``<Q>`` and ``<Shift+Q>`` open-only commands, add the boolean
+``SeparateCloseCommand ( 1 )`` to the ``ORTSDoors`` block in the driven locomotive's
+wagon section::
+
+  ORTSDoors (
+    ClosingDelay ( 5s )
+    OpeningDelay ( 1s )
+    SeparateCloseCommand ( 1 )
+  )
+
+This option applies to the door commands for the whole train. Pressing either opening
+key again leaves that side open; use ``<Alt+Q>`` to close both sides. Automatic and
+scripted door-closing controls are unaffected. Omitting the parameter, or setting it
+to zero, retains the default toggle behavior.
+
 The cab-view ``DOORS_DISPLAY`` indication uses value/frame 0 when all doors are closed and
 value/frame 1 while any door is opening or open. With ``Feature ( FlashOnClose )``, a
 two-state display alternates between frames 1 and 0 while doors are closing. Without

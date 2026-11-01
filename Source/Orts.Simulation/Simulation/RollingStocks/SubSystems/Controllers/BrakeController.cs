@@ -40,11 +40,13 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
         private bool tcsFullServiceBraking = false;
         private bool overchargeButtonPressed = false;
         private bool quickReleaseButtonPressed = false;
+        public bool MPCEmergencyBraking => ReferenceEquals(Locomotive.TrainBrakeController, this) &&
+            Locomotive.MultiPositionControllers?.Exists(controller => controller.EmergencyBraking) == true;
         public bool EmergencyBraking
         {
             get
             {
-                return emergencyBrakingPushButton || tcsEmergencyBraking || (Script.GetState() == ControllerState.Emergency);
+                return emergencyBrakingPushButton || MPCEmergencyBraking || tcsEmergencyBraking || (Script.GetState() == ControllerState.Emergency);
             }
         }
         public bool EmergencyBrakingPushButton

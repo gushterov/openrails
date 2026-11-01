@@ -1278,7 +1278,7 @@ namespace Orts.Common
         {
             var side = Receiver.GetCabFlipped() ^ Receiver.Flipped ? DoorSide.Right : DoorSide.Left;
             var state = Receiver.Train.DoorState(side);
-            Receiver.Train.SetDoors(side, state <= DoorState.Closing);
+            Receiver.Train.SetDoors(side, Receiver.Doors.SeparateCloseCommand || state <= DoorState.Closing);
             // Report();
         }
     }
@@ -1298,7 +1298,7 @@ namespace Orts.Common
         {
             var side = Receiver.GetCabFlipped() ^ Receiver.Flipped ? DoorSide.Left : DoorSide.Right;
             var state = Receiver.Train.DoorState(side);
-            Receiver.Train.SetDoors(side, state <= DoorState.Closing);
+            Receiver.Train.SetDoors(side, Receiver.Doors.SeparateCloseCommand || state <= DoorState.Closing);
             // Report();
         }
     }
