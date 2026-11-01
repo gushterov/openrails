@@ -15,16 +15,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Open Rails.  If not, see <http://www.gnu.org/licenses/>.
 
-// Uncomment this define to show a textual representation of the serialised Content items for debugging.
-//#define DEBUG_CONTENT_SERIALIZATION
-
 using Orts.Formats.Msts;
 using ORTS.ContentManager.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using Path = ORTS.ContentManager.Models.Path;
 using ORTS.Common;
@@ -45,32 +41,6 @@ namespace ORTS.ContentManager
             details.AppendFormat("Type:\t{1}{0}", Environment.NewLine, content.Type);
             details.AppendFormat("Name:\t{1}{0}", Environment.NewLine, content.Name);
             details.AppendFormat("Path:\t{1}{0}", Environment.NewLine, content.PathName);
-
-            try {
-                var stream = new MemoryStream();
-                var serializer = new BinaryFormatter();
-                serializer.Serialize(stream, content);
-#if DEBUG_CONTENT_SERIALIZATION
-                var serializedText = new StringBuilder((int)stream.Length);
-                stream.Position = 0;
-                while (stream.Position < stream.Length)
-                {
-                    var streamByte = stream.ReadByte();
-                    serializedText.Append(streamByte >= 32 ? new String((char)streamByte, 1) : ".");
-                }
-                details.AppendFormat("Serialization:\t{1} bytes\t{2}{0}", Environment.NewLine, stream.Length, serializedText.ToString());
-#else
-                details.AppendFormat("Serialization:\t{1} bytes{0}", Environment.NewLine, stream.Length);
-#endif
-                details.Append(Environment.NewLine);
-            }
-            catch (Exception error)
-            {
-                details.Append(Environment.NewLine);
-                details.Append(error);
-                details.Append(Environment.NewLine);
-                details.Append(Environment.NewLine);
-            }
 
             try
             {

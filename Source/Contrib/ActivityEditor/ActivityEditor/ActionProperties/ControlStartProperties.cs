@@ -13,6 +13,7 @@ namespace ActivityEditor.ActionProperties
 {
     public partial class ControlStartProperties : Form
     {
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public AuxControlStart Action { get; protected set; }
         public ControlStartProperties(AuxActionRef action)
         {

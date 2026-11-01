@@ -29,6 +29,7 @@ namespace ORTS.ContentManager
 
         string _cue;
 
+        [System.ComponentModel.DefaultValue(null)]
         public string Cue
         {
             get { return _cue; }
@@ -39,6 +40,7 @@ namespace ORTS.ContentManager
             }
         }
 
+        [System.ComponentModel.DefaultValue(false)]
         public bool ShowCueWhenFocused { get; set; }
 
         void UpdateCueText()

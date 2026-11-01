@@ -13,6 +13,6 @@
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
   </PropertyGroup>
   <ItemGroup Condition="'$(BuildDotNet)' != 'true' AND '$(UsingMicrosoftNETSdk)' == 'true' AND '$(MSBuildProjectName)' != 'Launcher'">
-    <PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.14" />
   </ItemGroup>
 </Project>

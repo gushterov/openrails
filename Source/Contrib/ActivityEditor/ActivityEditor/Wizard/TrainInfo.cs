@@ -14,6 +14,7 @@ namespace AEWizard
         private TextBox trainNameCB;
         private Label label2;
         private TextBox TrainInfoTB1;
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
 
         public ActivityInfo activityInfo { get; set; }
 

@@ -1,5 +1,6 @@
 // COPYRIGHT 2026 by the Open Rails project. GNU GPL version 3 or later.
 using System.IO;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using Orts.Formats.Msts;
 using Xunit;
@@ -122,8 +123,23 @@ namespace Tests.Orts.Formats.Msts
         [InlineData("Unknown", CabCameraMount.CarOffset)]
         public void CameraMountSelectorIsParsed(string value, CabCameraMount expected)
         {
-            var camera = Assert.IsType<CVCCamera>(Assert.Single(Parse($"ORTSCamera ( CameraMount ( {value} ) )")));
-            Assert.Equal(expected, camera.CameraMount);
+            void ParseMount()
+            {
+                var camera = Assert.IsType<CVCCamera>(Assert.Single(Parse($"ORTSCamera ( CameraMount ( {value} ) )")));
+                Assert.Equal(expected, camera.CameraMount);
+            }
+            if (value != "Unknown") { ParseMount(); return; }
+
+            // The fallback intentionally warns. Scope the global listener so parser test
+            // ordering cannot turn that warning into an exception during file cleanup.
+            var listeners = new TraceListener[Trace.Listeners.Count];
+            Trace.Listeners.CopyTo(listeners, 0);
+            try { AssertWarnings.Matching("Unknown camera mount", ParseMount); }
+            finally
+            {
+                Trace.Listeners.Clear();
+                Trace.Listeners.AddRange(listeners);
+            }
         }
 
         [Fact]

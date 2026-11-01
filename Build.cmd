@@ -64,15 +64,6 @@ IF NOT EXIST "Source\ORTS.sln" (
 	EXIT /B 1
 )
 
-IF "%Mode%" == "Stable" (
-	CALL :create ".NET Framework 4.7.2 web installer"
-	IF NOT EXIST ".NET Framework 4.7.2 web installer\ndp472-kb4054531-web.exe" (
-		>&2 ECHO ERROR: Missing required file for "%Mode%" build: ".NET Framework 4.7.2 web installer\ndp472-kb4054531-web.exe".
-		>&2 ECHO "Download from http://go.microsoft.com/fwlink/?LinkId=863262"
-		EXIT /B 1
-	)
-)
-
 REM Get product version and code revision.
 FOR /F "usebackq tokens=1* delims==" %%A IN (`CALL GetVersion.cmd %Mode%`) DO SET %%A=%%B
 
@@ -86,10 +77,7 @@ IF "%Mode%" == "Unstable" SET BuildConfiguration=Debug
 PUSHD Source && dotnet build -p:Configuration=%BuildConfiguration% && POPD || GOTO :error
 
 REM Run unit tests.
-PUSHD Source && dotnet test --no-restore --no-build --logger "trx;LogFileName=Tests.trx" && POPD || GOTO :error
-
-REM Remove `testhost` files which cannot be signed.
-DEL Program\testhost.*
+PUSHD Source && dotnet test --configuration %BuildConfiguration% --no-restore --no-build --logger "trx;LogFileName=Tests.trx" && POPD || GOTO :error
 
 REM Set update channel.
 >>Program\Updater.ini ECHO Channel=string:%Mode% || GOTO :error
@@ -103,7 +91,7 @@ ROBOCOPY /MIR /NJH /NJS "Source\RunActivity\Viewer3D\WebServices\Web" "Program\C
 IF %ERRORLEVEL% GEQ 8 GOTO :error
 
 REM Copy version number from OpenRails.exe into all other 1st party files
-FOR %%F IN ("Program\*.exe", "Program\Orts.*.dll", "Program\Contrib.*.dll", "Program\Tests.dll") DO (
+FOR %%F IN ("Program\*.exe", "Program\Orts.*.dll", "Program\Contrib.*.dll") DO (
 	rcedit-x86.exe "%%~F" --set-product-version %OpenRails_Revision% --set-version-string ProductVersion %OpenRails_Version% || GOTO :error
 )
 ECHO Set product version information to "%OpenRails_Version%".

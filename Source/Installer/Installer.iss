@@ -115,7 +115,7 @@ Filename: "{app}\{#MyAppExeName}"; StatusMsg: "Installing Open Rails ..."; Descr
 [Code]
 function InitializeSetup: Boolean;
 begin
-  Dependency_AddDotNet60Desktop; // .NET Desktop Runtime 6.0
+  Dependency_AddDotNet100Desktop; // .NET Desktop Runtime 10.0
 
   Result := True;
 end;

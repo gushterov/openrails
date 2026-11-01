@@ -34,8 +34,7 @@ namespace Orts.Common
     /// This Command Pattern allows requests to be encapsulated as objects (http://sourcemaking.com/design_patterns/command).
     /// The pattern provides many advantages, but it allows OR to record the commands and then to save them when the user presses F2.
     /// The commands can later be read from file and replayed.
-    /// Writing and reading is done using the .NET binary serialization which is quick to code. (For an editable version, JSON has
-    /// been successfully explored.)
+    /// New logs use versioned JSON; older binary logs remain readable through the NRBF reader.
     /// 
     /// Immediate commands (e.g. sound horn) are straightforward but continuous commands (e.g. apply train brake) are not. 
     /// OR aims for commands which can be repeated accurately and possibly on a range of hardware. Continuous commands therefore

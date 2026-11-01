@@ -143,8 +143,10 @@ namespace Menu
                 }
             }
         }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
 
         public string SelectedSaveFile { get; set; }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public MainForm.UserAction SelectedAction { get; set; }
         private bool Multiplayer { get; set; }
 

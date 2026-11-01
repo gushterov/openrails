@@ -13,6 +13,7 @@ namespace ActivityEditor.ActionProperties
 {
     public partial class HornProperties : Form
     {
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public AuxActionHorn Action { get; protected set; }
         public HornProperties(AuxActionRef action)
         {

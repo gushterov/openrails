@@ -22,7 +22,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Orts.Common
 {
@@ -135,10 +134,9 @@ namespace Orts.Common
             Stream stream = null;
             try {
                 stream = new FileStream( filePath, FileMode.Create );
-                BinaryFormatter formatter = new BinaryFormatter();
                 // Re-sort based on time as tests show that some commands are deferred.
                 CommandList.Sort( ( x, y ) => x.Time.CompareTo( y.Time ) );
-                formatter.Serialize( stream, CommandList );
+                ReplayLogSerializer.Write(stream, CommandList);
             } catch( IOException ) {
                 // Do nothing but warn, ignoring errors.
                 Trace.TraceWarning( "SaveLog error writing command log " + filePath );
@@ -159,12 +157,11 @@ namespace Orts.Common
             Stream stream = null;
             try {
                 stream = new FileStream( filePath, FileMode.Open );
-                BinaryFormatter formatter = new BinaryFormatter();
-                CommandList = (List<ICommand>)formatter.Deserialize( stream );
+                CommandList = ReplayLogSerializer.Read(stream);
                 RemoveDuplicateTrainBrakeCommands();
-            } catch( IOException ) {
+            } catch (Exception error) when (error is IOException || error is InvalidDataException) {
                 // Do nothing but warn, ignoring errors.
-                Trace.TraceWarning( "LoadLog error reading command log " + filePath );
+                Trace.TraceWarning("LoadLog error reading command log {0}: {1}", filePath, error.Message);
             } finally {
                 if( stream != null ) { stream.Close(); }
             }
@@ -190,7 +187,7 @@ namespace Orts.Common
             int removed = CommandList.Count - retained;
             if (removed == 0) return;
             CommandList.RemoveRange(retained, removed);
-            // BinaryFormatter also writes the backing array, so release its unused slots.
+            // Release the unused backing-array slots after compacting large legacy logs.
             CommandList.TrimExcess();
             Trace.TraceInformation("Removed {0} duplicate train brake commands from replay log.", removed);
         }

@@ -8,6 +8,14 @@ install:
 - ps: >-
     $ErrorActionPreference = "Stop"
 
+    Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile dotnet-install.ps1
+
+    & .\dotnet-install.ps1 -Channel 10.0 -Quality GA -InstallDir "$env:LOCALAPPDATA\Microsoft\dotnet" -NoPath
+
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw ".NET 10 SDK installation failed" }
+
+    $env:PATH="$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
+
     choco install --yes --no-progress 7zip.portable xunit
 
     if ($LASTEXITCODE -ne 0) { throw "Chocolatey failed to install all required packages - use the 're-build' option to try again" }

@@ -77,11 +77,13 @@ namespace ActivityEditor.Engine
         public ActEditor actParent;
         public AEConfig aeConfig;
         public PseudoSim Simulator;
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public MSTSItems aeItems { get { return Simulator.mstsItems; } protected set { } }
         Random rnd = new Random();
 
         private int IM_Width = 720;
         private int IM_Height = 720;
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public AreaRoute areaRoute { get { return Simulator.areaRoute; } protected set { } }
 
         //  To define the biggest draughtboard for the route
@@ -101,6 +103,7 @@ namespace ActivityEditor.Engine
         private float previousScale = 0;
         private float currentRules = 0;
         private float origRules = 0;
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public double snapSize { get; set; }
 
         //  Keep the distance between the map origin and the visible section

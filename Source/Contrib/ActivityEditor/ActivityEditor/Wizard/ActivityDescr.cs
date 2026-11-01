@@ -19,6 +19,7 @@ namespace AEWizard
         private ComboBox routePathCB;
 
         public String RoutePath;
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public ActivityInfo activityInfo { get; set; }
        // ==================================================================
         // Public Constructors

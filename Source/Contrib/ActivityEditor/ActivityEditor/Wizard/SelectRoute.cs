@@ -15,6 +15,7 @@ namespace AEWizard
         private TextBox textBox1;
 
         public String RoutePath;
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public RouteInfo routeInfo { get; set; }
 
         public SelectRoute()

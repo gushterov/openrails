@@ -108,8 +108,10 @@ namespace Menu
         public int SelectedStartSeason { get { return radioButtonModeActivity.Checked ? (comboBoxStartSeason.SelectedItem as KeyedComboBoxItem).Key : (comboBoxTimetableSeason.SelectedItem as KeyedComboBoxItem).Key; } }
         int SelectedWeatherKey => ((radioButtonModeActivity.Checked ? comboBoxStartWeather.SelectedItem : comboBoxTimetableWeather.SelectedItem) as KeyedComboBoxItem)?.Key ?? 0;
         public int SelectedStartWeather => (int)WeatherPresetSelection.BaseWeather(SelectedWeatherKey, (Orts.Formats.Msts.SeasonType)SelectedStartSeason);
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
 
         public string SelectedSaveFile { get; set; }
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
         public UserAction SelectedAction { get; set; }
 
         GettextResourceManager catalog = new GettextResourceManager("Menu");

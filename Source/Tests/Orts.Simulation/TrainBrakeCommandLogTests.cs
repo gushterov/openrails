@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using Orts.Common;
 using Orts.Simulation;
 using Orts.Simulation.Physics;
@@ -199,12 +198,12 @@ namespace Tests.Orts.Simulation
             return command;
         }
 
-        static CommandLog LoadLegacyLog(List<ICommand> commands)
+        static CommandLog LoadLog(List<ICommand> commands)
         {
             var path = Path.GetTempFileName();
             try
             {
-                using (var stream = File.Create(path)) new BinaryFormatter().Serialize(stream, commands);
+                using (var stream = File.Create(path)) ReplayLogSerializer.Write(stream, commands);
                 var log = new CommandLog(null);
                 log.LoadLog(path);
                 return log;
@@ -213,12 +212,12 @@ namespace Tests.Orts.Simulation
         }
 
         [Fact]
-        public void LoadingLegacyFloodCompactsCommandsAndTheirSerializedBackingArray()
+        public void LoadingFloodCompactsCommandsAndTheirBackingArray()
         {
             var commands = new List<ICommand>(32768);
             for (int i = 0; i < 10000; i++) commands.Add(Brake(100));
             commands.Add(Brake(200, true, 0.75f));
-            var log = LoadLegacyLog(commands);
+            var log = LoadLog(commands);
             Assert.Equal(2, log.CommandList.Count);
             Assert.Equal(2, log.CommandList.Capacity);
             var path = Path.GetTempFileName();
@@ -244,7 +243,7 @@ namespace Tests.Orts.Simulation
                 Brake(100), Brake(100), Brake(101), Brake(101, true), Brake(101, true, 0.5f),
                 Brake(101, true, null), bell, Brake(101, true, null), Brake(101, true, null), bell,
             };
-            var log = LoadLegacyLog(commands);
+            var log = LoadLog(commands);
             Assert.Collection(log.CommandList,
                 c => Assert.Equal(100, c.Time), c => Assert.Equal(101, c.Time),
                 c => Assert.IsType<TrainBrakeCommand>(c), c => Assert.IsType<TrainBrakeCommand>(c),
@@ -255,8 +254,8 @@ namespace Tests.Orts.Simulation
         [Fact]
         public void EmptyAndAlreadyCompactReplayLogsLoadUnchanged()
         {
-            Assert.Empty(LoadLegacyLog(new List<ICommand>()).CommandList);
-            var log = LoadLegacyLog(new List<ICommand> { Brake(1), Brake(2) });
+            Assert.Empty(LoadLog(new List<ICommand>()).CommandList);
+            var log = LoadLog(new List<ICommand> { Brake(1), Brake(2) });
             Assert.Equal(2, log.CommandList.Count);
         }
 
