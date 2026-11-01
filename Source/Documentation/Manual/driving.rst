@@ -1271,9 +1271,9 @@ the related animations.
 ===================     =====================================
 Command                 Function
 ===================     =====================================
-``<Q>``                 Door left open/close   
-``<Shift+Q>``           Door right open/close
-``<Alt+Q>``             Close all doors
+``<Numpad />``          Door left open/close
+``<Numpad ->``          Door right open/close
+``<Numpad *>``          Close all doors
 ``<Shift+V>``           Mirror rotate clock/counterclockwise
 ``<Ctrl+Q>``            Window left open/close
 ``<Ctrl+Shift+Q>``      Window right open/close

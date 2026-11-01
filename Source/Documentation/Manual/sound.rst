@@ -189,8 +189,8 @@ Trigger       Function
 102           GearDown : for gear-based engines, triggered by the ``<Shift+E>`` key, propagated to all gear-based diesel engines of a train and run also for AI trains
 103           ReverserToForwardBackward : reverser moved towards the forward or backward position
 104           ReverserToNeutral : reverser moved towards the neutral position
-105           DoorOpen : triggered by the ``<Q>`` and ``<Shift+Q>`` keys and propagated to the wagons of the consist
-106           DoorClose : triggered by the ``<Q>`` and ``<Shift+Q>`` keys and propagated to the wagons of the consist
+105           DoorOpen : triggered by the ``<Numpad />`` and ``<Numpad ->`` keys and propagated to the wagons of the consist
+106           DoorClose : triggered by the ``<Numpad />``, ``<Numpad ->`` and ``<Numpad *>`` keys and propagated to the wagons of the consist
 107           MirrorOpen : triggered by the ``<Shift+Q>`` key
 108           MirrorClose : triggered by the ``<Shift+Q>`` key
 =========     ==============================================================================================================================================================

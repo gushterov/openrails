@@ -1828,8 +1828,8 @@ Passenger doors
 
 .. index:: ORTSDoors
 
-Passenger doors are opened and closed (by default) using the ``<Q>`` and ``<Shift+Q>`` keys.
-Press ``<Alt+Q>`` to close all passenger doors on both sides of the train. Doors that
+Passenger doors are opened and closed (by default) using the ``<Numpad />`` and ``<Numpad ->`` keys.
+Press ``<Numpad *>`` to close all passenger doors on both sides of the train. Doors that
 are already closed remain closed.
 It is possible to add opening and closing delays, which can be useful to delay the indication of
 "Doors closed" until all doors are fully closed.
@@ -1841,7 +1841,7 @@ ENG or WAG file::
     OpeningDelay ( 1s )
   )
 
-To make ``<Q>`` and ``<Shift+Q>`` open-only commands, add the boolean
+To make ``<Numpad />`` and ``<Numpad ->`` open-only commands, add the boolean
 ``SeparateCloseCommand ( 1 )`` to the ``ORTSDoors`` block in the driven locomotive's
 wagon section::
 
@@ -1852,7 +1852,7 @@ wagon section::
   )
 
 This option applies to the door commands for the whole train. Pressing either opening
-key again leaves that side open; use ``<Alt+Q>`` to close both sides. Automatic and
+key again leaves that side open; use ``<Numpad *>`` to close both sides. Automatic and
 scripted door-closing controls are unaffected. Omitting the parameter, or setting it
 to zero, retains the default toggle behavior.
 
