@@ -38,6 +38,10 @@ namespace Orts.Common.Scripting
         static readonly string[] ReferenceAssemblies =
             ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
                 .Split(Path.PathSeparator)
+                .Where(path => string.Equals(
+                    Path.GetDirectoryName(path),
+                    Path.GetDirectoryName(typeof(object).Assembly.Location),
+                    StringComparison.OrdinalIgnoreCase))
                 .Concat(new[]
                 {
                     typeof(ORTS.Common.ElapsedTime).Assembly.Location,

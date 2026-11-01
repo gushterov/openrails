@@ -92,7 +92,7 @@ namespace Orts.Viewer3D
         /// If needs active management or can be left to OpenAL to deal with sound properties
         /// </summary>
         public bool NeedsFrequentUpdate;
-        public bool TrackSound = false;
+        public bool IsTrackSound = false;
 
         public abstract void Dispose();
     }
@@ -103,8 +103,8 @@ namespace Orts.Viewer3D
         private int _curTType = -1;
         private SoundSource _activeInSource;
         private SoundSource _activeOutSource;
-        private List<SoundSource> _inSources;
-        private List<SoundSource> _outSources;
+        public List<SoundSource> InSources { get; private set; } = new List<SoundSource>();
+        public List<SoundSource> OutSources { get; private set; } = new List<SoundSource>();
 
         // data to evaluate if ttype selection is needed or not
         private float nextDist = -1; // initial distance to sound region forward
@@ -119,11 +119,9 @@ namespace Orts.Viewer3D
 
         public TrackSoundSource(MSTSWagon car, Viewer viewer)
         {
-            TrackSound = true;
+            IsTrackSound = true;
             Car = car;
             Viewer = viewer;
-            _inSources = new List<SoundSource>();
-            _outSources = new List<SoundSource>();
 
             foreach (Orts.Formats.Msts.TrackTypesFile.TrackType ttdf in viewer.TrackTypes)
             {
@@ -151,12 +149,9 @@ namespace Orts.Viewer3D
                 return;
             }
             if (isInside)
-            {
-                _inSources.Add(new SoundSource(Viewer, Car, fullPath));
-                _inSources.Last().IsInternalTrackSound = true;
-            }
+                InSources.Add(new SoundSource(Viewer, Car, fullPath, true));
             else
-                _outSources.Add(new SoundSource(Viewer, Car, fullPath));
+                OutSources.Add(new SoundSource(Viewer, Car, fullPath, true));
         }
 
         public override void Uninitialize()
@@ -170,11 +165,11 @@ namespace Orts.Viewer3D
 
         public override void InitInitials()
         {
-            if (_inSources != null && _inSources.Count > 0)
-                _activeInSource = _inSources[0];
+            if (InSources != null && InSources.Count > 0)
+                _activeInSource = InSources[0];
 
-            if (_outSources != null && _outSources.Count > 0)
-                _activeOutSource = _outSources[0];
+            if (OutSources != null && OutSources.Count > 0)
+                _activeOutSource = OutSources[0];
 
             _curTType = 0;
             _prevTType = 0;
@@ -307,8 +302,8 @@ namespace Orts.Viewer3D
                     {
                         _activeInSource.Uninitialize();
                         //_activeInSource.Car = null;
-                        if (0 <= _curTType && _curTType < _inSources.Count)
-                            _activeInSource = _inSources[_curTType];
+                        if (0 <= _curTType && _curTType < InSources.Count)
+                            _activeInSource = InSources[_curTType];
                         else
                             Trace.TraceWarning("Could not change inside sound region to {0}", _curTType);
                         //_activeInSource.Car = Car;
@@ -318,8 +313,8 @@ namespace Orts.Viewer3D
                     {
                         _activeOutSource.Uninitialize();
                         //_activeOutSource.Car = null;
-                        if (0 <= _curTType && _curTType < _outSources.Count)
-                            _activeOutSource = _outSources[_curTType];
+                        if (0 <= _curTType && _curTType < OutSources.Count)
+                            _activeOutSource = OutSources[_curTType];
                         else
                             Trace.TraceWarning("Could not change outside sound region to {0}", _curTType);
                         //_activeOutSource.Car = Car;
@@ -356,17 +351,17 @@ namespace Orts.Viewer3D
                 // Play base (default, ie TType=1 SMS file) sound continuously
                 if (_activeInSource != null)
                 {
-                    _activeInSource = _inSources[0];
+                    _activeInSource = InSources[0];
                     retval &= _activeInSource.Update();
                     NeedsFrequentUpdate |= _activeInSource.NeedsFrequentUpdate;
-                    _activeInSource = _inSources[_curTType];
+                    _activeInSource = InSources[_curTType];
                 }
                 if (_activeOutSource != null)
                 {
-                    _activeOutSource = _outSources[0];
+                    _activeOutSource = OutSources[0];
                     retval &= _activeOutSource.Update();
                     NeedsFrequentUpdate |= _activeOutSource.NeedsFrequentUpdate;
-                    _activeOutSource = _outSources[_curTType];
+                    _activeOutSource = OutSources[_curTType];
                 }
 
                 if (_curTType != 0) // if base sound is not being played, then play additional relevant track region sound
@@ -406,17 +401,17 @@ namespace Orts.Viewer3D
 
         public override void Dispose()
         {
-            if (_inSources != null)
+            if (InSources != null)
             {
-                foreach (SoundSource s in _inSources)
+                foreach (SoundSource s in InSources)
                     s.Dispose();
-                _inSources.Clear();
+                InSources.Clear();
             }
-            if (_outSources != null)
+            if (OutSources != null)
             {
-                foreach (SoundSource s in _outSources)
+                foreach (SoundSource s in OutSources)
                     s.Dispose();
-                _outSources.Clear();
+                OutSources.Clear();
             }
             Car = null;
         }
@@ -485,8 +480,8 @@ namespace Orts.Viewer3D
                     {
                         _activeInSource.Uninitialize();
                         //_activeInSource.Car = null;
-                        if (0 <= _curTType && _curTType < _inSources.Count)
-                            _activeInSource = _inSources[_curTType];
+                        if (0 <= _curTType && _curTType < InSources.Count)
+                            _activeInSource = InSources[_curTType];
                         else
                             Trace.TraceWarning("Could not change inside sound region to {0}", _curTType);
                         //_activeInSource.Car = Car;
@@ -496,8 +491,8 @@ namespace Orts.Viewer3D
                     {
                         _activeOutSource.Uninitialize();
                         //_activeOutSource.Car = null;
-                        if (0 <= _curTType && _curTType < _outSources.Count)
-                            _activeOutSource = _outSources[_curTType];
+                        if (0 <= _curTType && _curTType < OutSources.Count)
+                            _activeOutSource = OutSources[_curTType];
                         else
                             Trace.TraceWarning("Could not change outside sound region to {0}", _curTType);
                         //_activeOutSource.Car = Car;
@@ -568,9 +563,11 @@ namespace Orts.Viewer3D
         /// <param name="viewer"></param>
         /// <param name="car"></param>
         /// <param name="smsFilePath"></param>
-        public SoundSource(Viewer viewer, MSTSWagon car, string smsFilePath)
+        /// <param name="isTrack"></param>
+        public SoundSource(Viewer viewer, MSTSWagon car, string smsFilePath, bool isTrack = false)
         {
             Car = car;
+            IsTrackSound = isTrack;
             Initialize(viewer, car.WorldPosition.WorldLocation, Events.Source.MSTSCar, smsFilePath);
         }
 
@@ -696,7 +693,6 @@ namespace Orts.Viewer3D
         private Orts.Formats.Msts.Deactivation DeactivationConditions;
         public bool IsEnvSound;
         public bool IsExternal = true;
-        public bool IsInternalTrackSound = false;
         public bool Ignore3D;
         /// <summary>
         /// MSTS treats Stereo() tagged mono wav files specially. This is a flag
@@ -1431,7 +1427,7 @@ namespace Orts.Viewer3D
                     if (VariableTriggers.Count > 0 || Triggers.Count == 1)
                     {
                         TriggersList = from ORTSVariableTrigger t in VariableTriggers
-                                                where t.IsBellow
+                                                where t.IsBelow
                                                 select t as ORTSTrigger;
                         if (TriggersList.Count() == VariableTriggers.Count && _InitialTrigger.SoundCommand is ORTSSoundPlayCommand
                             && !(_InitialTrigger.SoundCommand is ORTSPlayOneShot && _InitialTrigger.Signaled))
@@ -1472,9 +1468,9 @@ namespace Orts.Viewer3D
                 {
                     float x = 0;
                     if (SoundSource.Car != null)
-                        x = ReadValue(MSTSStream.FrequencyCurve.Control, SoundSource.Car);
+                        x = ReadValue(MSTSStream.FrequencyCurve.CurveVariable, SoundSource.Car);
                     else if (SoundSource.Viewer.Camera.AttachedCar != null)
-                        x = ReadValue(MSTSStream.FrequencyCurve.Control, (MSTSWagon)SoundSource.Viewer.Camera.AttachedCar);
+                        x = ReadValue(MSTSStream.FrequencyCurve.CurveVariable, (MSTSWagon)SoundSource.Viewer.Camera.AttachedCar);
                     float y = Interpolate(x, MSTSStream.FrequencyCurve);
                     if (SoundSource.MstsMonoTreatment && ALSoundSource.MstsMonoTreatment)
                         y *= 2;
@@ -1491,9 +1487,9 @@ namespace Orts.Viewer3D
                 {
                     float x;
                     if (SoundSource.Car != null)
-                        x = ReadValue(MSTSStream.VolumeCurves[i].Control, SoundSource.Car);
+                        x = ReadValue(MSTSStream.VolumeCurves[i].CurveVariable, SoundSource.Car);
                     else if (SoundSource.Viewer.Camera.AttachedCar != null)
-                        x = ReadValue(MSTSStream.VolumeCurves[i].Control, (MSTSWagon)SoundSource.Viewer.Camera.AttachedCar);
+                        x = ReadValue(MSTSStream.VolumeCurves[i].CurveVariable, (MSTSWagon)SoundSource.Viewer.Camera.AttachedCar);
                     else
                         x = SoundSource.DistanceSquared;
 
@@ -1511,14 +1507,14 @@ namespace Orts.Viewer3D
                     else volume *= wag.ExternalSoundPassThruPercent * 0.01f + (1 - wag.ExternalSoundPassThruPercent * 0.01f) * soundHeardInternallyCorrection;
                 }
 
-                if (SoundSource.IsInternalTrackSound)
+                if (SoundSource.IsTrackSound && !SoundSource.IsExternal)
                 {
                     if (wag?.TrackSoundPassThruPercent != -1)
                         volume *= wag.TrackSoundPassThruPercent * 0.01f + (1 - wag.TrackSoundPassThruPercent * 0.01f) * soundHeardInternallyCorrection;
                 }
             }
 
-            if (SoundSource.IsInternalTrackSound && SoundSource.Viewer.Camera.Style != Camera.Styles.External)
+            if (SoundSource.IsTrackSound && !SoundSource.IsExternal && SoundSource.Viewer.Camera.Style != Camera.Styles.External)
             {
                 if (((MSTSWagon)SoundSource.Viewer.Camera.AttachedCar)?.TrackSoundPassThruPercent != -1)
                     volume *= ((MSTSWagon)SoundSource.Viewer.Camera.AttachedCar).TrackSoundPassThruPercent * 0.01f;
@@ -1595,32 +1591,60 @@ namespace Orts.Viewer3D
         }
 
         /// <summary>
-        /// Read a variable from the attached TrainCar data
+        /// Reads a variable from the attached TrainCar data
         /// </summary>
-        /// <param name="control"></param>
-        /// <param name="car"></param>
-        /// <returns></returns>
-        private float ReadValue(Orts.Formats.Msts.VolumeCurve.Controls control, MSTSWagon car)
+        /// <param name="variable">The SoundVariable defining the desired data source</param>
+        /// <param name="car">The MSTSWagon to measure data from</param>
+        /// <returns>floating point value representing the desired data</returns>
+        public float ReadValue(SoundVariable variable, MSTSWagon car)
         {
-            switch (control)
+            switch (variable.Control)
             {
-                case Orts.Formats.Msts.VolumeCurve.Controls.DistanceControlled: return SoundSource.DistanceSquared;
-                case Orts.Formats.Msts.VolumeCurve.Controls.SpeedControlled: return car.AbsSpeedMpS;
-                case Orts.Formats.Msts.VolumeCurve.Controls.Variable1Controlled: return car.Variable1;
-                case Orts.Formats.Msts.VolumeCurve.Controls.Variable1_2Controlled: return car.Variable1_2;
-                case Orts.Formats.Msts.VolumeCurve.Controls.Variable1_3Controlled: return car.Variable1_3;
-                case Orts.Formats.Msts.VolumeCurve.Controls.Variable1_4Controlled: return car.Variable1_4;
-                case Orts.Formats.Msts.VolumeCurve.Controls.Variable2BoosterControlled: return car.Variable2_Booster;
-                case Orts.Formats.Msts.VolumeCurve.Controls.Variable2Controlled: return car.Variable2;
-                case Orts.Formats.Msts.VolumeCurve.Controls.Variable3Controlled: return car.Variable3;
-                case Orts.Formats.Msts.VolumeCurve.Controls.BrakeCylControlled: return car.BrakeSystem.GetCylPressurePSI();
-                case Orts.Formats.Msts.VolumeCurve.Controls.CurveForceControlled: return car.CurveForceNFiltered;
-                case Orts.Formats.Msts.VolumeCurve.Controls.AngleofAttackControlled: return car.CurveSquealAoAmRadFiltered;
-                case Orts.Formats.Msts.VolumeCurve.Controls.CarFrictionControlled: return car.Train.WagonCoefficientFriction;
-                case Orts.Formats.Msts.VolumeCurve.Controls.WheelRpMControlled: var wheelRpM = pS.TopM((float)(car.AbsSpeedMpS / (2 * Math.PI * car.WheelRadiusM))); return wheelRpM;
-                case Orts.Formats.Msts.VolumeCurve.Controls.CarDistanceTrackControlled: return car.CarTrackControlledDistanceM;
-                case Orts.Formats.Msts.VolumeCurve.Controls.CarTunnelDistanceControlled: return car.CarTunnelDistanceM;
-                case Orts.Formats.Msts.VolumeCurve.Controls.BackPressureControlled: return car.BackPressurePSIG;
+                case SoundVariable.ControlType.Distance: return SoundSource.DistanceSquared;
+                case SoundVariable.ControlType.Speed: return car.AbsSpeedMpS;
+                case SoundVariable.ControlType.Variable1: return car.Variable1.ElementAtOrDefault(variable.SourceID);
+                case SoundVariable.ControlType.Variable2Booster: return car.Variable2_Booster;
+                case SoundVariable.ControlType.Variable2: return car.Variable2;
+                case SoundVariable.ControlType.Variable3: return car.Variable3;
+                case SoundVariable.ControlType.BrakeCyl: return car.BrakeSystem.GetCylPressurePSI();
+                case SoundVariable.ControlType.CurveForce: return car.CurveForceNFiltered;
+                case SoundVariable.ControlType.AngleofAttack: return car.CurveSquealAoAmRadFiltered;
+                case SoundVariable.ControlType.CarFriction: return car.Train.WagonCoefficientFriction;
+                case SoundVariable.ControlType.WheelRPM: return pS.TopM((float)(car.AbsWheelSpeedMpS / (2 * Math.PI * car.WheelRadiusM)));
+                case SoundVariable.ControlType.ConcreteSleepers: return SharedSMSFileManager.ConcreteSleepers;
+                case SoundVariable.ControlType.CarInTunnel: return car.TrackSoundInTunnelTriggered;
+                case SoundVariable.ControlType.CarDistanceTrack: return car.CarTrackControlledDistanceM;
+                case SoundVariable.ControlType.CarTunnelDistance: return car.CarTunnelDistanceM;
+                case SoundVariable.ControlType.BackPressure: return car.BackPressurePSIG;
+                case SoundVariable.ControlType.TractiveEffort: return car.LocomotiveAxles.DriveForceN * Math.Sign(car.WheelSpeedMpS); // Ensure positive for traction, negative for dynamics
+                case SoundVariable.ControlType.TractivePower: return car.LocomotiveAxles.DrivePowerW;
+                case SoundVariable.ControlType.EngineRPM: return car.EnginesRPM.ElementAtOrDefault(variable.SourceID);
+                case SoundVariable.ControlType.EnginePower: return car.EnginesPower.ElementAtOrDefault(variable.SourceID);
+                case SoundVariable.ControlType.EngineTorque: return car.EnginesTorque.ElementAtOrDefault(variable.SourceID);
+                case SoundVariable.ControlType.ThrottleController:
+                    if (car is MSTSLocomotive locomotive)
+                        return locomotive.GetThrottleHandleValue(false) * 100.0f;
+                    return 0;
+                case SoundVariable.ControlType.DynamicBrakeController:
+                    if (car is MSTSLocomotive locomotiveWithDynamicBrake && locomotiveWithDynamicBrake.DynamicBrakeController != null)
+                    {
+                        // Cruise control may move the brake controller independently of the
+                        // driver's combined handle, so read the handle's braking side.
+                        if (locomotiveWithDynamicBrake.CruiseControl?.SpeedRegMode == Simulation.RollingStocks.SubSystems.CruiseControl.SpeedRegulatorMode.Auto
+                            && locomotiveWithDynamicBrake.CruiseControl.UseThrottleInCombinedControl
+                            && (locomotiveWithDynamicBrake.CruiseControl.UseThrottleAsForceSelector
+                                || locomotiveWithDynamicBrake.CruiseControl.UseThrottleAsSpeedSelector)
+                            && locomotiveWithDynamicBrake.CombinedControlType == MSTSLocomotive.CombinedControl.ThrottleDynamic)
+                        {
+                            float splitPosition = locomotiveWithDynamicBrake.CombinedControlSplitPosition;
+                            float combinedHandleValue = locomotiveWithDynamicBrake.GetCombinedHandleValue(false);
+                            return splitPosition < 1 && combinedHandleValue > splitPosition
+                                ? (combinedHandleValue - splitPosition) / (1 - splitPosition) * 100.0f
+                                : 0;
+                        }
+                        return locomotiveWithDynamicBrake.DynamicBrakeController.CurrentValue * 100.0f;
+                    }
+                    return 0;
                 default: return 0;
             }
         }
@@ -1680,6 +1704,7 @@ namespace Orts.Viewer3D
             if (ALSoundSource != null)
             {
                 ALSoundSource.HardDeactivate();
+                ALSoundSource.ForceResetQueue();
             }
             Sweep();
         }
@@ -1690,6 +1715,7 @@ namespace Orts.Viewer3D
             {
                 ALSoundSource.HardDeactivate();
                 ALSoundSource.Dispose();
+                ALSoundSource.ForceResetQueue();
                 ALSoundSource = null;
             }
             Sweep();
@@ -1700,10 +1726,21 @@ namespace Orts.Viewer3D
         /// </summary>
         private void Sweep()
         {
-            foreach (var trigger in Triggers)
-                if (trigger.SoundCommand is ORTSSoundPlayCommand)
-                    foreach (var name in (trigger.SoundCommand as ORTSSoundPlayCommand).Files)
-                        SoundItem.Sweep(name, SoundSource.IsExternal, IsReleasedWithJump);
+            string[] pathArray = {SoundSource.SMSFolder ?? "",
+                                     Program.Simulator.RoutePath + @"\SOUND",
+                                     Program.Simulator.BasePath + @"\SOUND"};
+
+            foreach (ORTSTrigger trigger in Triggers)
+            {
+                if (trigger.SoundCommand is ORTSSoundPlayCommand soundPlayCommand)
+                {
+                    foreach (string name in soundPlayCommand.Files)
+                    {
+                        string fullPath = ORTSPaths.GetFileFromFolders(pathArray, name);
+                        SoundItem.Sweep(fullPath, SoundSource.IsExternal, IsReleasedWithJump);
+                    }
+                }
+            }
         }
 
     } // class ORTSStream
@@ -2555,17 +2592,17 @@ namespace Orts.Viewer3D
     public sealed class ORTSVariableTrigger : ORTSTrigger
     {
         static readonly Dictionary<string, bool> ThrottleDecTriggeredDuringCurrentDescentByCarId = new Dictionary<string, bool>();
-        Orts.Formats.Msts.Variable_Trigger SMS;
-        MSTSWagon car;
+        Variable_Trigger VariableTrigger;
+        MSTSWagon Car;
         SoundStream SoundStream;
 
         float StartValue;
-        public bool IsBellow;
+        public bool IsBelow;
 
-        public ORTSVariableTrigger(SoundStream soundStream, Orts.Formats.Msts.Variable_Trigger smsData)
+        public ORTSVariableTrigger(SoundStream soundStream, Variable_Trigger smsData)
         {
-            SMS = smsData;
-            car = soundStream.SoundSource.Car != null ? soundStream.SoundSource.Car : (MSTSWagon)soundStream.SoundSource.Viewer.Camera.AttachedCar;
+            VariableTrigger = smsData;
+            Car = soundStream.SoundSource.Car ?? (MSTSWagon)soundStream.SoundSource.Viewer.Camera.AttachedCar;
             SoundStream = soundStream;
             SoundCommand = ORTSSoundCommand.FromMSTS(smsData.SoundCommand, soundStream);
             Initialize();
@@ -2573,7 +2610,8 @@ namespace Orts.Viewer3D
 
         public override void  Initialize()
         {
-            StartValue = SMS.Event == Orts.Formats.Msts.Variable_Trigger.Events.Distance_Dec_Past ? float.MaxValue : 0;
+            StartValue = (VariableTrigger.TriggerVariable.Control == SoundVariable.ControlType.Distance && VariableTrigger.Type == Variable_Trigger.TriggerType.Dec_Past)
+                ? float.MaxValue : 0;
 
             /*if ((new Variable_Trigger.Events[] { Variable_Trigger.Events.Variable1_Dec_Past,
                 Variable_Trigger.Events.Variable1_Inc_Past, Variable_Trigger.Events.Variable2_Dec_Past, 
@@ -2582,56 +2620,30 @@ namespace Orts.Viewer3D
             {
                 SMS.Threshold /= 100f;
             }*/
-            IsBellow = StartValue < SMS.Threshold;
+            IsBelow = StartValue < VariableTrigger.Threshold;
         }
 
         public override void TryTrigger( )
         {
-            float newValue = ReadValue();
+            float newValue = SoundStream.ReadValue(VariableTrigger.TriggerVariable, Car);
             bool triggered = false;
             Signaled = false;
 
-            switch (SMS.Event)
+            switch (VariableTrigger.Type)
             {
-                case Orts.Formats.Msts.Variable_Trigger.Events.Distance_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Speed_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_2_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_3_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_4_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable2_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable3_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.BrakeCyl_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.CurveForce_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Dec_Past:
-                    if (newValue < SMS.Threshold)
+                case Variable_Trigger.TriggerType.Dec_Past:
+                    if (newValue < VariableTrigger.Threshold)
                     {
                         Signaled = true;
-                        if (SMS.Threshold <= StartValue)
+                        if (VariableTrigger.Threshold <= StartValue)
                             triggered = true;
                     }
                     break;
-                case Orts.Formats.Msts.Variable_Trigger.Events.Distance_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Speed_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_2_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_3_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_4_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable2_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable3_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.BrakeCyl_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.CurveForce_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.AngleofAttack_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.WheelRPM_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.ConcreteSleepers_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.CarInTunnel_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Inc_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Inc_Past:
-                    if (newValue > SMS.Threshold)
+                case Variable_Trigger.TriggerType.Inc_Past:
+                    if (newValue > VariableTrigger.Threshold)
                     {
                         Signaled = true;
-                        if (SMS.Threshold >= StartValue)
+                        if (VariableTrigger.Threshold >= StartValue)
                             triggered = true;
                     }
                     break;
@@ -2641,9 +2653,11 @@ namespace Orts.Viewer3D
 
             // Play throttle dec trigger only once during a continuous descent sweep
             // (e.g. Alt+X crossing multiple thresholds).
-            if ((SMS.Event == Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Dec_Past
-                || SMS.Event == Orts.Formats.Msts.Variable_Trigger.Events.Variable1_Dec_Past)
-                && car is MSTSLocomotive locomotive)
+            if (VariableTrigger.Type == Variable_Trigger.TriggerType.Dec_Past
+                && (VariableTrigger.TriggerVariable.Control == SoundVariable.ControlType.ThrottleController
+                    || (VariableTrigger.TriggerVariable.Control == SoundVariable.ControlType.Variable1
+                        && VariableTrigger.TriggerVariable.SourceID == 0))
+                && Car is MSTSLocomotive locomotive)
             {
                 string carId = locomotive.CarID ?? string.Empty;
                 bool descending = newValue < StartValue;
@@ -2662,7 +2676,7 @@ namespace Orts.Viewer3D
             }
 
             StartValue = newValue;
-            IsBellow = newValue < SMS.Threshold;
+            IsBelow = newValue < VariableTrigger.Threshold;
 
             if (triggered && Enabled)
             {
@@ -2674,112 +2688,26 @@ namespace Orts.Viewer3D
                 ORTSStartLoop sl = SoundCommand as ORTSStartLoop;
                 if (sl != null)
                 {
-                    Console.WriteLine("({0})StartLoop ({1} {2}): {3} ", SoundStream.ALSoundSource.SoundSourceID, SMS.Event.ToString(), SMS.Threshold.ToString(), sl.Files[sl.iFile]);
+                    Console.WriteLine("({0})StartLoop ({1} {2}): {3} ", SoundStream.ALSoundSource.SoundSourceID, VariableTrigger.TriggerVariable.Control.ToString() + "_" + VariableTrigger.Type.ToString(), VariableTrigger.Threshold.ToString(), sl.Files[sl.iFile]);
                 }
                 ORTSStartLoopRelease slr = SoundCommand as ORTSStartLoopRelease;
                 if (slr != null)
                 {
-                    Console.WriteLine("({0})StartLoopRelease ({1} {2}): {3} ", SoundStream.ALSoundSource.SoundSourceID, SMS.Event.ToString(), SMS.Threshold.ToString(), slr.Files[slr.iFile]);
+                    Console.WriteLine("({0})StartLoopRelease ({1} {2}): {3} ", SoundStream.ALSoundSource.SoundSourceID, VariableTrigger.TriggerVariable.Control.ToString() + "_" + VariableTrigger.Type.ToString(), VariableTrigger.Threshold.ToString(), slr.Files[slr.iFile]);
                 }
                 ORTSReleaseLoopRelease rlr = SoundCommand as ORTSReleaseLoopRelease;
                 if (rlr != null)
                 {
-                    Console.WriteLine("({0})ReleaseLoopRelease ({1} {2}) ", SoundStream.ALSoundSource.SoundSourceID, SMS.Event.ToString(), SMS.Threshold.ToString());
+                    Console.WriteLine("({0})ReleaseLoopRelease ({1} {2}) ", SoundStream.ALSoundSource.SoundSourceID, VariableTrigger.TriggerVariable.Control.ToString() + "_" + VariableTrigger.Type.ToString(), VariableTrigger.Threshold.ToString());
                 }
                 ORTSReleaseLoopReleaseWithJump rlrwj = SoundCommand as ORTSReleaseLoopReleaseWithJump;
                 if (rlrwj != null)
                 {
-                    Console.WriteLine("({0})ReleaseLoopReleaseWithJump ({1} {2}) ", SoundStream.ALSoundSource.SoundSourceID, SMS.Event.ToString(), SMS.Threshold.ToString());
+                    Console.WriteLine("({0})ReleaseLoopReleaseWithJump ({1} {2}) ", SoundStream.ALSoundSource.SoundSourceID, VariableTrigger.TriggerVariable.Control.ToString() + "_" + VariableTrigger.Type.ToString(), VariableTrigger.Threshold.ToString());
                 }
 #endif
             }
         }
-
-        /// <summary>
-        /// Read the desired variable either from the attached TrainCar, or the distance to sound source
-        /// </summary>
-        /// <returns></returns>
-        private float ReadValue()
-        {
-            switch (SMS.Event)
-            {
-                case Orts.Formats.Msts.Variable_Trigger.Events.Distance_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Distance_Inc_Past:
-                    return SoundStream.SoundSource.DistanceSquared;
-                case Orts.Formats.Msts.Variable_Trigger.Events.Speed_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Speed_Inc_Past:
-                    return car.AbsSpeedMpS;
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_Inc_Past:
-                    return car.Variable1;
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_2_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_2_Inc_Past:
-                    return car.Variable1_2;
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_3_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_3_Inc_Past:
-                    return car.Variable1_3;
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_4_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable1_4_Inc_Past:
-                    return car.Variable1_4;
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable2_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable2_Inc_Past:
-                    return car.Variable2;
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable3_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.Variable3_Inc_Past:
-                    return car.Variable3;
-                case Orts.Formats.Msts.Variable_Trigger.Events.BrakeCyl_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.BrakeCyl_Inc_Past:
-                    return car.BrakeSystem.GetCylPressurePSI();
-                case Orts.Formats.Msts.Variable_Trigger.Events.CurveForce_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.CurveForce_Inc_Past:
-                    return car.CurveForceNFiltered;
-                case Orts.Formats.Msts.Variable_Trigger.Events.AngleofAttack_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.AngleofAttack_Inc_Past:
-                    return car.CurveSquealAoAmRadFiltered;
-                case Orts.Formats.Msts.Variable_Trigger.Events.WheelRpM_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.WheelRPM_Inc_Past:
-                    var wheelRpM = pS.TopM((float)(car.AbsSpeedMpS /
-                    (2 * Math.PI * car.WheelRadiusM)));
-                    return wheelRpM;
-                case Orts.Formats.Msts.Variable_Trigger.Events.ConcreteSleepers_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.ConcreteSleepers_Inc_Past:
-                    return SharedSMSFileManager.ConcreteSleepers;
-                case Orts.Formats.Msts.Variable_Trigger.Events.CarInTunnel_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.CarInTunnel_Inc_Past:
-                    return car.TrackSoundInTunnelTriggered;
-                case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.ThrottleController_Inc_Past:
-                    if (car is MSTSLocomotive locomotive)
-                        return locomotive.GetThrottleHandleValue(false) * 100.0f;
-                    return 0;
-                case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Dec_Past:
-                case Orts.Formats.Msts.Variable_Trigger.Events.DynamicBrakeController_Inc_Past:
-                    if (car is MSTSLocomotive locomotiveWithDynamicBrake && locomotiveWithDynamicBrake.DynamicBrakeController != null)
-                    {
-                        // When a combined handle is used as a cruise-control selector, read its
-                        // braking side. The controller itself can remain at zero while the handle
-                        // selects cruise-control power, or be moved by cruise control rather than
-                        // by the driver.
-                        if (locomotiveWithDynamicBrake.CruiseControl?.SpeedRegMode == Simulation.RollingStocks.SubSystems.CruiseControl.SpeedRegulatorMode.Auto
-                            && locomotiveWithDynamicBrake.CruiseControl.UseThrottleInCombinedControl
-                            && (locomotiveWithDynamicBrake.CruiseControl.UseThrottleAsForceSelector
-                                || locomotiveWithDynamicBrake.CruiseControl.UseThrottleAsSpeedSelector)
-                            && locomotiveWithDynamicBrake.CombinedControlType == MSTSLocomotive.CombinedControl.ThrottleDynamic)
-                        {
-                            float splitPosition = locomotiveWithDynamicBrake.CombinedControlSplitPosition;
-                            float combinedHandleValue = locomotiveWithDynamicBrake.GetCombinedHandleValue(false);
-                            return splitPosition < 1 && combinedHandleValue > splitPosition
-                                ? (combinedHandleValue - splitPosition) / (1 - splitPosition) * 100.0f
-                                : 0;
-                        }
-                        return locomotiveWithDynamicBrake.DynamicBrakeController.CurrentValue * 100.0f;
-                    }
-                    return 0;
-                default:
-                    return 0;
-            }
-        }
-
     }  // class VariableTrigger
 
 
@@ -3320,13 +3248,16 @@ namespace Orts.Viewer3D
                 var ls = new List<SoundSourceBase>();
                 foreach (var fss in wf.TR_WorldSoundFile.SoundSources)
                 {
-                    WorldLocation wl = new WorldLocation(TileX, TileZ, fss.X, fss.Y, fss.Z);
-                    var fullPath = ORTSPaths.GetFileFromFolders(pathArray, @"Sound\" + fss.SoundSourceFileName);
-                    if (fullPath != null)
+                    WorldLocation wl = new WorldLocation(TileX, TileZ, fss.Position);
+                    foreach (string sms in fss.SoundSourceFileNames)
                     {
-                        ss = new SoundSource(Viewer, wl, Events.Source.None, fullPath, true);
-                        if (ss != null)
-                            ls.Add(ss);
+                        var fullPath = ORTSPaths.GetFileFromFolders(pathArray, @"Sound\" + sms);
+                        if (fullPath != null)
+                        {
+                            ss = new SoundSource(Viewer, wl, Events.Source.None, fullPath, true);
+                            if (ss != null)
+                                ls.Add(ss);
+                        }
                     }
                 }
                 Viewer.SoundProcess.AddSoundSources(name, ls);
