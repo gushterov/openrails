@@ -77,6 +77,12 @@ namespace Orts.Viewer3D.WebServices.SwitchPanel
                 switchOnPanelStatus.Blinking = false;
             }
             switchOnPanelStatus.Status = Viewer.Catalog.GetParticularString("Door", GetStringAttribute.GetPrettyName(door));
+            var side = userCommand == UserCommand.ControlDoorLeft ? DoorSide.Left : DoorSide.Right;
+            if (locomotive.Train.DoorsReleased(flipped ? Doors.FlippedDoorSide(side) : side))
+            {
+                if (door == DoorState.Closed) switchOnPanelStatus.Color = "orange";
+                switchOnPanelStatus.Status = Viewer.Catalog.GetString("Released");
+            }
         }
 
         private static void getStatusControlPantograph(UserCommand userCommand, ref SwitchOnPanelStatus switchOnPanelStatus)

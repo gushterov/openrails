@@ -217,8 +217,8 @@ Trigger       Function
 102           GearDown : for gear-based engines, triggered by the ``<Shift+E>`` key, propagated to all gear-based diesel engines of a train and run also for AI trains
 103           ReverserToForwardBackward : reverser moved towards the forward or backward position
 104           ReverserToNeutral : reverser moved towards the neutral position
-105           DoorOpen : triggered by the ``<Numpad />`` and ``<Numpad ->`` keys and propagated to the wagons of the consist
-106           DoorClose : triggered by the ``<Numpad />``, ``<Numpad ->`` and ``<Numpad *>`` keys and propagated to the wagons of the consist
+105           DoorOpen : actual door opening on a wagon, including delayed passenger-operated openings
+106           DoorClose : actual door closing on a wagon, including automatic timed closing
 107           MirrorOpen : triggered by the ``<Shift+Q>`` key
 108           MirrorClose : triggered by the ``<Shift+Q>`` key
 =========     ==============================================================================================================================================================
@@ -482,6 +482,55 @@ Trigger       Function
 260           WindowClosing
 261           WindowOpening
 =========     =====================================
+
+.. rubric:: Cab door button sounds
+
+These discrete triggers sound the driver's door buttons independently of the
+physical door movement:
+
+=========     =====================================
+Trigger       Function
+=========     =====================================
+265           DoorLeftButton
+266           DoorRightButton
+267           DoorsCloseButton
+=========     =====================================
+
+Add them to the driven locomotive's cab SMS. They fire immediately whenever
+the corresponding left-door, right-door, or close-all command is executed,
+including keyboard input, clickable cab controls, and command replay. They also
+fire for repeated commands while doors are already released or closed, and when
+an opening command is rejected by the movement restriction. Left and right refer
+to the driver's cab controls, including when driving from the rear cab.
+
+Button events are sent only to the command receiver. Actual wagon door movement
+uses triggers 105/106, including random delayed openings and automatic closing.
+This keeps the cab click separate from passenger door motor and warning sounds.
+
+For example, add a dedicated stream with the following ``Triggers`` block to
+the cab SMS, and supply the three WAV recordings. When adding triggers to an
+existing block, increase its trigger count accordingly::
+
+    Triggers ( 3
+        Discrete_Trigger ( 265
+            PlayOneShot ( 1
+                File ( "door-left-button.wav" 1 )
+                SelectionMethod ( SequentialSelection )
+            )
+        )
+        Discrete_Trigger ( 266
+            PlayOneShot ( 1
+                File ( "door-right-button.wav" 1 )
+                SelectionMethod ( SequentialSelection )
+            )
+        )
+        Discrete_Trigger ( 267
+            PlayOneShot ( 1
+                File ( "doors-close-button.wav" 1 )
+                SelectionMethod ( SequentialSelection )
+            )
+        )
+    )
 
 The following triggers are related to the steam booster engine:
 

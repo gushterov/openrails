@@ -1658,6 +1658,11 @@ namespace Orts.Simulation.RollingStocks
                 case "wagon(ortsdoors(closingdelay":
                 case "wagon(ortsdoors(openingdelay":
                 case "wagon(ortsdoors(separateclosecommand":
+                case "wagon(ortsdoors(releasemode":
+                case "wagon(ortsdoors(randomopendelaymin":
+                case "wagon(ortsdoors(randomopendelaymax":
+                case "wagon(ortsdoors(openduration":
+                case "wagon(ortsdoors(doorgroups":
                     Doors.Parse(lowercasetoken, stf);
                     break;
                 case "wagon(ortspowersupply":

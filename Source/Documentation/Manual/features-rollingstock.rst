@@ -1883,7 +1883,75 @@ key again leaves that side open; use ``<Numpad *>`` to close both sides. Automat
 scripted door-closing controls are unaffected. Omitting the parameter, or setting it
 to zero, retains the default toggle behavior.
 
-The cab-view ``DOORS_DISPLAY`` indication uses value/frame 0 when all doors are closed and
+Optional passenger-operated doors
+--------------------------------
+
+Add ``ReleaseMode ( 1 )`` to ``ORTSDoors`` to release the selected side instead of
+opening every door immediately. Each fresh release chooses a random number of
+eligible doorways, from one up to all doorways on that side of the train, then
+chooses which doorways will open. Selection is across the entire consist: a coach
+may have no selected doorways. Each selected doorway opens after its own random
+delay, stays fully open for ``OpenDuration``, and closes automatically. It opens
+only once during that release. Unselected doorways stay closed.
+
+For the four-car BDZ 34 EMU with two double doorways per side of each car, add
+this block to each car's ``Wagon`` section, merging any existing ``ORTSDoors``
+settings::
+
+  ORTSDoors (
+    ReleaseMode ( 1 )
+    SeparateCloseCommand ( 1 )
+    DoorGroups ( A B D E )
+    RandomOpenDelayMin ( 2s )
+    RandomOpenDelayMax ( 15s )
+    OpenDuration ( 8s )
+    OpeningDelay ( 5s )
+    ClosingDelay ( 5s )
+  )
+
+This selects one to eight doorways on the released side. ``DOOR_A1`` and
+``DOOR_A2`` are the leaves of doorway A and always move together; doorway B
+operates independently. A/B/C belong to the vehicle's right side, D/E/F to its
+left. ``DoorGroups`` lists the letters present in the shape. Unlisted letters
+stay closed in release mode. Omitting the list gives each wagon side one shared
+doorway timer. Reversed cars and rear cabs retain the existing side selection.
+
+The existing opening controls release the selected side. With
+``SeparateCloseCommand ( 1 )``, repeated presses leave release active and do not
+resample the subset, restart delays, or reopen completed doorways. Without that
+option the existing keys toggle release permission. The close command cancels
+release on both sides, cancels pending openings, and forces open or opening
+doorways to close using their normal ``ClosingDelay``. Close and release again
+to choose a new subset and start another cycle. When both sides are released,
+each side selects at least one eligible doorway independently.
+
+The default random delay is 2 to 15 seconds, and the default fully-open duration
+is 8 seconds. All timers use simulation time and stop when the simulation is
+paused. The random minimum and fully-open duration are clamped to 0.1 seconds;
+the maximum is raised to the minimum if necessary. In release mode,
+``OpeningDelay`` and ``ClosingDelay`` also control the animation duration.
+
+Locked sides are excluded from selection. The optional movement restriction is
+checked when release is requested and again before each delayed opening.
+Locking a side cancels its release and closes its doorways; unlocking does not
+release it again. The door brake interlock and automatic retaining brake keep
+departure blocked until release is cancelled and every doorway finishes closing,
+including while all released doorways are temporarily or permanently closed.
+
+The cab door switches indicate release permission, and ``DOORS_DISPLAY`` remains
+active while any side is released. Train-control scripts can query
+``AreDoorsReleased(DoorSide)`` separately from the physical ``CurrentDoorState``.
+Saved games preserve the chosen subset, remaining timers, and completed openings.
+Saves using release mode require a build supporting it; manual mode retains its
+original save format. Matching multiplayer car identities and configuration use
+repeatable selections and delays via the existing door messages; network latency
+can still shift the start of animations. Sounds use the existing wagon-level
+``DoorOpen`` and ``DoorClose`` events.
+
+Door indications and interlocks
+------------------------------
+
+The cab-view ``DOORS_DISPLAY`` indication uses value/frame 0 when all doors are secured closed and
 value/frame 1 while any door is opening or open. With ``Feature ( FlashOnClose )``, a
 two-state display alternates between frames 1 and 0 while doors are closing. Without
 this feature, it stays on frame 1 until all doors are closed.

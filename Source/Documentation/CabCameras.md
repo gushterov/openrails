@@ -102,13 +102,16 @@ ORTSCameraDisplay (
 )
 ```
 
-Opening any train door selects the camera page below the cutoff speed. An automatically
+Releasing either side of the train immediately selects the camera page when below the
+cutoff speed, before any random opening delay. Vehicles without release mode activate it on
+the normal door-opening command. Random door openings and automatic closing during
+the same release do not activate the page again. An automatically
 opened camera page stays selected through door closing, then returns to the previous page when
 the absolute speed reaches the cutoff, including reverse movement. Slowing down
-does not reactivate it; another door-opening event is required. A driver's page
+does not reactivate it; cancel release and release the doors again to reactivate it. A driver's page
 selection cancels the automatic return, including reselecting the current camera
 page. Manually selected camera pages can be opened and remain visible above the
-cutoff. Opening doors while already on a manual camera page preserves that manual
+cutoff. Releasing doors while already on a manual camera page preserves that manual
 selection. `ReturnPage ( default )` can select a fixed automatic return page instead.
 
 Optional `ActivateBelowSpeed ( 15km/h )` also selects the camera page when slowing
@@ -127,10 +130,10 @@ ORTSCameraDisplay (
 )
 ```
 
-This opens cameras when slowing through 15 km/h or on a door-opening event, then keeps them open
+This opens cameras when slowing through 15 km/h or on a new door release/open command, then keeps them open
 until reaching 45 km/h. If the driver selects another page below 15 km/h, it stays
 selected until speed reaches at least 15 km/h and drops below it again, or another
-door-opening event occurs. A manually selected camera page still overrides the
+door release/open cycle begins. A manually selected camera page still overrides the
 automatic cutoff. Set both speed options to 15 km/h to close an automatically
 opened view upon reaching that speed.
 

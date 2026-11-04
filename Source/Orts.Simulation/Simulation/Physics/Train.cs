@@ -16729,25 +16729,39 @@ namespace Orts.Simulation.Physics
                 return;
             }
 
-            foreach (TrainCar car in Cars)
-            {
-                var mstsWagon = car as MSTSWagon;
-                var carSide = car.Flipped ? Doors.FlippedDoorSide(side) : side;
-                if (carSide != DoorSide.Left)
-                {
-                    mstsWagon.RightDoor.SetDoor(open);
-                }
-                if (carSide != DoorSide.Right)
-                {
-                    mstsWagon.LeftDoor.SetDoor(open);
-                }
-            }
+            if (side != DoorSide.Right) SetDoorsOnSide(DoorSide.Left, open);
+            if (side != DoorSide.Left) SetDoorsOnSide(DoorSide.Right, open);
             if (Simulator.PlayerLocomotive?.Train == this && MPManager.IsMultiPlayer())
             {
                 if (side != DoorSide.Left) MPManager.Notify((new MSGEvent(MPManager.GetUserName(), "DOORR", open ? 1 : 0)).ToString());
                 if (side != DoorSide.Right) MPManager.Notify((new MSGEvent(MPManager.GetUserName(), "DOORL", open ? 1 : 0)).ToString());
             }
         }
+
+        void SetDoorsOnSide(DoorSide side, bool open)
+        {
+            var doors = SelectedDoors(side).ToArray();
+            if (open) Door.ReleaseDoors(doors);
+            foreach (var door in doors)
+                if (!open || !door.ReleaseMode) door.SetDoor(open);
+        }
+
+        IEnumerable<Door> SelectedDoors(DoorSide side)
+        {
+            foreach (var car in Cars.OfType<MSTSWagon>())
+            {
+                var carSide = car.Flipped ? Doors.FlippedDoorSide(side) : side;
+                if (carSide != DoorSide.Right) yield return car.Doors.LeftDoor;
+                if (carSide != DoorSide.Left) yield return car.Doors.RightDoor;
+            }
+        }
+
+        public bool DoorsReleased(DoorSide side) => SelectedDoors(side).Any(door => door.Released);
+
+        public bool DoorCommandOpen(DoorSide side) => SelectedDoors(side).Any(door => door.CommandOpen);
+
+        public bool DoorsClosedAndSecured => !DoorsReleased(DoorSide.Both)
+            && DoorState(DoorSide.Both) == RollingStocks.SubSystems.DoorState.Closed;
 
         /// <summary>
         /// LockDoors

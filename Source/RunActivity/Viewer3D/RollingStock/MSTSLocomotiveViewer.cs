@@ -1570,11 +1570,11 @@ namespace Orts.Viewer3D.RollingStock
         {
             int cab = _Locomotive.UsingRearCab && CameraDisplayStates.ContainsKey(1) ? 1 : 0;
             if (!CameraDisplayStates.TryGetValue(cab, out var states) || _Locomotive.Train == null) return;
-            bool doorsOpen = _Locomotive.Train.DoorState(DoorSide.Both) >= DoorState.Opening;
+            bool doorCommandOpen = _Locomotive.Train.DoorCommandOpen(DoorSide.Both);
             foreach (var state in states)
             {
                 int display = state.Configuration.Display;
-                ActiveScreen[display] = state.Update(ActiveScreen[display], doorsOpen, _Locomotive.SpeedMpS);
+                ActiveScreen[display] = state.Update(ActiveScreen[display], doorCommandOpen, _Locomotive.SpeedMpS);
             }
         }
 
@@ -2876,11 +2876,10 @@ namespace Orts.Viewer3D.RollingStock
                 case CABViewControlTypes.ORTS_RIGHTDOOR:
                     {
                         bool right = (Control.ControlType.Type == CABViewControlTypes.ORTS_RIGHTDOOR) ^ Locomotive.Flipped ^ Locomotive.GetCabFlipped();
-                        var state = Locomotive.Train.DoorState(right ? DoorSide.Right : DoorSide.Left);
-                        int open = state >= DoorState.Opening ? 1 : 0;
+                        int open = Locomotive.Train.DoorCommandOpen(right ? DoorSide.Right : DoorSide.Left) ? 1 : 0;
                         if (open != ChangedValue(open))
                         {
-                            if (right) new ToggleDoorsRightCommand(Viewer.Log);
+                            if (Control.ControlType.Type == CABViewControlTypes.ORTS_RIGHTDOOR) new ToggleDoorsRightCommand(Viewer.Log);
                             else new ToggleDoorsLeftCommand(Viewer.Log);
                         }
                     }

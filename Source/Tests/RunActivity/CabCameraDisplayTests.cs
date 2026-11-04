@@ -1,7 +1,16 @@
 // COPYRIGHT 2026 by the Open Rails project. GNU GPL version 3 or later.
+using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.Serialization;
 using Orts.Formats.Msts;
+using Orts.Simulation;
+using Orts.Simulation.Physics;
+using Orts.Simulation.RollingStocks;
+using Orts.Simulation.RollingStocks.SubSystems;
 using Orts.Viewer3D;
+using Orts.Viewer3D.RollingStock;
 using Xunit;
+using Event = Orts.Common.Event;
 
 namespace Tests.RunActivity
 {
@@ -9,6 +18,109 @@ namespace Tests.RunActivity
     {
         static CabCameraDisplayState Automatic(string returnPage = "") => new CabCameraDisplayState(
             new CameraDisplayConfiguration { ActivateOnDoors = true, HideAboveSpeedMpS = 2, ReturnPage = returnPage });
+
+        sealed class QuietLocomotive : MSTSLocomotive
+        {
+            public QuietLocomotive() : base(null, null) { }
+            public override void SignalEvent(Event evt) { }
+        }
+
+        static T Uninitialized<T>() => (T)FormatterServices.GetUninitializedObject(typeof(T));
+
+        static (MSTSLocomotive Locomotive, CabRenderer Renderer) CreateDisplay(bool releaseMode = true, bool rearCab = false)
+        {
+            var simulator = Uninitialized<Simulator>();
+            var locomotive = Uninitialized<QuietLocomotive>();
+            typeof(TrainCar).GetField(nameof(TrainCar.Simulator)).SetValue(locomotive, simulator);
+            locomotive.UsingRearCab = rearCab;
+            locomotive.Train = Uninitialized<Train>();
+            typeof(Train).GetProperty(nameof(Train.Simulator)).SetValue(locomotive.Train, simulator);
+            locomotive.Train.Cars = new List<TrainCar> { locomotive };
+            locomotive.Doors = new Doors(locomotive);
+            var door = locomotive.Doors.RightDoor;
+            door.ReleaseMode = releaseMode;
+            door.RandomOpenDelayMinS = door.RandomOpenDelayMaxS = 5;
+            door.OpeningDelayS = door.ClosingDelayS = 1;
+            door.OpenDurationS = 2;
+            locomotive.Doors.Initialize();
+
+            // Exercise the real renderer update without constructing a graphics device.
+            var renderer = Uninitialized<CabRenderer>();
+            renderer.ActiveScreen = new[] { "status" };
+            typeof(CabRenderer).GetField("_Locomotive", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(renderer, locomotive);
+            typeof(CabRenderer).GetField("CameraDisplayStates", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(renderer, new Dictionary<int, List<CabCameraDisplayState>>
+                {
+                    [0] = new List<CabCameraDisplayState> { Automatic() },
+                    [1] = new List<CabCameraDisplayState> { Automatic() },
+                });
+            return (locomotive, renderer);
+        }
+
+        [Theory]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        public void RendererActivatesOnReleaseBeforeRandomDelayAndRetainsLegacyOpening(bool releaseMode, bool rearCab)
+        {
+            var (locomotive, renderer) = CreateDisplay(releaseMode, rearCab);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("status", renderer.ActiveScreen[0]);
+            locomotive.Train.SetDoors(DoorSide.Right, true);
+            Assert.Equal(releaseMode ? DoorState.Closed : DoorState.Opening, locomotive.Doors.RightDoor.State);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("cameras", renderer.ActiveScreen[0]);
+        }
+
+        [Fact]
+        public void RendererDoesNotRetriggerOnDelayedMotionAfterManualSelection()
+        {
+            var (locomotive, renderer) = CreateDisplay();
+            locomotive.Train.SetDoors(DoorSide.Right, true);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("cameras", renderer.ActiveScreen[0]);
+            renderer.SelectScreen("traction", 0);
+            locomotive.Train.SetDoors(DoorSide.Right, true); // Same release; no new activation.
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("traction", renderer.ActiveScreen[0]);
+            locomotive.Doors.Update(5);
+            Assert.Equal(DoorState.Opening, locomotive.Doors.RightDoor.State);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("traction", renderer.ActiveScreen[0]);
+            locomotive.Doors.Update(4);
+            Assert.Equal(DoorState.Closed, locomotive.Doors.RightDoor.State);
+            Assert.True(locomotive.Doors.RightDoor.Released);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("traction", renderer.ActiveScreen[0]);
+            locomotive.Train.SetDoors(DoorSide.Right, false);
+            renderer.UpdateCameraDisplays();
+            locomotive.Train.SetDoors(DoorSide.Right, true);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal(DoorState.Closed, locomotive.Doors.RightDoor.State);
+            Assert.Equal("cameras", renderer.ActiveScreen[0]);
+        }
+
+        [Fact]
+        public void RendererSpeedCutoffWaitsForNewReleaseBeforeReactivating()
+        {
+            var (locomotive, renderer) = CreateDisplay();
+            locomotive.Train.SetDoors(DoorSide.Right, true);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("cameras", renderer.ActiveScreen[0]);
+            locomotive.SpeedMpS = 3;
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("status", renderer.ActiveScreen[0]);
+            locomotive.SpeedMpS = 0;
+            locomotive.Doors.Update(100);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("status", renderer.ActiveScreen[0]);
+            locomotive.Train.SetDoors(DoorSide.Right, false);
+            renderer.UpdateCameraDisplays();
+            locomotive.Train.SetDoors(DoorSide.Right, true);
+            renderer.UpdateCameraDisplays();
+            Assert.Equal("cameras", renderer.ActiveScreen[0]);
+        }
 
         [Fact]
         public void DoorOpeningKeepsPageThroughClosingThenRestoresPreviousPageAtSpeed()

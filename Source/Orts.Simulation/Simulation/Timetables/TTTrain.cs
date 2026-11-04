@@ -3802,9 +3802,9 @@ namespace Orts.Simulation.Timetables
                     DisplayColor = remaining < 1 ? Color.LightGreen : remaining < 11 ? new Color(255, 255, 128) : Color.White;
                     if (remaining <= 1)
                     {
-                        if (DoorState(DoorSide.Right) == RollingStocks.SubSystems.DoorState.Open || DoorState(DoorSide.Right) == RollingStocks.SubSystems.DoorState.Opening)
+                        if (DoorCommandOpen(DoorSide.Right))
                             SetDoors(DoorSide.Right, false);
-                        if (DoorState(DoorSide.Left) == RollingStocks.SubSystems.DoorState.Open || DoorState(DoorSide.Left) == RollingStocks.SubSystems.DoorState.Opening)
+                        if (DoorCommandOpen(DoorSide.Left))
                             SetDoors(DoorSide.Left, false);
                     }
                 }

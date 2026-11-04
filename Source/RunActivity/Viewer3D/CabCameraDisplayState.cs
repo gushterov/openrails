@@ -4,7 +4,7 @@ using Orts.Formats.Msts;
 
 namespace Orts.Viewer3D
 {
-    /// <summary>Automatic triggers fire once per door opening or entry into the low-speed range.</summary>
+    /// <summary>Automatic triggers fire once per door release/opening or entry into the low-speed range.</summary>
     public sealed class CabCameraDisplayState
     {
         public readonly CameraDisplayConfiguration Configuration;

@@ -5309,7 +5309,7 @@ namespace Orts.Simulation.RollingStocks
             }
 
             AutomaticRetainingBrake.Update(elapsedClockSeconds, Train.SpeedMpS, mpc.SelectedPosition,
-                Train.DoorState(DoorSide.Both) == DoorState.Closed);
+                Train.DoorsClosedAndSecured);
             AutomaticRetainingBrake.UpdateEngineBrakePressure(ref pressurePSI, EngineBrakeController,
                 elapsedClockSeconds, EngineBrakeApplyRatePSIpS, EngineBrakeReleaseRatePSIpS);
         }
@@ -5317,7 +5317,7 @@ namespace Orts.Simulation.RollingStocks
         internal void ApplyDoorBrakeInterlock(ref float pressurePSI, float previousPressurePSI, float elapsedClockSeconds)
         {
             if (DoorBrakeCylinderPressurePSI <= 0 || !(BrakeSystem is AirSinglePipe) || Train == null
-                || Train.DoorState(DoorSide.Both) == DoorState.Closed)
+                || Train.DoorsClosedAndSecured)
             {
                 return;
             }
@@ -6546,6 +6546,8 @@ namespace Orts.Simulation.RollingStocks
                 case CABViewControlTypes.DOORS_DISPLAY:
                     {
                         DoorState doorState = Train.DoorState(DoorSide.Both);
+                        if (doorState == DoorState.Closed && Train.DoorsReleased(DoorSide.Both))
+                            doorState = DoorState.Open;
                         if (cvc is CVCMultiStateDisplay doorsDisplay && doorsDisplay.FramesCount == 4)
                         {
                             // Keep the closed/open frames and add two dedicated closing frames.
@@ -6774,8 +6776,7 @@ namespace Orts.Simulation.RollingStocks
                 case CABViewControlTypes.ORTS_RIGHTDOOR:
                     {
                         bool right = (cvc.ControlType.Type == CABViewControlTypes.ORTS_RIGHTDOOR) ^ Flipped ^ GetCabFlipped();
-                        var state = Train.DoorState(right ? DoorSide.Right : DoorSide.Left);
-                        data = state >= DoorState.Opening ? 1 : 0;
+                        data = Train.DoorCommandOpen(right ? DoorSide.Right : DoorSide.Left) ? 1 : 0;
                     }
                     break;
                 case CABViewControlTypes.ORTS_LEFTWINDOW:

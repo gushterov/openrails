@@ -300,6 +300,10 @@ namespace Orts.Common
 
         WiperCycleStart,
 
+        DoorLeftButton,
+        DoorRightButton,
+        DoorsCloseButton,
+
     }
 
     public static class Events
@@ -577,6 +581,10 @@ namespace Orts.Common
                         case 263: return Event.WindowsOpen;
 
                         case 264: return Event.WiperCycleStart;
+
+                        case 265: return Event.DoorLeftButton;
+                        case 266: return Event.DoorRightButton;
+                        case 267: return Event.DoorsCloseButton;
 
                         case 270: return Event.RequestStopAnnounce;
 

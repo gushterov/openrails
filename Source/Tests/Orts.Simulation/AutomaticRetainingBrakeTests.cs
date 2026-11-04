@@ -172,6 +172,50 @@ namespace Tests.Orts.Simulation
             return locomotive;
         }
 
+        [Fact]
+        public void ReleasedClosedDoorsBlockRetainingBrakeDeparture()
+        {
+            var locomotive = CreateLocomotive();
+            typeof(TrainCar).GetField(nameof(TrainCar.Simulator)).SetValue(locomotive,
+                FormatterServices.GetUninitializedObject(typeof(global::Orts.Simulation.Simulator)));
+            locomotive.Doors.LeftDoor.ReleaseMode = true;
+            locomotive.Doors.Initialize();
+            locomotive.Doors.LeftDoor.SetDoor(true);
+            Assert.Equal(DoorState.Closed, locomotive.Doors.LeftDoor.State);
+            float pressure = 0;
+            locomotive.UpdateEngineBrakePressure(ref pressure, 10);
+            SelectPosition(locomotive, ControllerPosition.ThrottleIncrease);
+            locomotive.UpdateEngineBrakePressure(ref pressure, 10);
+            Assert.True(locomotive.AutomaticRetainingBrake.Applied);
+            Assert.Equal(Bar.ToPSI(2), pressure, 4);
+            locomotive.Doors.LeftDoor.SetDoor(false);
+            SelectPosition(locomotive, ControllerPosition.Drive);
+            locomotive.UpdateEngineBrakePressure(ref pressure, 1);
+            SelectPosition(locomotive, ControllerPosition.ThrottleIncrease);
+            locomotive.UpdateEngineBrakePressure(ref pressure, 10);
+            Assert.False(locomotive.AutomaticRetainingBrake.Applied);
+        }
+
+        [Fact]
+        public void DoorPressureInterlockHoldsBeforeReleasedDoorwaysOpen()
+        {
+            var locomotive = CreateLocomotive();
+            typeof(TrainCar).GetField(nameof(TrainCar.Simulator)).SetValue(locomotive,
+                FormatterServices.GetUninitializedObject(typeof(global::Orts.Simulation.Simulator)));
+            Parse(locomotive, "ORTSDoorBrakeCylinderPressure", "2bar");
+            locomotive.Doors.RightDoor.ReleaseMode = true;
+            locomotive.Doors.Initialize();
+            locomotive.Doors.RightDoor.SetDoor(true);
+            var update = typeof(MSTSLocomotive).GetMethod("ApplyDoorBrakeInterlock", BindingFlags.Instance | BindingFlags.NonPublic);
+            var arguments = new object[] { 0f, 0f, 1f };
+            update.Invoke(locomotive, arguments);
+            Assert.Equal(10f, (float)arguments[0]);
+            locomotive.Doors.RightDoor.SetDoor(false);
+            arguments[0] = 0f;
+            update.Invoke(locomotive, arguments);
+            Assert.Equal(0f, (float)arguments[0]);
+        }
+
         static void SelectPosition(MSTSLocomotive locomotive, ControllerPosition position)
         {
             var mpc = locomotive.MultiPositionControllers[0];

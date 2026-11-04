@@ -233,6 +233,10 @@ namespace ORTS.Scripting.Api
         /// </summary>
         public Func<DoorSide, DoorState> CurrentDoorState;
         /// <summary>
+        /// True while any selected-side doors are released, even if physically closed.
+        /// </summary>
+        public Func<DoorSide, bool> AreDoorsReleased;
+        /// <summary>
         /// Returns throttle percent
         /// </summary>
         public Func<float> ThrottlePercent;

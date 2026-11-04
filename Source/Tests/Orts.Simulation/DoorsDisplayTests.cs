@@ -105,5 +105,22 @@ namespace Tests.Orts.Simulation
             SetState(wagon.Doors.RightDoor, DoorState.Closed);
             Assert.Equal(0f, locomotive.GetDataOf(control));
         }
+
+        [Theory]
+        [InlineData(2)]
+        [InlineData(4)]
+        public void ReleasedClosedDoorsKeepIndicatorActiveUntilCloseCommand(int frames)
+        {
+            var locomotive = CreateLocomotive(0);
+            var door = locomotive.Doors.RightDoor;
+            door.ReleaseMode = true;
+            locomotive.Doors.Initialize();
+            door.SetDoor(true);
+            Assert.Equal(DoorState.Closed, door.State);
+            var control = ReadControl(frames, true);
+            Assert.Equal(1f, locomotive.GetDataOf(control));
+            door.SetDoor(false);
+            Assert.Equal(0f, locomotive.GetDataOf(control));
+        }
     }
 }

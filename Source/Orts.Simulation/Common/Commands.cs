@@ -1275,9 +1275,9 @@ namespace Orts.Common
 
         public override void Redo()
         {
+            Receiver.SignalEvent(Event.DoorLeftButton);
             var side = Receiver.GetCabFlipped() ^ Receiver.Flipped ? DoorSide.Right : DoorSide.Left;
-            var state = Receiver.Train.DoorState(side);
-            Receiver.Train.SetDoors(side, Receiver.Doors.SeparateCloseCommand || state <= DoorState.Closing);
+            Receiver.Train.SetDoors(side, Receiver.Doors.SeparateCloseCommand || !Receiver.Train.DoorCommandOpen(side));
             // Report();
         }
     }
@@ -1295,9 +1295,9 @@ namespace Orts.Common
 
         public override void Redo()
         {
+            Receiver.SignalEvent(Event.DoorRightButton);
             var side = Receiver.GetCabFlipped() ^ Receiver.Flipped ? DoorSide.Left : DoorSide.Right;
-            var state = Receiver.Train.DoorState(side);
-            Receiver.Train.SetDoors(side, Receiver.Doors.SeparateCloseCommand || state <= DoorState.Closing);
+            Receiver.Train.SetDoors(side, Receiver.Doors.SeparateCloseCommand || !Receiver.Train.DoorCommandOpen(side));
             // Report();
         }
     }
@@ -1315,6 +1315,7 @@ namespace Orts.Common
 
         public override void Redo()
         {
+            Receiver.SignalEvent(Event.DoorsCloseButton);
             Receiver.Train.SetDoors(DoorSide.Both, false);
         }
     }

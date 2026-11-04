@@ -67,8 +67,7 @@ namespace Orts.Viewer3D.RollingStock
         AnimatedPart Pantograph2;
         AnimatedPart Pantograph3;
         AnimatedPart Pantograph4;
-        AnimatedPart LeftDoor;
-        AnimatedPart RightDoor;
+        readonly Dictionary<string, AnimatedPart> DoorParts = new Dictionary<string, AnimatedPart>();
         AnimatedPart Mirrors;
         protected AnimatedPart LeftWindowFront;
         protected AnimatedPart RightWindowFront;
@@ -330,8 +329,6 @@ namespace Orts.Viewer3D.RollingStock
             Pantograph2 = new AnimatedPart(TrainCarShape);
             Pantograph3 = new AnimatedPart(TrainCarShape);
             Pantograph4 = new AnimatedPart(TrainCarShape);
-            LeftDoor = new AnimatedPart(TrainCarShape);
-            RightDoor = new AnimatedPart(TrainCarShape);
             Mirrors = new AnimatedPart(TrainCarShape);
             LeftWindowFront = new AnimatedPart(TrainCarShape);
             RightWindowFront = new AnimatedPart(TrainCarShape);
@@ -444,8 +441,8 @@ namespace Orts.Viewer3D.RollingStock
             Pantograph2.SetState(MSTSWagon.Pantographs[2].CommandUp);
             if (MSTSWagon.Pantographs.List.Count > 2) Pantograph3.SetState(MSTSWagon.Pantographs[3].CommandUp);
             if (MSTSWagon.Pantographs.List.Count > 3) Pantograph4.SetState(MSTSWagon.Pantographs[4].CommandUp);
-            LeftDoor.SetState(MSTSWagon.LeftDoor.State >= DoorState.Opening);
-            RightDoor.SetState(MSTSWagon.RightDoor.State >= DoorState.Opening);
+            foreach (var part in DoorParts)
+                part.Value.SetState(MSTSWagon.Doors.GetDoorForGroup(part.Key).StateForGroup(part.Key) >= DoorState.Opening);
             Mirrors.SetState(MSTSWagon.MirrorOpen);
             LeftWindowFront.SetState(MSTSWagon.WindowStates[MSTSWagon.LeftWindowFrontIndex] >= MSTSWagon.WindowState.Opening);
             RightWindowFront.SetState(MSTSWagon.WindowStates[MSTSWagon.RightWindowFrontIndex] >= MSTSWagon.WindowState.Opening);
@@ -538,10 +535,13 @@ namespace Orts.Viewer3D.RollingStock
             }
             else if (matrixName.StartsWith("DOOR")) // doors (left / right)
             {
-                if (matrixName.StartsWith("DOOR_D") || matrixName.StartsWith("DOOR_E") || matrixName.StartsWith("DOOR_F"))
-                    LeftDoor.AddMatrix(matrix);
-                else if (matrixName.StartsWith("DOOR_A") || matrixName.StartsWith("DOOR_B") || matrixName.StartsWith("DOOR_C"))
-                    RightDoor.AddMatrix(matrix);
+                string group = Doors.GetDoorGroup(matrixName);
+                if (group != null)
+                {
+                    if (!DoorParts.TryGetValue(group, out var part))
+                        DoorParts.Add(group, part = new AnimatedPart(TrainCarShape));
+                    part.AddMatrix(matrix);
+                }
             }
             else if (matrixName.StartsWith("PANTOGRAPH")) //pantographs (1/2)
             {
@@ -703,8 +703,18 @@ namespace Orts.Viewer3D.RollingStock
             Pantograph2.UpdateState(MSTSWagon.Pantographs[2].CommandUp, elapsedTime);
             if (MSTSWagon.Pantographs.List.Count > 2) Pantograph3.UpdateState(MSTSWagon.Pantographs[3].CommandUp, elapsedTime);
             if (MSTSWagon.Pantographs.List.Count > 3) Pantograph4.UpdateState(MSTSWagon.Pantographs[4].CommandUp, elapsedTime);
-            LeftDoor.UpdateState(MSTSWagon.LeftDoor.State >= DoorState.Opening, elapsedTime);
-            RightDoor.UpdateState(MSTSWagon.RightDoor.State >= DoorState.Opening, elapsedTime);
+            foreach (var part in DoorParts)
+            {
+                var door = MSTSWagon.Doors.GetDoorForGroup(part.Key);
+                bool open = door.StateForGroup(part.Key) >= DoorState.Opening;
+                if (door.ReleaseMode)
+                {
+                    float duration = open ? door.OpeningDelayS : door.ClosingDelayS;
+                    if (duration <= 0) part.Value.SetState(open);
+                    else part.Value.UpdateState(open, elapsedTime, part.Value.MaxFrame / duration);
+                }
+                else part.Value.UpdateState(open, elapsedTime);
+            }
             Mirrors.UpdateState(MSTSWagon.MirrorOpen, elapsedTime);
             LeftWindowFront.UpdateState(MSTSWagon.WindowStates[MSTSWagon.LeftWindowFrontIndex] >= MSTSWagon.WindowState.Opening, elapsedTime);
             RightWindowFront.UpdateState(MSTSWagon.WindowStates[MSTSWagon.RightWindowFrontIndex] >= MSTSWagon.WindowState.Opening, elapsedTime);

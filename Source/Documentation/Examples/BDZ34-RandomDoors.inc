@@ -1,0 +1,10 @@
+ORTSDoors (
+    ReleaseMode ( 1 )
+    SeparateCloseCommand ( 1 )
+    DoorGroups ( A B D E )
+    RandomOpenDelayMin ( 2s )
+    RandomOpenDelayMax ( 15s )
+    OpenDuration ( 8s )
+    OpeningDelay ( 5s )
+    ClosingDelay ( 5s )
+)
