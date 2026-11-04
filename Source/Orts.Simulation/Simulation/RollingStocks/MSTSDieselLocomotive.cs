@@ -780,9 +780,12 @@ namespace Orts.Simulation.RollingStocks
 
             return forceN;
         }
+        internal override bool UsesStandardTractionForceCalculation =>
+            !(DieselEngines.HasGearBox && (TractiveForceCurves == null || DieselTransmissionType == DieselTransmissionTypes.Mechanic));
+
         protected override void UpdateTractionForce(float elapsedClockSeconds)
         {
-            if (DieselEngines.HasGearBox && (TractiveForceCurves == null || DieselTransmissionType == MSTSDieselLocomotive.DieselTransmissionTypes.Mechanic))
+            if (!UsesStandardTractionForceCalculation)
             {
                 TractionForceN = DieselEngines.TractiveForceN;
                 return;

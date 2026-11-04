@@ -104,6 +104,24 @@ namespace Tests.Orts.Simulation
         }
 
         [Theory]
+        [InlineData(ControllerPosition.ThrottleDecrease, 30, 15f)]
+        [InlineData(ControllerPosition.ThrottleDecrease, 120, 15f)]
+        [InlineData(ControllerPosition.ThrottleDecreaseFast, 30, 30f)]
+        [InlineData(ControllerPosition.ThrottleDecreaseFast, 120, 30f)]
+        public void ManualThrottleDecreaseUsesPercentagePointsPerSecond(ControllerPosition position, int updatesPerSecond, float expectedDecrease)
+        {
+            var (controller, locomotive) = CreateController(position, -1, false, 6);
+            locomotive.ThrottleController.SetPercent(100);
+            locomotive.LocalThrottlePercent = 100;
+            for (int frame = 0; frame < updatesPerSecond; frame++)
+            {
+                controller.Update(1f / updatesPerSecond);
+                locomotive.LocalThrottlePercent = locomotive.ThrottleController.SavedValue * 100;
+            }
+            Assert.InRange(locomotive.ThrottlePercent, 100 - expectedDecrease - 0.01f, 100 - expectedDecrease + 0.01f);
+        }
+
+        [Theory]
         [InlineData(30, 6f)]
         [InlineData(60, 6f)]
         [InlineData(120, 6f)]
@@ -216,7 +234,7 @@ namespace Tests.Orts.Simulation
             locomotive.CruiseControl.SelectedMaxAccelerationPercent = 40;
             locomotive.CruiseControl.DynamicBrakePriority = true;
             for (int frame = 0; frame < 60; frame++) controller.Update(1f / 60);
-            Assert.InRange(locomotive.DynamicBrakeController.CurrentValue, 0.3499f, 0.3501f);
+            Assert.InRange(locomotive.DynamicBrakeController.CurrentValue, 0.2499f, 0.2501f);
             Assert.Equal(40f, locomotive.CruiseControl.SelectedMaxAccelerationPercent);
             Assert.Equal(CruiseControl.SpeedSelectorMode.Neutral, locomotive.CruiseControl.SpeedSelMode);
             for (int frame = 0; frame < 141; frame++) controller.Update(1f / 60);
@@ -248,7 +266,7 @@ namespace Tests.Orts.Simulation
                 controller.Update(1f / updatesPerSecond);
                 locomotive.LocalDynamicBrakePercent = locomotive.DynamicBrakeController.SavedValue * 100;
             }
-            Assert.InRange(locomotive.DynamicBrakeController.CurrentValue, 0.1499f, 0.1501f);
+            Assert.InRange(locomotive.DynamicBrakeController.CurrentValue, 0.2499f, 0.2501f);
             Assert.True(locomotive.CruiseControl.DynamicBrakePriority);
         }
 

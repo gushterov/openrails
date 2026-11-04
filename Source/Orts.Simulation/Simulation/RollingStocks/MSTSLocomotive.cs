@@ -2689,6 +2689,103 @@ namespace Orts.Simulation.RollingStocks
 			}
 #endif
         }
+        internal virtual bool UsesStandardTractionForceCalculation => true;
+
+        void GetCruiseControlForceRampRates(bool dynamicBrake, bool increasing, bool toZero, out float forceRate, out float powerRate)
+        {
+            forceRate = dynamicBrake
+                ? (increasing ? DynamicBrakeForceRampUpNpS : toZero ? DynamicBrakeForceRampDownToZeroNpS : DynamicBrakeForceRampDownNpS)
+                : (increasing ? TractionForceRampUpNpS : toZero ? TractionForceRampDownToZeroNpS : TractionForceRampDownNpS);
+            powerRate = dynamicBrake
+                ? (increasing ? DynamicBrakePowerRampUpWpS : toZero ? DynamicBrakePowerRampDownToZeroWpS : DynamicBrakePowerRampDownWpS)
+                : (increasing ? TractionPowerRampUpWpS : toZero ? TractionPowerRampDownToZeroWpS : TractionPowerRampDownWpS);
+        }
+
+        // Check each direction separately so partially configured engines retain a fallback.
+        internal bool HasCruiseControlForceRamp(bool dynamicBrake, bool increasing, bool toZero)
+        {
+            if (this is MSTSSteamLocomotive || (!dynamicBrake && !UsesStandardTractionForceCalculation))
+                return false;
+
+            GetCruiseControlForceRampRates(dynamicBrake, increasing, toZero, out float forceRate, out float powerRate);
+            return forceRate > 0 || powerRate > 0 && AbsTractionSpeedMpS > 0;
+        }
+
+        internal float GetCruiseControlForceChangeNpS(bool dynamicBrake, bool increasing, bool toZero)
+        {
+            GetCruiseControlForceRampRates(dynamicBrake, increasing, toZero, out float forceRate, out float powerRate);
+            float rate = forceRate > 0 ? forceRate : float.MaxValue;
+            if (powerRate > 0 && AbsTractionSpeedMpS > 0)
+                rate = Math.Min(rate, powerRate / AbsTractionSpeedMpS);
+            return rate;
+        }
+
+        float GetCruiseControlDemandForceN(bool dynamicBrake, float percent) => dynamicBrake
+            ? GetAvailableDynamicBrakeForceN(percent / 100)
+            : GetAvailableTractionForceN(percent / 100);
+
+        internal float RampCruiseControlDemandPercent(bool dynamicBrake, float currentPercent, float targetPercent, float elapsedClockSeconds)
+        {
+            if (elapsedClockSeconds <= 0 || currentPercent == targetPercent)
+                return currentPercent;
+
+            float forceStepN = GetCruiseControlForceChangeNpS(dynamicBrake, targetPercent > currentPercent, targetPercent == 0) * elapsedClockSeconds;
+            float currentForceN = GetCruiseControlDemandForceN(dynamicBrake, currentPercent);
+            float targetForceN = GetCruiseControlDemandForceN(dynamicBrake, targetPercent);
+            float forceDifferenceN = Math.Abs(targetForceN - currentForceN);
+
+            // Flat/unavailable curves cannot be inverted. Still move demand gradually:
+            // cab instruments and sound scripts also consume the requested percentage.
+            if (forceDifferenceN < 0.001f)
+            {
+                float referenceForceN = Math.Max(GetCruiseControlDemandForceN(dynamicBrake, 100), dynamicBrake ? MaxDynamicBrakeForceN : MaxForceN);
+                float percentStep;
+                if (referenceForceN <= 0)
+                {
+                    // No force reference is available to convert N/s to percentage/s.
+                    float duration = dynamicBrake
+                        ? (targetPercent > currentPercent ? CruiseControl.DynamicBrakeFullRangeIncreaseTimeSeconds : CruiseControl.DynamicBrakeFullRangeDecreaseTimeSeconds)
+                        : (targetPercent > currentPercent ? CruiseControl.ThrottleFullRangeIncreaseTimeSeconds : CruiseControl.ThrottleFullRangeDecreaseTimeSeconds);
+                    percentStep = duration > 0 ? 100 * elapsedClockSeconds / duration : 0;
+                }
+                else
+                    percentStep = 100 * forceStepN / referenceForceN;
+                return targetPercent > currentPercent
+                    ? Math.Min(currentPercent + percentStep, targetPercent)
+                    : Math.Max(currentPercent - percentStep, targetPercent);
+            }
+            if (forceDifferenceN <= forceStepN)
+                return targetPercent;
+
+            // Invert the force curve within the requested interval. Basing this on
+            // demand rather than delivered force prevents jumps when effort lags.
+            float allowedPercent = currentPercent;
+            float limitedPercent = targetPercent;
+            for (int i = 0; i < 24; i++)
+            {
+                float middlePercent = (allowedPercent + limitedPercent) / 2;
+                float changeN = Math.Abs(GetCruiseControlDemandForceN(dynamicBrake, middlePercent) - currentForceN);
+                if (changeN <= forceStepN)
+                    allowedPercent = middlePercent;
+                else
+                    limitedPercent = middlePercent;
+            }
+            return allowedPercent;
+        }
+
+        internal float GetCruiseControlForceReleaseTimeS(bool dynamicBrake, float demandPercent)
+        {
+            float forceN = Math.Max(0, dynamicBrake ? DynamicBrakeForceN : TractionForceN);
+            float zeroRate = GetCruiseControlForceChangeNpS(dynamicBrake, false, true);
+            float downRate = GetCruiseControlForceChangeNpS(dynamicBrake, false, false);
+            float demandTimeS = GetCruiseControlDemandForceN(dynamicBrake, demandPercent) / zeroRate;
+            // Until smoothed demand reaches zero, physics uses the ordinary down rate.
+            // Then any residual effort decays at the release-to-zero rate. Estimate at
+            // the current speed, satisfying both force and power limits at each stage.
+            float residualForceN = Math.Max(forceN - downRate * demandTimeS, 0);
+            return Math.Max(forceN / zeroRate, demandTimeS + residualForceN / zeroRate);
+        }
+
         public void UpdateForceWithRamp(ref float forceN, float elapsedClockSeconds, float targetForceN, float maxForceN, float rampUpNpS=0, float rampDownNpS=0, float rampZeroNpS=0, float rampUpWpS=0, float rampDownWpS=0, float rampZeroWpS=0)
         {
             if (targetForceN > maxForceN) targetForceN = maxForceN;

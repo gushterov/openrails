@@ -131,6 +131,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         public float ThrottleFullRangeDecreaseTimeSeconds = 6;
         public float DynamicBrakeFullRangeIncreaseTimeSeconds;
         public float DynamicBrakeFullRangeDecreaseTimeSeconds;
+        public bool UseLocomotiveForceRamps = true;
         public float TrainBrakeFullRangeIncreaseTimeSeconds = 10;
         public float TrainBrakeFullRangeDecreaseTimeSeconds = 5;
         public float ParkingBrakeEngageSpeed = 0;
@@ -250,6 +251,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             ThrottleFullRangeDecreaseTimeSeconds = other.ThrottleFullRangeDecreaseTimeSeconds;
             DynamicBrakeFullRangeIncreaseTimeSeconds = other.DynamicBrakeFullRangeIncreaseTimeSeconds;
             DynamicBrakeFullRangeDecreaseTimeSeconds = other.DynamicBrakeFullRangeDecreaseTimeSeconds;
+            UseLocomotiveForceRamps = other.UseLocomotiveForceRamps;
             TrainBrakeFullRangeIncreaseTimeSeconds = other.TrainBrakeFullRangeIncreaseTimeSeconds;
             TrainBrakeFullRangeDecreaseTimeSeconds = other.TrainBrakeFullRangeDecreaseTimeSeconds;
             ParkingBrakeEngageSpeed = other.ParkingBrakeEngageSpeed;
@@ -312,6 +314,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                     case "throttlefullrangedecreasetimeseconds": ThrottleFullRangeDecreaseTimeSeconds = stf.ReadFloatBlock(STFReader.UNITS.Any, 5); break;
                     case "dynamicbrakefullrangeincreasetimeseconds": DynamicBrakeFullRangeIncreaseTimeSeconds = stf.ReadFloatBlock(STFReader.UNITS.Any, 5); break;
                     case "dynamicbrakefullrangedecreasetimeseconds": DynamicBrakeFullRangeDecreaseTimeSeconds = stf.ReadFloatBlock(STFReader.UNITS.Any, 5); break;
+                    case "uselocomotiveforceramps": UseLocomotiveForceRamps = stf.ReadBoolBlock(true); break;
                     case "trainbrakefullrangeincreasetimeseconds": TrainBrakeFullRangeIncreaseTimeSeconds = stf.ReadFloatBlock(STFReader.UNITS.Any, 10); break;
                     case "trainbrakefullrangedecreasetimeseconds": TrainBrakeFullRangeDecreaseTimeSeconds = stf.ReadFloatBlock(STFReader.UNITS.Any, 5); break;
                     case "parkingbrakeengagespeed": ParkingBrakeEngageSpeed = stf.ReadFloatBlock(STFReader.UNITS.Speed, 0); break;
@@ -502,6 +505,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             }
             else if (SpeedRegMode == SpeedRegulatorMode.Auto)
             {
+                LimitTractionDemand();
                 if ((SpeedSelMode == SpeedSelectorMode.On || SpeedSelMode == SpeedSelectorMode.Start) && !TrainBrakePriority)
                 {
                     if (Locomotive.AbsSpeedMpS == 0)
@@ -1211,6 +1215,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
 
         public void CalculateRequiredForce(float elapsedClockSeconds, float AbsWheelSpeedMpS)
         {
+            LimitTractionDemand();
             float speedDiff = Locomotive.Train.Cars.Where(x => x is MSTSLocomotive).Select(x => (x as MSTSLocomotive).AbsWheelSpeedMpS - x.AbsSpeedMpS).Max();
 
             float trainElevation = Locomotive.Train.Cars.Select(tc => tc.Flipped ? tc.CurrentElevationPercent : -tc.CurrentElevationPercent).Sum() / Locomotive.Train.Cars.Count;
@@ -1221,20 +1226,30 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 firstIteration = false;
             }
 
-            float deltaSpeedMpS = SetSpeedMpS - AbsWheelSpeedMpS;
+            float rawDeltaSpeedMpS = SetSpeedMpS - AbsWheelSpeedMpS;
+            float deltaSpeedMpS = rawDeltaSpeedMpS;
             if (Math.Abs(deltaSpeedMpS) <= SpeedToleranceMpS)
                 deltaSpeedMpS = 0;
+
+            bool regulateTractionForce = UseLocomotiveForceRamps && Locomotive.Train.MassKg > 0 &&
+                (Locomotive.HasCruiseControlForceRamp(false, true, false) ||
+                 Locomotive.HasCruiseControlForceRamp(false, false, false) ||
+                 Locomotive.HasCruiseControlForceRamp(false, false, true));
 
             // Anticipate force ramp delays: estimate how much speed we may still gain/lose
             // while tractive/dynamic brake force ramps down to zero.
             float timeToReduceTractionS = 0f;
-            if (CCThrottleOrDynBrakePercent > 0)
+            if (UseLocomotiveForceRamps && Locomotive.HasCruiseControlForceRamp(false, false, true))
+                timeToReduceTractionS = Locomotive.GetCruiseControlForceReleaseTimeS(false, Math.Max(CCThrottleOrDynBrakePercent, 0));
+            else if (CCThrottleOrDynBrakePercent > 0)
             {
                 timeToReduceTractionS = ThrottleFullRangeDecreaseTimeSeconds * (CCThrottleOrDynBrakePercent / 100f);
             }
 
             float timeToReleaseBrakeS = 0f;
-            if (CCThrottleOrDynBrakePercent < 0)
+            if (UseLocomotiveForceRamps && Locomotive.HasCruiseControlForceRamp(true, false, true))
+                timeToReleaseBrakeS = Locomotive.GetCruiseControlForceReleaseTimeS(true, Math.Max(-CCThrottleOrDynBrakePercent, 0));
+            else if (CCThrottleOrDynBrakePercent < 0)
             {
                 timeToReleaseBrakeS = DynamicBrakeFullRangeDecreaseTimeSeconds * (-CCThrottleOrDynBrakePercent / 100f);
             }
@@ -1325,7 +1340,10 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 {
                     if (CCThrottleOrDynBrakePercent > 0)
                     {
-                        DecreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, 0);
+                        // Force regulation can reduce traction below the balancing
+                        // effort to lose a small overspeed without cutting all power.
+                        if (!regulateTractionForce)
+                            DecreaseForce(ref CCThrottleOrDynBrakePercent, elapsedClockSeconds, 0);
                     }
                     else
                     {
@@ -1364,7 +1382,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                 {
                     float a = 0;
                     float demandedPercent = 0;
-                    if (CCThrottleOrDynBrakePercent >= 0 && RelativeAccelerationMpSS < AccelerationDemandMpSS)
+                    if (CCThrottleOrDynBrakePercent >= 0 && (regulateTractionForce || RelativeAccelerationMpSS < AccelerationDemandMpSS))
                     {
                         float newThrottle = 0;
                         // calculate new max force if MaxPowerThreshold is set
@@ -1392,10 +1410,16 @@ namespace Orts.Simulation.RollingStocks.SubSystems
                         if (demandedPercent > PowerReductionValue)
                             demandedPercent = PowerReductionValue;
                     }
-                    if (deltaSpeedMpS > 0 && CCThrottleOrDynBrakePercent >= 0)
+                    if (CCThrottleOrDynBrakePercent >= 0 && (regulateTractionForce
+                        ? deltaSpeedMpS >= 0 || CCThrottleOrDynBrakePercent > 0
+                        : deltaSpeedMpS > 0))
                     {
                         float? target = null;
-                        if (a > 0 && MpS.FromMpS(Locomotive.WheelSpeedMpS, !SpeedIsMph) > 5)
+                        if (regulateTractionForce)
+                        {
+                            target = CalculateTractionDemand(rawDeltaSpeedMpS, coeff, demandedPercent, a);
+                        }
+                        else if (a > 0 && MpS.FromMpS(Locomotive.WheelSpeedMpS, !SpeedIsMph) > 5)
                         {
                             if (Locomotive.AccelerationMpSS < a - 0.02 && deltaSpeedMpS > 0.8f) target = 100;
                             else if ((Locomotive.AccelerationMpSS < a - 0.02 && CCThrottleOrDynBrakePercent < demandedPercent) ||
@@ -1462,15 +1486,78 @@ namespace Orts.Simulation.RollingStocks.SubSystems
             }
         }
 
+        float CalculateTractionDemand(float speedErrorMpS, float speedCoefficient, float maxPercent, float accelerationLimitMpSS)
+        {
+            var locomotives = Locomotive.Train.Cars.OfType<MSTSLocomotive>()
+                .Where(loco => (loco == Locomotive || Locomotive.RemoteControlGroup >= 0 && loco.RemoteControlGroup == Locomotive.RemoteControlGroup) &&
+                    loco.LocomotivePowerSupply?.MainPowerSupplyOn == true && loco.Direction != Direction.N).ToArray();
+            float massKg = Locomotive.Train.MassKg;
+            float deliveredForceN = locomotives.Sum(loco => Math.Max(loco.TractionForceN, 0));
+            float downRateNpS = locomotives.Sum(loco => loco.HasCruiseControlForceRamp(false, false, false)
+                ? loco.GetCruiseControlForceChangeNpS(false, false, false)
+                : loco.GetAvailableTractionForceN(1) / Math.Max(ThrottleFullRangeDecreaseTimeSeconds, 0.1f));
+
+            // Reducing to the balancing effort uses the ordinary down ramp, not
+            // the faster release-to-zero ramp. Limit approach acceleration so it
+            // can decay within the remaining speed error. Use half the available
+            // jerk to leave margin for demand and acceleration measurement lag.
+            float approachCoefficient = Math.Min(Math.Max(StartReducingSpeedDelta * speedCoefficient, 0), downRateNpS / massKg);
+            float desiredAccelerationMpSS = speedErrorMpS >= 0
+                ? (float)Math.Sqrt(approachCoefficient * speedErrorMpS)
+                : speedErrorMpS / Math.Max(1, deliveredForceN / Math.Max(downRateNpS, 1));
+            if (MaxAccelerationMpSS > 0) desiredAccelerationMpSS = Math.Min(desiredAccelerationMpSS, MaxAccelerationMpSS);
+            if (accelerationLimitMpSS > 0) desiredAccelerationMpSS = Math.Min(desiredAccelerationMpSS, accelerationLimitMpSS);
+            AccelerationDemandMpSS = desiredAccelerationMpSS;
+
+            // Measured acceleration accounts for train resistance and gradients.
+            // Keep their balancing effort instead of repeatedly asking for zero.
+            float requiredForceN = Math.Max(0, deliveredForceN + massKg * (desiredAccelerationMpSS - RelativeAccelerationMpSS));
+            maxPercent = MathHelper.Clamp(maxPercent, 0, 100);
+            if (requiredForceN <= 0) return 0;
+            if (requiredForceN >= locomotives.Sum(loco => loco.GetAvailableTractionForceN(maxPercent / 100))) return maxPercent;
+
+            float lowPercent = 0, highPercent = maxPercent;
+            for (int i = 0; i < 24; i++)
+            {
+                float middlePercent = (lowPercent + highPercent) / 2;
+                float forceN = locomotives.Sum(loco => loco.GetAvailableTractionForceN(middlePercent / 100));
+                if (forceN < requiredForceN) lowPercent = middlePercent;
+                else highPercent = middlePercent;
+            }
+            return (lowPercent + highPercent) / 2;
+        }
+
+        void LimitTractionDemand()
+        {
+            // Do not accumulate demand behind a brake/TCS traction cutoff. Keep
+            // the driver's selected force limit so release starts a new ramp.
+            if (CCThrottleOrDynBrakePercent > 0)
+                CCThrottleOrDynBrakePercent = Math.Min(CCThrottleOrDynBrakePercent, Math.Max(0, Locomotive.MaxThrottlePercent));
+        }
+
         void IncreaseForce(ref float throttleOrDynPercent, float elapsedClockSeconds, float maxPercent)
         {
             if (throttleOrDynPercent < 0)
             {
+                maxPercent = Math.Min(maxPercent, 0);
+                if (UseLocomotiveForceRamps && Locomotive.HasCruiseControlForceRamp(true, false, maxPercent == 0))
+                {
+                    throttleOrDynPercent = -Locomotive.RampCruiseControlDemandPercent(true, -throttleOrDynPercent, -maxPercent, elapsedClockSeconds);
+                    return;
+                }
                 float step = 100 / DynamicBrakeFullRangeDecreaseTimeSeconds * elapsedClockSeconds;
                 throttleOrDynPercent = Math.Min(throttleOrDynPercent + step, Math.Min(maxPercent, 0));
             }
             else
             {
+                float throttleLimit = Math.Max(0, Locomotive.MaxThrottlePercent);
+                throttleOrDynPercent = Math.Min(throttleOrDynPercent, throttleLimit);
+                maxPercent = Math.Min(maxPercent, throttleLimit);
+                if (UseLocomotiveForceRamps && Locomotive.HasCruiseControlForceRamp(false, true, false))
+                {
+                    throttleOrDynPercent = Locomotive.RampCruiseControlDemandPercent(false, throttleOrDynPercent, maxPercent, elapsedClockSeconds);
+                    return;
+                }
                 float step = 100 / ThrottleFullRangeIncreaseTimeSeconds * elapsedClockSeconds;
                 throttleOrDynPercent = Math.Min(throttleOrDynPercent + step, maxPercent);
             }
@@ -1480,11 +1567,22 @@ namespace Orts.Simulation.RollingStocks.SubSystems
         {
             if (throttleOrDynPercent > 0)
             {
+                minPercent = Math.Max(minPercent, 0);
+                if (UseLocomotiveForceRamps && Locomotive.HasCruiseControlForceRamp(false, false, minPercent == 0))
+                {
+                    throttleOrDynPercent = Locomotive.RampCruiseControlDemandPercent(false, throttleOrDynPercent, minPercent, elapsedClockSeconds);
+                    return;
+                }
                 float step = 100 / ThrottleFullRangeDecreaseTimeSeconds * elapsedClockSeconds;
                 throttleOrDynPercent = Math.Max(throttleOrDynPercent - step, Math.Max(minPercent, 0));
             }
             else
             {
+                if (UseLocomotiveForceRamps && Locomotive.HasCruiseControlForceRamp(true, true, false))
+                {
+                    throttleOrDynPercent = -Locomotive.RampCruiseControlDemandPercent(true, -throttleOrDynPercent, -minPercent, elapsedClockSeconds);
+                    return;
+                }
                 float step = 100 / DynamicBrakeFullRangeIncreaseTimeSeconds * elapsedClockSeconds;
                 throttleOrDynPercent = Math.Max(throttleOrDynPercent - step, minPercent);
             }

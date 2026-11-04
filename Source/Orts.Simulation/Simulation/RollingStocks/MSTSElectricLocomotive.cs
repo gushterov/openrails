@@ -203,16 +203,12 @@ namespace Orts.Simulation.RollingStocks
         protected override void UpdateSoundVariables(float elapsedClockSeconds)
         {
             Variable1[0] = ThrottlePercent;
-            if (ThrottlePercent == 0f) Variable2 = 0;
-            else
-            {
-                float dV2;
-                dV2 = Math.Abs(TractiveForceN) / MaxForceN * 100f - Variable2;
-                float max = 2f;
-                if (dV2 > max) dV2 = max;
-                else if (dV2 < -max) dV2 = -max;
-                Variable2 += dV2;
-            }
+            // Effort can persist after throttle demand reaches zero. Keep the force
+            // sound variable following that effort instead of abruptly silencing it.
+            float soundForceN = ThrottlePercent > 0 ? Math.Abs(TractiveForceN) : Math.Max(TractionForceN, 0);
+            float target = MaxForceN > 0 ? soundForceN / MaxForceN * 100f : ThrottlePercent;
+            float dV2 = Math.Max(-2f, Math.Min(target - Variable2, 2f));
+            Variable2 += dV2;
             if (DynamicBrakePercent > 0)
                 Variable3 = MaxDynamicBrakeForceN == 0 ? DynamicBrakePercent / 100f : DynamicBrakeForceN / MaxDynamicBrakeForceN;
             else

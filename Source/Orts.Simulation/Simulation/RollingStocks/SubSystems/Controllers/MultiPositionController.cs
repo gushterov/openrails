@@ -207,7 +207,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 {
                     if (Locomotive.ThrottlePercent > 0)
                     {
-                        float step = (haveCruiseControl ? 100 / ThrottleDecreaseStepPerSecond : 100 / MPCFullRangeIncreaseTimeS);
+                        float step = (haveCruiseControl ? ThrottleDecreaseStepPerSecond : 100 / MPCFullRangeIncreaseTimeS);
                         step *= elapsedClockSeconds;
                         Locomotive.SetThrottlePercent(Locomotive.ThrottlePercent - step);
                     }
@@ -216,7 +216,7 @@ namespace Orts.Simulation.RollingStocks.SubSystems.Controllers
                 {
                     if (Locomotive.ThrottlePercent > 0)
                     {
-                        float step = (haveCruiseControl ? 100 / ThrottleDecreaseStepPerSecond * 2 : 200 / MPCFullRangeIncreaseTimeS);
+                        float step = (haveCruiseControl ? ThrottleDecreaseStepPerSecond * 2 : 200 / MPCFullRangeIncreaseTimeS);
                         step *= elapsedClockSeconds;
                         Locomotive.SetThrottlePercent(Locomotive.ThrottlePercent - step);
                     }

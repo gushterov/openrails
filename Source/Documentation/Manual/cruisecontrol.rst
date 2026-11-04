@@ -103,8 +103,9 @@ A list of the available .eng file CC parameters follows here below.
    "MaxForceKeepSelectedStepWhenManualModeSet", "Self explaining", "Boolean", "FALSE"
    "ForceResetRequiredAfterBraking", "After manual braking, to apply again force, the force must first be manually reset to zero", "Boolean", "FALSE"
    "DynamicBrakeIsSelectedForceDependant", "If true dynamic brake force applied depends from the position of the force selector, else always the maximum dynamic brake force is applied", "Boolean", "FALSE"
-   "ThrottleFullRangeIncreaseTimeSeconds", "Time in seconds needed for the regulator to pass from 0 to 100% of power", "Seconds", "5"
-   "ThrottleFullRangeDecreaseTimeSeconds", "Time in seconds needed for the regulator to pass from 100 to 0% of power", "Seconds", "5"
+   "UseLocomotiveForceRamps", "Use the locomotive's tractive and dynamic brake force/power ramps for automatic regulation where a ramp is available for the requested direction. Set FALSE to use the legacy CC demand timings", "Boolean", "TRUE"
+   "ThrottleFullRangeIncreaseTimeSeconds", "Time in seconds needed for the regulator demand to pass from 0 to 100%. Used when no locomotive ramp is available for this direction or UseLocomotiveForceRamps is FALSE", "Seconds", "5"
+   "ThrottleFullRangeDecreaseTimeSeconds", "Time in seconds needed for the regulator demand to pass from 100 to 0%. Used when no locomotive ramp is available for this direction or UseLocomotiveForceRamps is FALSE. Also controls MPC neutral force-selector reduction", "Seconds", "5"
    "DynamicBrakeFullRangeIncreaseTimeSeconds", "Same as above, but for dynamic braking", "Seconds", "5"
    "DynamicBrakeFullRangeDecreaseTimeSeconds", "Same as above, but for dynamic braking", "Seconds", "5"
    "TrainBrakeFullRangeIncreaseTimeSeconds", "Same as above, but for train brakes", "Seconds", "10"
@@ -150,6 +151,33 @@ A list of the available .eng file CC parameters follows here below.
    "StartInAutoMode", "Game starts with CC in Auto mode", "Boolean", "FALSE"
    "KeepSelectedSpeedWhenManualModeSet", "When switching from auto to manual and back to auto using keyboard or cabview control, the previously selected speed is kept. If false, the selected speed is reset to zero when switching to manual, and the current train speed is used when switching back to auto", "Boolean", "FALSE"
 
+
+With ``UseLocomotiveForceRamps ( true )`` (the default), automatic regulation
+uses the same physical force and power ramp limits as manual driving. These are
+the ``ORTSTractiveForceRamp...``, ``ORTSTractivePowerRamp...``,
+``ORTSDynamicBrakeForceRamp...`` and ``ORTSDynamicBrakePowerRamp...`` parameters
+described in :ref:`physics`. Rates derived from ``RunUpTimeToMaxForce`` also apply.
+CC smoothly changes the requested throttle or dynamic brake percentage using
+these rates and the locomotive's force curve at the current speed. This also
+smooths cab instruments and sounds driven by throttle percentage. Actual effort
+continues to obey the physical force and power limits. On the approach to the
+selected speed, CC uses the ordinary traction ramp-down rate and estimates the
+effort needed to balance train resistance, so it can taper power toward that
+effort instead of repeatedly releasing all traction. Dynamic brake anticipation
+accounts for demand release time and any remaining delivered force.
+
+While a brake or train-control-system traction cutoff is active, CC holds its
+applied traction demand at zero instead of accumulating demand behind the cutoff.
+The selected force limit is retained. When traction is authorized again, demand
+starts increasing from zero through the configured ramp.
+
+For directions without an applicable physical ramp, CC keeps the corresponding
+``FullRange...TimeSeconds`` setting. A power-only ramp cannot limit force at
+standstill, so the CC demand timing remains active there. Mechanical diesel
+traction paths that bypass the standard force calculation also retain the CC
+timings. Manual handle/force-selector movement and train brake timing remain
+separate from the physical response. Set ``UseLocomotiveForceRamps ( false )`` in
+the ``CruiseControl`` block to compare with the legacy regulation.
 
 The list of the available parameters for the Options() block may be
 found in the table here below.
