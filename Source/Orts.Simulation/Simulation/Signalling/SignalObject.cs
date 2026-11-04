@@ -1940,13 +1940,10 @@ namespace Orts.Simulation.Signalling
 
             // update all normal heads first
 
-            if (MPManager.IsMultiPlayer())
-            {
-                if (MPManager.IsClient()) return; //client won't handle signal update
+            if (MPManager.IsClient()) return; //client won't handle signal update
 
-                //if there were hold manually, will not update
-                if (holdState == HoldState.ManualApproach || holdState == HoldState.ManualLock || holdState == HoldState.ManualPass) return;
-            }
+            // Dispatcher aspects must survive route/script updates in single-player as well as multiplayer.
+            if (holdState == HoldState.ManualApproach || holdState == HoldState.ManualLock || holdState == HoldState.ManualPass) return;
 
             for (int i = 0; i < SignalHeads.Count; i++)
             {
@@ -2541,6 +2538,12 @@ namespace Orts.Simulation.Signalling
 
             // check for permission
 
+            // Explorer must also allow passing a scripted red when its route is clear.
+            // Hidden station/shunting signals can remain at STOP even on reserved track.
+            bool manualPermission = enabledTrain != null &&
+                (enabledTrain.Train.ControlMode == Train.TRAIN_CONTROL.MANUAL ||
+                 enabledTrain.Train.ControlMode == Train.TRAIN_CONTROL.EXPLORER);
+
             if (internalBlockState == InternalBlockstate.OccupiedSameDirection && hasPermission == Permission.Requested && !isPropagated)
             {
                 hasPermission = Permission.Granted;
@@ -2548,7 +2551,7 @@ namespace Orts.Simulation.Signalling
             }
             else
             {
-                if (enabledTrain != null && enabledTrain.Train.ControlMode == Train.TRAIN_CONTROL.MANUAL &&
+                if (manualPermission &&
                     internalBlockState <= InternalBlockstate.OccupiedSameDirection && hasPermission == Permission.Requested)
                 {
                     signalRef.Simulator.SoundNotify = Event.PermissionGranted;
@@ -2558,7 +2561,7 @@ namespace Orts.Simulation.Signalling
                     if (sound) signalRef.Simulator.SoundNotify = Event.PermissionDenied;
                 }
 
-                if (enabledTrain != null && enabledTrain.Train.ControlMode == Train.TRAIN_CONTROL.MANUAL && signalState == MstsSignalAspect.STOP &&
+                if (manualPermission && signalState == MstsSignalAspect.STOP &&
                 internalBlockState <= InternalBlockstate.OccupiedSameDirection && hasPermission == Permission.Requested)
                 {
                     hasPermission = Permission.Granted;
