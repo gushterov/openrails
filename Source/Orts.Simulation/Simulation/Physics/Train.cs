@@ -9895,6 +9895,9 @@ namespace Orts.Simulation.Physics
                     if (unclearedSignal && signalIndex < newRoute.Count)
                     {
                         SignalObject reqSignal = signalRef.SignalObjects[nextUnclearSignalIndex];
+                        // Tab targets this red signal even beyond the automatic clear-ahead limit.
+                        // Route availability has already been checked above.
+                        bool permissionRequested = reqSignal.hasPermission == SignalObject.Permission.Requested;
                         bool firstSignalPassed = false;
                         int numCleared = 0;
                         totalLengthM = 0;
@@ -9911,7 +9914,7 @@ namespace Orts.Simulation.Physics
                             offsetM = 0;
 
                             // Stop if first signal is far, there's no need to clear it.
-                            if (!firstSignalPassed && totalLengthM > MinCheckDistanceExplorerM) 
+                            if (!permissionRequested && !firstSignalPassed && totalLengthM > MinCheckDistanceExplorerM)
                                 break;
 
                             if (thisSection.EndSignals[actDirection] != null)
@@ -9935,14 +9938,14 @@ namespace Orts.Simulation.Physics
                                     {
                                         signalRef.BreakDownRouteList(newRoute, iindex + 1, thisRouted);
                                         newRoute.RemoveRange(iindex + 1, newRoute.Count - iindex - 1);
-                                        newRoute = thisSignal.requestClearSignalExplorer(newRoute, thisRouted, true, numCleared);
+                                        newRoute = thisSignal.requestClearSignalExplorer(newRoute, thisRouted, !permissionRequested, numCleared);
                                         break;
                                     }
                                     numCleared = thisSignal.GetReqNumClearAheadExplorer(true, numCleared);
                                 }
 
                                 // Stop if no more signals to clear
-                                if (numCleared == 0)
+                                if (numCleared == 0 && !permissionRequested)
                                     break;
                             }
                         }

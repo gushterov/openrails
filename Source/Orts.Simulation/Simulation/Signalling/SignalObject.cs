@@ -745,7 +745,7 @@ namespace Orts.Simulation.Signalling
         public MstsSignalAspect opp_sig_mr(SignalFunction function)
         {
             int signalFound = SONextSignalOpp(function);
-            return signalFound >= 0 ? signalObjects[signalFound].this_sig_mr(function) : MstsSignalAspect.STOP;
+            return OpposingSignalAspect(signalFound >= 0 ? signalObjects[signalFound] : null, function, true);
         }
 
         /// debug version
@@ -753,7 +753,7 @@ namespace Orts.Simulation.Signalling
         {
             int signalFound = SONextSignalOpp(function);
             foundSignal = signalFound >= 0 ? signalObjects[signalFound] : null;
-            return signalFound >= 0 ? signalObjects[signalFound].this_sig_mr(function) : MstsSignalAspect.STOP;
+            return OpposingSignalAspect(foundSignal, function, true);
         }
 
 
@@ -765,7 +765,7 @@ namespace Orts.Simulation.Signalling
         public MstsSignalAspect opp_sig_lr(SignalFunction function)
         {
             int signalFound = SONextSignalOpp(function);
-            return signalFound >= 0 ? signalObjects[signalFound].this_sig_lr(function) : MstsSignalAspect.STOP;
+            return OpposingSignalAspect(signalFound >= 0 ? signalObjects[signalFound] : null, function, false);
         }
 
         /// debug version
@@ -773,7 +773,30 @@ namespace Orts.Simulation.Signalling
         {
             int signalFound = SONextSignalOpp(function);
             foundSignal = signalFound >= 0 ? signalObjects[signalFound] : null;
-            return signalFound >= 0 ? signalObjects[signalFound].this_sig_lr(function) : MstsSignalAspect.STOP;
+            return OpposingSignalAspect(foundSignal, function, false);
+        }
+
+        private MstsSignalAspect OpposingSignalAspect(SignalObject opposite, SignalFunction function, bool mostRestrictive)
+        {
+            if (opposite == null) return MstsSignalAspect.STOP;
+
+            // Explorer builds routes from both ends. An automatic clearance for the same
+            // train's reverse route must not hold its leading signal at danger indefinitely.
+            if (function == SignalFunction.NORMAL && enabledTrain != null &&
+                enabledTrain.Train.ControlMode == Train.TRAIN_CONTROL.EXPLORER &&
+                opposite.enabledTrain?.Train == enabledTrain.Train &&
+                opposite.holdState == HoldState.None && opposite.hasPermission != Permission.Granted)
+            {
+                Train train = enabledTrain.Train;
+                int leadingRoute = Math.Abs(train.SpeedMpS) > Simulator.MaxStoppedMpS
+                    ? (train.SpeedMpS < 0 ? 1 : 0)
+                    : (train.MUDirection == Direction.Reverse ? 1 : 0);
+                if (enabledTrain.TrainRouteDirectionIndex == leadingRoute &&
+                    opposite.enabledTrain.TrainRouteDirectionIndex != leadingRoute)
+                    return MstsSignalAspect.STOP;
+            }
+
+            return mostRestrictive ? opposite.this_sig_mr(function) : opposite.this_sig_lr(function);
         }
 
 
