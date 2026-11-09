@@ -69,6 +69,7 @@ namespace Orts.Viewer3D
 
         private SkyInterpolation skySteps = new SkyInterpolation();
         internal bool CabIsDark => skySteps.CabIsDark;
+        internal DaylightSchedule DaylightSchedule => skySteps.GetDaylightSchedule();
 
         // Phase of the moon
         public int mstsskymoonPhase;
@@ -128,6 +129,8 @@ namespace Orts.Viewer3D
                 while (skySteps.OldClockTime < 0) skySteps.OldClockTime += 86400;
                 skySteps.Step1 = skySteps.Step2 = (int)(skySteps.OldClockTime / 1200);
                 skySteps.Step2 = skySteps.Step2 < skySteps.MaxSteps - 1 ? skySteps.Step2 + 1 : 0; // limit to max. steps in case activity starts near midnight
+                if (MSTSSkyViewer.ResolvedSolarDay != null)
+                    skySteps.OldClockTime = Math.Floor(MSTSSkyViewer.Simulator.ClockTime / 1200) * 1200;
                                                                                                   // Get the current latitude and longitude coordinates
                 mstsskyworldLoc.ConvertWTC(MSTSSkyViewer.Camera.TileX, MSTSSkyViewer.Camera.TileZ, MSTSSkyViewer.Camera.Location, ref mstsskylatitude, ref mstsskylongitude);
                 if (mstsskyseasonType != (int)MSTSSkyViewer.Simulator.Season)
@@ -142,9 +145,10 @@ namespace Orts.Viewer3D
                 // Fill in the sun- and moon-position lookup tables
                 for (int i = 0; i < skySteps.MaxSteps; i++)
                 {
-                    mstsskysolarPosArray[i] = SunMoonPos.SolarAngle(mstsskylatitude, mstsskylongitude, MSTSSkyViewer.ENVFile.Sun, ((float)i / skySteps.MaxSteps), date);
+                    mstsskysolarPosArray[i] = SunMoonPos.SolarAngle(mstsskylatitude, mstsskylongitude, MSTSSkyViewer.ENVFile.Sun, ((float)i / skySteps.MaxSteps), date, MSTSSkyViewer.ResolvedSolarDay);
                     mstsskylunarPosArray[i] = SunMoonPos.LunarAngle(mstsskylatitude, mstsskylongitude, ((float)i / skySteps.MaxSteps), date);
                 }
+                skySteps.UpdateDaylightSchedule(mstsskysolarPosArray);
                 // Phase of the moon is generated at random
                 mstsskymoonPhase = Viewer.Random.Next(8);
                 if (mstsskymoonPhase == 6 && date.OrdinalDate > 45 && date.OrdinalDate < 330)
@@ -222,7 +226,7 @@ namespace Orts.Viewer3D
             date.Day = 21;
             date.Year = 2017;
             float fractClockTime = (float)MSTSSkyViewer.Simulator.ClockTime / 86400;
-            mstsskysolarDirection = SunMoonPos.SolarAngle(mstsskylatitude, mstsskylongitude, MSTSSkyViewer.ENVFile.Sun, fractClockTime, date);
+            mstsskysolarDirection = SunMoonPos.SolarAngle(mstsskylatitude, mstsskylongitude, MSTSSkyViewer.ENVFile.Sun, fractClockTime, date, MSTSSkyViewer.ResolvedSolarDay);
             mstsskyworldLoc = null;
             mstsskylatitude = 0;
             mstsskylongitude = 0;

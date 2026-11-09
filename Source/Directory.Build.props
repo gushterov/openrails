@@ -12,6 +12,11 @@
   <PropertyGroup Condition="'$(BuildDotNet)' != 'true'">
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
   </PropertyGroup>
+  <ItemGroup Condition="'$(UsingMicrosoftNETSdk)' == 'true'">
+    <!-- SharpDX brings in the .NET Core 1.0 metapackage and its obsolete Roslyn DLLs.
+         They can overwrite the script compiler in the shared Program directory. -->
+    <PrunePackageReference Include="Microsoft.NETCore.App" Version="1.0.5" />
+  </ItemGroup>
   <ItemGroup Condition="'$(BuildDotNet)' != 'true' AND '$(UsingMicrosoftNETSdk)' == 'true' AND '$(MSBuildProjectName)' != 'Launcher'">
     <PackageReference Include="System.Resources.Extensions" Version="10.0.14" />
   </ItemGroup>

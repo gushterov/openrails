@@ -428,6 +428,7 @@ namespace Orts.Viewer3D.Processes
 
                 // Write out position within file so we can check when restoring.
                 outf.Write(outf.BaseStream.Position);
+                Viewer.ResolvedSolarDay?.WriteToSave(outf);
             }
 
             LogLocation();
@@ -508,7 +509,7 @@ namespace Orts.Viewer3D.Processes
                     Acttype = values.acttype;
                     InitSimulator(settings, values.args, "Resume", values.acttype);
                     Simulator.Restore(inf, values.pathName, values.initialTileX, values.initialTileZ, Game.LoaderProcess.CancellationToken);
-                    Viewer = new Viewer(Simulator, Game);
+                    Viewer = new Viewer(Simulator, Game, inf);
                     if (Client != null || Server != null)
                         if (Acttype == "activity") Simulator.GetPathAndConsist();
                     if (Client != null)
@@ -605,7 +606,7 @@ namespace Orts.Viewer3D.Processes
                 Acttype = values.acttype;
                 InitSimulator(settings, values.args, "Replay", values.acttype);
                 Simulator.Start(Game.LoaderProcess.CancellationToken);
-                Viewer = new Viewer(Simulator, Game);
+                Viewer = new Viewer(Simulator, Game, inf);
             }
 
             // Load command log to replay
@@ -673,9 +674,9 @@ namespace Orts.Viewer3D.Processes
                     inf.ReadString();    // Build
                     savedValues values = GetSavedValues(inf);
                     InitSimulator(settings, values.args, "Replay");
+                    Simulator.Start(Game.LoaderProcess.CancellationToken);
+                    Viewer = new Viewer(Simulator, Game, inf);
                 }
-                Simulator.Start(Game.LoaderProcess.CancellationToken);
-                Viewer = new Viewer(Simulator, Game);
             }
             else
             {
@@ -687,7 +688,7 @@ namespace Orts.Viewer3D.Processes
                     var values = GetSavedValues(inf);
                     InitSimulator(settings, values.args, "Resume", values.acttype);
                     Simulator.Restore(inf, values.pathName, values.initialTileX, values.initialTileZ, Game.LoaderProcess.CancellationToken);
-                    Viewer = new Viewer(Simulator, Game);
+                    Viewer = new Viewer(Simulator, Game, inf);
                     Viewer.Restore(inf);
                 }
             }

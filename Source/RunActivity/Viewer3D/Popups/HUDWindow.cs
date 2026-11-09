@@ -1514,6 +1514,22 @@ namespace Orts.Viewer3D.Popups
             TableAddLabelValue(table, Viewer.Catalog.GetString("Wind"), Viewer.Catalog.GetStringFmt("{0:F0} ° / {1:F1} m/s ({2:F0} ° / {3:F1} m/s gusts)", MathHelper.ToDegrees(Viewer.Simulator.Weather.WindAverageDirectionRad), Viewer.Simulator.Weather.WindAverageSpeedMpS, MathHelper.ToDegrees(Viewer.Simulator.Weather.WindInstantaneousDirectionRad), Viewer.Simulator.Weather.WindInstantaneousSpeedMpS));
             // TODO: Move ambient temperature into Orts.Simulation.Weather
             TableAddLabelValue(table, Viewer.Catalog.GetString("Amb Temp"), FormatStrings.FormatTemperature(Viewer.PlayerLocomotive.CarOutsideTempC, Viewer.PlayerLocomotive.IsMetric, false));
+
+            var daylight = Viewer.Settings.UseMSTSEnv ? Viewer.World.MSTSSky.DaylightSchedule : Viewer.World.Sky.DaylightSchedule;
+            TableAddLabelValue(table, Viewer.Catalog.GetString("Sunrise"), FormatDaylightTimes(daylight.Sunrise));
+            TableAddLabelValue(table, Viewer.Catalog.GetString("Sunset"), FormatDaylightTimes(daylight.Sunset));
+            TableAddLabelValue(table, Viewer.Catalog.GetString("Cab view to day"), FormatDaylightTimes(daylight.CabDay));
+            TableAddLabelValue(table, Viewer.Catalog.GetString("Cab view to night"), FormatDaylightTimes(daylight.CabNight));
+
+            string FormatDaylightTimes(double[] times)
+            {
+                if (times.Length == 0)
+                    return Viewer.Catalog.GetString("No transition");
+                return string.Join(", ", times
+                    .Select(time => (Math.Round(time + daylight.ClockOffset) % 86400 + 86400) % 86400)
+                    .OrderBy(time => time)
+                    .Select(FormatStrings.FormatTime));
+            }
         }
 
         void TextPageDebugInfo(TableData table)

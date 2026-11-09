@@ -17,12 +17,24 @@
 
 // This file is the responsibility of the 3D & Environment Team.
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 
 namespace Orts.Viewer3D
 {
+    internal sealed record DaylightSchedule(
+        double[] Sunrise, double[] Sunset, double[] CabDay, double[] CabNight, double ClockOffset)
+    {
+        internal static readonly DaylightSchedule Empty = new([], [], [], [], 0);
+    }
+
     public class SkyInterpolation
     {
+        const float CabNightSunHeight = -0.085f;
+        const double CabNightExtensionS = 30 * 60;
+        const double SecondsPerDay = 86400;
+
         // Size of the sun- and moon-position lookup table arrays.
         // Must be an integral divisor of 1440 (which is the number of minutes in a day).
         public int MaxSteps = 72;
@@ -30,8 +42,59 @@ namespace Orts.Viewer3D
         public int Step1;
         public int Step2;
         public bool CabIsDark { get; private set; }
+        DaylightSchedule daylightSchedule = DaylightSchedule.Empty;
 
         static float DaylightOffsetS => (float)Program.Viewer.World.WeatherControl.DaylightOffset * 60 * 60;
+
+        internal DaylightSchedule GetDaylightSchedule()
+        {
+            var schedule = daylightSchedule;
+            return schedule with { ClockOffset = schedule.ClockOffset - DaylightOffsetS };
+        }
+
+        internal void UpdateDaylightSchedule(Vector3[] solarPositions)
+        {
+            double stepDuration = SecondsPerDay / solarPositions.Length;
+
+            IEnumerable<(double Time, bool Rising)> FindCrossings(float threshold)
+            {
+                for (int step = 0; step < solarPositions.Length; step++)
+                {
+                    var from = solarPositions[step].Y;
+                    var to = solarPositions[(step + 1) % solarPositions.Length].Y;
+                    if (!float.IsFinite(from) || !float.IsFinite(to) || (from > threshold) == (to > threshold))
+                        continue;
+                    double fraction = (threshold - (double)from) / (to - (double)from);
+                    yield return ((step + fraction) * stepDuration, to > threshold);
+                }
+            }
+
+            var horizonCrossings = FindCrossings(0).ToArray();
+            var cabCrossings = FindCrossings(CabNightSunHeight).ToArray();
+            var cabDay = new List<double>();
+            var cabNight = new List<double>();
+            for (int i = 0; i < cabCrossings.Length; i++)
+            {
+                var dawn = cabCrossings[i];
+                int next = (i + 1) % cabCrossings.Length;
+                var dusk = cabCrossings[next];
+                if (!dawn.Rising || dusk.Rising)
+                    continue;
+                double dayEnds = dusk.Time + (next == 0 ? SecondsPerDay : 0);
+
+                // The cab is in day mode only if the entire one-hour window is above the threshold.
+                if (dayEnds - dawn.Time > 2 * CabNightExtensionS)
+                {
+                    cabDay.Add(dawn.Time + CabNightExtensionS);
+                    cabNight.Add(dayEnds - CabNightExtensionS);
+                }
+            }
+
+            daylightSchedule = new DaylightSchedule(
+                horizonCrossings.Where(crossing => crossing.Rising).Select(crossing => crossing.Time).ToArray(),
+                horizonCrossings.Where(crossing => !crossing.Rising).Select(crossing => crossing.Time).ToArray(),
+                cabDay.ToArray(), cabNight.ToArray(), OldClockTime - Step1 * stepDuration);
+        }
 
         public void SetSunAndMoonDirection(ref Vector3 solarDirection, ref Vector3 lunarDirection, Vector3[] solarPosArray, Vector3[] lunarPosArray, double clockTime)
         {
@@ -91,11 +154,9 @@ namespace Orts.Viewer3D
         /// </summary>
         public static bool IsCabDark(Vector3[] solarPositions, double skyTime)
         {
-            const float nightSunHeight = -0.085f;
-            const double nightExtensionS = 30 * 60;
-            double stepDurationS = 86400.0 / solarPositions.Length;
-            double start = (skyTime - nightExtensionS) / stepDurationS;
-            double end = (skyTime + nightExtensionS) / stepDurationS;
+            double stepDurationS = SecondsPerDay / solarPositions.Length;
+            double start = (skyTime - CabNightExtensionS) / stepDurationS;
+            double end = (skyTime + CabNightExtensionS) / stepDurationS;
 
             float HeightAt(double step)
             {
@@ -108,10 +169,10 @@ namespace Orts.Viewer3D
             // Any night within this hour keeps the cab dark. Check the endpoints
             // and every intervening table entry, including across midnight and
             // very short polar days/nights; interpolation is linear between entries.
-            if (HeightAt(start) <= nightSunHeight || HeightAt(end) <= nightSunHeight)
+            if (HeightAt(start) <= CabNightSunHeight || HeightAt(end) <= CabNightSunHeight)
                 return true;
             for (int step = (int)Math.Ceiling(start); step < end; step++)
-                if (HeightAt(step) <= nightSunHeight)
+                if (HeightAt(step) <= CabNightSunHeight)
                     return true;
             return false;
         }

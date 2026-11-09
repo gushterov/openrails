@@ -18,6 +18,12 @@ namespace Tests.RunActivity
                 -0.085f + (float)(speed * Math.Min(i / 3.0 - dawnHours, duskHours - i / 3.0) / 24), 0)).ToArray();
         }
 
+        static void UpdateDaylightSchedule(SkyInterpolation interpolation, Vector3[] positions) =>
+            typeof(SkyInterpolation).GetMethod("UpdateDaylightSchedule", BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(interpolation, new object[] { positions });
+
+        static double[] Times(object schedule, string name) => (double[])schedule.GetType().GetProperty(name).GetValue(schedule);
+
         [Theory]
         [InlineData(5.1, 20.3, 1)]
         [InlineData(8.2, 16.1, 0.4)]
@@ -73,6 +79,19 @@ namespace Tests.RunActivity
             Assert.False(SkyInterpolation.IsCabDark(positions, 3600));
         }
 
+        [Fact]
+        public void ShortDayHasSunriseAndSunsetButNoCabSwitch()
+        {
+            var interpolation = new SkyInterpolation();
+            UpdateDaylightSchedule(interpolation, SunPositions(6.1, 6.9, 10));
+            var schedule = typeof(SkyInterpolation).GetField("daylightSchedule", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(interpolation);
+            Assert.Single(Times(schedule, "Sunrise"));
+            Assert.Single(Times(schedule, "Sunset"));
+            Assert.Empty(Times(schedule, "CabDay"));
+            Assert.Empty(Times(schedule, "CabNight"));
+        }
+
         [Theory]
         [InlineData(-2f)]
         [InlineData(0f)]
@@ -92,10 +111,21 @@ namespace Tests.RunActivity
             try
             {
                 var positions = SunPositions(6.1, 18.2);
-                var interpolation = new SkyInterpolation { Step1 = 19, Step2 = 20, OldClockTime = 19 * 1200 };
+                const int clockPhase = 600;
+                var interpolation = new SkyInterpolation { Step1 = 19, Step2 = 20, OldClockTime = 19 * 1200 + clockPhase };
+                UpdateDaylightSchedule(interpolation, positions);
+                var schedule = typeof(SkyInterpolation).GetMethod("GetDaylightSchedule", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(interpolation, null);
+                double clockOffset = (double)schedule.GetType().GetProperty("ClockOffset").GetValue(schedule);
+                Assert.Equal(clockPhase - daylightOffset * 3600, clockOffset);
+                Assert.Equal(8.14 * 3600, Assert.Single(Times(schedule, "Sunrise")), 2);
+                Assert.Equal(16.16 * 3600, Assert.Single(Times(schedule, "Sunset")), 2);
+                Assert.Equal(17.7 * 3600, Assert.Single(Times(schedule, "CabNight")), 2);
+
                 var sun = Vector3.Zero;
                 var moon = Vector3.Zero;
-                double switchTime = 6.6 * 3600 - daylightOffset * 3600;
+                double switchTime = Assert.Single(Times(schedule, "CabDay")) + clockOffset;
+                Assert.Equal(6.6 * 3600 + clockOffset, switchTime, 2);
                 interpolation.SetSunAndMoonDirection(ref sun, ref moon, positions, positions, switchTime - 1);
                 Assert.True(sun.Y > -0.085f); // The world is already in daylight.
                 Assert.True(interpolation.CabIsDark);

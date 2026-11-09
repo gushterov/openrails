@@ -37,6 +37,7 @@ using Orts.Simulation.AIs;
 using Orts.Simulation.Physics;
 using Orts.Simulation.RollingStocks;
 using Orts.Simulation.Timetables;
+using Orts.Viewer3D.Common;
 using Orts.Viewer3D.Popups;
 using Orts.Viewer3D.Processes;
 using Orts.Viewer3D.RollingStock;
@@ -56,6 +57,7 @@ namespace Orts.Viewer3D
         public static Random Random { get; private set; }
         // User setups.
         public UserSettings Settings { get; private set; }
+        internal SolarDay ResolvedSolarDay { get; private set; }
         private readonly SavingProperty<bool> Use3DCabProperty;
         // Multi-threaded processes
         public LoaderProcess LoaderProcess { get; private set; }
@@ -337,8 +339,9 @@ namespace Orts.Viewer3D
         /// </summary>
         /// <param name="simulator">The <see cref="Simulator"/> with which the viewer runs.</param>
         /// <param name="game">The <see cref="Game"/> with which the viewer runs.</param>
+        /// <param name="savedRun">The save to use for resolved daylight, when resuming or replaying.</param>
         [CallOnThread("Loader")]
-        public Viewer(Simulator simulator, Orts.Viewer3D.Processes.Game game)
+        public Viewer(Simulator simulator, Orts.Viewer3D.Processes.Game game, BinaryReader savedRun = null)
         {
             Catalog = new GettextResourceManager("RunActivity");
             Random = new Random();
@@ -412,7 +415,7 @@ namespace Orts.Viewer3D
                 }
             }
 
-            Initialize();
+            Initialize(savedRun);
         }
 
         [CallOnThread("Updater")]
@@ -505,13 +508,16 @@ namespace Orts.Viewer3D
         /// processes haven't started yet.
         /// </summary>
         [CallOnThread("Loader")]
-        internal void Initialize()
+        void Initialize(BinaryReader savedRun)
         {
             GraphicsDevice = RenderProcess.GraphicsDevice;
             UpdateAdapterInformation(GraphicsDevice.Adapter);
             DefaultViewport = GraphicsDevice.Viewport;
 
             if (PlayerLocomotive == null) PlayerLocomotive = Simulator.InitialPlayerLocomotive();
+            ResolvedSolarDay = savedRun == null
+                ? SolarDay.Resolve(Settings, PlayerLocomotive.WorldPosition.WorldLocation, LoaderProcess.CancellationToken)
+                : SolarDay.ReadFromSave(savedRun);
             SelectedTrain = PlayerTrain;
             PlayerTrain.InitializePlayerTrainData();
             if (PlayerTrain.TrainType == Train.TRAINTYPE.AI_PLAYERHOSTING  || PlayerTrain.Autopilot)

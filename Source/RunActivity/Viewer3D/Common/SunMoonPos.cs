@@ -40,7 +40,7 @@ namespace Orts.Viewer3D.Common
         /// <param name="clockTime">Wall clock time since start of activity, days.</param>
         /// <param name="date">Structure made up of day, month, year and ordinal date.</param>
         /// <returns>A normalize 3D vector indicating the sun's position from the viewer's location.</returns>
-        public static Vector3 SolarAngle(double latitude, double longitude, EnvironmentFile.SkySatellite sun, float clockTime, SkyViewer.SkyDate date)
+        public static Vector3 SolarAngle(double latitude, double longitude, EnvironmentFile.SkySatellite sun, float clockTime, SkyViewer.SkyDate date, SolarDay solarDay = null)
         {
             Vector3 sunDirection;
             double solarHourAngle;
@@ -49,19 +49,18 @@ namespace Orts.Viewer3D.Common
             var fYear = (MathHelper.TwoPi / 365) * (date.OrdinalDate - 1 + (clockTime - 0.5));
 
             // Solar declination, radians
-            var solarDeclination = 0.006918
-                - (0.399912 * Math.Cos(fYear))
-                + (0.070257 * Math.Sin(fYear))
-                - (0.006758 * Math.Cos(2 * fYear))
-                + (0.000907 * Math.Sin(2 * fYear))
-                - (0.002697 * Math.Cos(3 * fYear))
-                + (0.001480 * Math.Sin(3 * fYear));
+            var solarDeclination = solarDay?.Declination ?? SolarDeclination(fYear);
 
             // How much the latitude and solar declination changes the horizon so that we can correctly calculate
             // the solar angle based on sun rise/set times
-            var horizonSolarHourAngle = Math.Acos(-(Math.Sin(latitude) * Math.Sin(solarDeclination)) / (Math.Cos(latitude) * Math.Cos(solarDeclination)));
+            var horizonSolarHourAngle = HorizonHourAngle(latitude, solarDeclination);
 
-            if (sun?.RiseTime != 0 && sun?.SetTime != 0 && sun?.RiseTime < sun?.SetTime && !double.IsNaN(horizonSolarHourAngle))
+            if (solarDay != null)
+            {
+                latitude = solarDay.Latitude;
+                solarHourAngle = solarDay.HourAngle(clockTime);
+            }
+            else if (sun?.RiseTime != 0 && sun?.SetTime != 0 && sun?.RiseTime < sun?.SetTime && !double.IsNaN(horizonSolarHourAngle))
             {
                 var noonTimeD = (float)(sun.RiseTime + sun.SetTime) / 2 / 86400;
                 var riseSetScale = 90 / (noonTimeD - ((float)sun.RiseTime / 86400));
@@ -101,6 +100,17 @@ namespace Orts.Viewer3D.Common
 
             return sunDirection;
         }
+
+        internal static double SolarDeclination(double fractionalYear) => 0.006918
+            - (0.399912 * Math.Cos(fractionalYear))
+            + (0.070257 * Math.Sin(fractionalYear))
+            - (0.006758 * Math.Cos(2 * fractionalYear))
+            + (0.000907 * Math.Sin(2 * fractionalYear))
+            - (0.002697 * Math.Cos(3 * fractionalYear))
+            + (0.001480 * Math.Sin(3 * fractionalYear));
+
+        internal static double HorizonHourAngle(double latitude, double declination) =>
+            Math.Acos(-(Math.Sin(latitude) * Math.Sin(declination)) / (Math.Cos(latitude) * Math.Cos(declination)));
 
         /// <summary>
         /// Calculates the lunar direction vector.

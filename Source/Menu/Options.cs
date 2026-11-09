@@ -40,6 +40,11 @@ namespace Menu
         readonly TelemetryManager TelemetryManager;
         readonly string BaseDocumentationUrl;
 
+        readonly ComboBox solarTimeSource = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+        readonly DateTimePicker solarDate = new DateTimePicker { Format = DateTimePickerFormat.Short, Dock = DockStyle.Fill };
+        readonly NumericUpDown solarLatitude = new NumericUpDown { Minimum = -90, Maximum = 90, DecimalPlaces = 5, Dock = DockStyle.Fill };
+        readonly NumericUpDown solarLongitude = new NumericUpDown { Minimum = -180, Maximum = 180, DecimalPlaces = 5, Dock = DockStyle.Fill };
+
         private GettextResourceManager catalog = new GettextResourceManager("Menu");
 
         public class ComboBoxMember
@@ -119,6 +124,7 @@ namespace Menu
             // Message Box font to allow for user-customizations, though.
             Font = SystemFonts.MessageBoxFont;
             AdhesionLevelValue.Font = new Font(Font, FontStyle.Bold);
+            InitializeSolarSettings();
 
             // Fix up the TrackBars on TabPanels to match the current theme.
             if (!Application.RenderWithVisualStyles)
@@ -449,6 +455,10 @@ namespace Menu
             Settings.AntiAliasing = trackAntiAliasing.Value;
 
             // Simulation tab
+            Settings.SolarTimeMode = solarTimeSource.SelectedIndex;
+            Settings.SolarDate = solarDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            Settings.SolarLatitude = solarLatitude.Value.ToString(CultureInfo.InvariantCulture);
+            Settings.SolarLongitude = solarLongitude.Value.ToString(CultureInfo.InvariantCulture);
             Settings.SimpleControlPhysics = checkSimpleControlsPhysics.Checked;
             Settings.UseAdvancedAdhesion = checkUseAdvancedAdhesion.Checked;
             Settings.BreakCouplers = checkBreakCouplers.Checked;
@@ -524,6 +534,76 @@ namespace Menu
                 return $"{match.Groups[1]}x{match.Groups[2]}";
             }
             return Settings.WindowSize; // i.e. no change or message. Just ignore non-numeric entries
+        }
+
+        void InitializeSolarSettings()
+        {
+            var layout = new TableLayoutPanel { ColumnCount = 2, RowCount = 4, Dock = DockStyle.Fill };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.Controls.Add(solarTimeSource, 0, 0);
+            layout.SetColumnSpan(solarTimeSource, 2);
+            layout.Controls.Add(new Label { Text = catalog.GetString("Simulation date"), AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+            layout.Controls.Add(solarDate, 1, 1);
+
+            var coordinates = new TableLayoutPanel
+            {
+                ColumnCount = 4,
+                RowCount = 1,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty,
+            };
+            coordinates.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            coordinates.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            coordinates.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            coordinates.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            coordinates.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            coordinates.Controls.Add(new Label { Text = catalog.GetString("Lat."), AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+            coordinates.Controls.Add(solarLatitude, 1, 0);
+            coordinates.Controls.Add(new Label { Text = catalog.GetString("Lon."), AutoSize = true, Anchor = AnchorStyles.Left }, 2, 0);
+            coordinates.Controls.Add(solarLongitude, 3, 0);
+            layout.Controls.Add(coordinates, 0, 2);
+            layout.SetColumnSpan(coordinates, 2);
+            toolTip1.SetToolTip(solarLatitude, catalog.GetString("Latitude in decimal degrees. North is positive."));
+            toolTip1.SetToolTip(solarLongitude, catalog.GetString("Longitude in decimal degrees. East is positive."));
+            toolTip1.SetToolTip(solarTimeSource, catalog.GetString("Online modes send the selected coordinates and date to Sunrise-Sunset.org at launch."));
+
+            var attribution = new LinkLabel { Text = catalog.GetString("Sun data by Sunrise-Sunset.org"), AutoSize = true, Anchor = AnchorStyles.Left };
+            attribution.LinkClicked += (_, _) => Process.Start(new ProcessStartInfo("https://sunrise-sunset.org/") { UseShellExecute = true });
+            layout.Controls.Add(attribution, 0, 3);
+            layout.SetColumnSpan(attribution, 2);
+            groupBoxSolarSettings.Controls.Add(layout);
+
+            solarTimeSource.Items.AddRange(new[]
+            {
+                catalog.GetString("Use route settings"),
+                catalog.GetString("Online – train starting location"),
+                catalog.GetString("Online – custom location"),
+            });
+            solarTimeSource.SelectedIndex = Enum.IsDefined((SolarTimeSource)Settings.SolarTimeMode)
+                ? Settings.SolarTimeMode : (int)SolarTimeSource.Route;
+            if (DateTime.TryParseExact(Settings.SolarDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+                && date >= solarDate.MinDate && date <= solarDate.MaxDate)
+                solarDate.Value = date;
+            if (decimal.TryParse(Settings.SolarLatitude, NumberStyles.Float, CultureInfo.InvariantCulture, out var latitude))
+                solarLatitude.Value = Math.Clamp(latitude, solarLatitude.Minimum, solarLatitude.Maximum);
+            if (decimal.TryParse(Settings.SolarLongitude, NumberStyles.Float, CultureInfo.InvariantCulture, out var longitude))
+                solarLongitude.Value = Math.Clamp(longitude, solarLongitude.Minimum, solarLongitude.Maximum);
+
+            void UpdateEnabled()
+            {
+                var mode = (SolarTimeSource)solarTimeSource.SelectedIndex;
+                solarDate.Enabled = mode != SolarTimeSource.Route;
+                coordinates.Enabled = mode == SolarTimeSource.CustomLocation;
+            }
+            solarTimeSource.SelectedValueChanged += (_, _) => UpdateEnabled();
+            UpdateEnabled();
         }
 
         void buttonDefaultKeys_Click(object sender, EventArgs e)

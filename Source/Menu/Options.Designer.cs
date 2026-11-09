@@ -129,6 +129,7 @@
             this.label4 = new System.Windows.Forms.Label();
             this.checkDieselEnginesStarted = new System.Windows.Forms.CheckBox();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.groupBoxSolarSettings = new System.Windows.Forms.GroupBox();
             this.pbForcedRedAtStationStops = new System.Windows.Forms.PictureBox();
             this.pbLocationLinkedPassingPathProcessing = new System.Windows.Forms.PictureBox();
             this.pbOpenCloseDoorsOnAiTrains = new System.Windows.Forms.PictureBox();
@@ -1547,6 +1548,7 @@
             this.tabPageSimulation.Controls.Add(this.label4);
             this.tabPageSimulation.Controls.Add(this.checkDieselEnginesStarted);
             this.tabPageSimulation.Controls.Add(this.groupBox1);
+            this.tabPageSimulation.Controls.Add(this.groupBoxSolarSettings);
             this.tabPageSimulation.Controls.Add(this.checkBoilerPreheated);
             this.tabPageSimulation.Controls.Add(this.checkSimpleControlsPhysics);
             this.tabPageSimulation.Controls.Add(this.checkCurveSpeedDependent);
@@ -1694,6 +1696,16 @@
             this.groupBox1.TabIndex = 8;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Activity Options";
+            //
+            // groupBoxSolarSettings
+            //
+            this.groupBoxSolarSettings.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
+            this.groupBoxSolarSettings.Location = new System.Drawing.Point(324, 258);
+            this.groupBoxSolarSettings.Name = "groupBoxSolarSettings";
+            this.groupBoxSolarSettings.Size = new System.Drawing.Size(272, 138);
+            this.groupBoxSolarSettings.TabIndex = 9;
+            this.groupBoxSolarSettings.TabStop = false;
+            this.groupBoxSolarSettings.Text = "Sunrise and sunset";
             // 
             // pbForcedRedAtStationStops
             // 
@@ -3309,6 +3321,7 @@
         private System.Windows.Forms.Label labelExternalSound;
         private System.Windows.Forms.CheckBox checkDoubleWire;
         private System.Windows.Forms.GroupBox groupBox1;
+        private System.Windows.Forms.GroupBox groupBoxSolarSettings;
         private System.Windows.Forms.CheckBox checkDoorsAITrains;
         private System.Windows.Forms.CheckBox checkForcedRedAtStationStops;
         private System.Windows.Forms.Label label12;

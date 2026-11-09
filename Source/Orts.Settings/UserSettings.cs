@@ -25,6 +25,13 @@ using ORTS.Common;
 
 namespace ORTS.Settings
 {
+    public enum SolarTimeSource
+    {
+        Route,
+        TrainStart,
+        CustomLocation
+    }
+
     public class UserSettings : PropertySettingsBase
     {
         public static readonly string UserDataFolder;     // ie @"C:\Users\Wayne\AppData\Roaming\Open Rails"
@@ -185,6 +192,14 @@ namespace ORTS.Settings
         public int DayAmbientLight { get; set; }
         [Default(50)]
         public int NightAmbientLight { get; set; }
+        [Default((int)SolarTimeSource.Route)]
+        public int SolarTimeMode { get; set; }
+        [Default("")]
+        public string SolarDate { get; set; }
+        [Default("0")]
+        public string SolarLatitude { get; set; }
+        [Default("0")]
+        public string SolarLongitude { get; set; }
         [Default(AntiAliasingMethod.MSAA2x)]
         public int AntiAliasing { get; set; }
 

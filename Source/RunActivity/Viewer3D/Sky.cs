@@ -46,6 +46,7 @@ namespace Orts.Viewer3D
         readonly Vector3[] LunarPositionCache = new Vector3[72];
         readonly SkyInterpolation SkyInterpolation = new SkyInterpolation();
         internal bool CabIsDark => SkyInterpolation.CabIsDark;
+        internal DaylightSchedule DaylightSchedule => SkyInterpolation.GetDaylightSchedule();
 
         public SkyViewer(Viewer viewer)
         {
@@ -77,6 +78,8 @@ namespace Orts.Viewer3D
 
             SkyInterpolation.Step1 = SkyInterpolation.Step2 = (int)(SkyInterpolation.OldClockTime / 1200);
             SkyInterpolation.Step2 = SkyInterpolation.Step2 < SkyInterpolation.MaxSteps - 1 ? SkyInterpolation.Step2 + 1 : 0; // limit to max. steps in case activity starts near midnight
+            if (Viewer.ResolvedSolarDay != null)
+                SkyInterpolation.OldClockTime = Math.Floor(Viewer.Simulator.ClockTime / 1200) * 1200;
 
             // And the rest depends on the weather (which is changeable)
             Viewer.Simulator.WeatherChanged += (sender, e) => WeatherChanged();
@@ -101,9 +104,10 @@ namespace Orts.Viewer3D
             // Fill in the sun- and moon-position lookup tables
             for (var i = 0; i < SkyInterpolation.MaxSteps; i++)
             {
-                SolarPositionCache[i] = SunMoonPos.SolarAngle(Latitude, Longitude, Viewer.ENVFile.Sun, (float)i / SkyInterpolation.MaxSteps, date);
+                SolarPositionCache[i] = SunMoonPos.SolarAngle(Latitude, Longitude, Viewer.ENVFile.Sun, (float)i / SkyInterpolation.MaxSteps, date, Viewer.ResolvedSolarDay);
                 LunarPositionCache[i] = SunMoonPos.LunarAngle(Latitude, Longitude, (float)i / SkyInterpolation.MaxSteps, date);
             }
+            SkyInterpolation.UpdateDaylightSchedule(SolarPositionCache);
 
             // Phase of the moon is generated at random, but moon dog only occurs in winter
             MoonPhase = Viewer.Random.Next(8);
